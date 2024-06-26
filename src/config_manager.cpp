@@ -188,11 +188,7 @@ void load_zones(const char* path, uint8_t index_start, uint8_t index_end){
 		const char *zone_name = docx[buff]["name"];
 		Serial.printf("id:%d	name:%s \n",index_start,zone_name);
 		
-//#endif		
-		//initially sensor creats in unavailable state, later we activate it based on hardware
-        
-		any_sensor_array[index_start].device_state &= ~(1 << BIT_MASK_AVAILABLE);
-
+//#endif
 		if (docx[buff]["entry_delay"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_ENTRY_DELAY); }
 		else { any_sensor_array[index_start].device_state &= ~(1 << BIT_MASK_ENTRY_DELAY); }
 
