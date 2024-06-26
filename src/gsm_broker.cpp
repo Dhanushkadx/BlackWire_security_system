@@ -1085,44 +1085,10 @@ uint8_t ultimate_call_hadlr(){
 				if (Prev_caller_state!=Current_caller_state)
 				{
 					Prev_caller_state=Current_caller_state;
-					Serial.println(F("Play music"));
-					//Voice_play();
+					Serial.println(F("Hang up call"));
+					fona.hangUp();
+					Current_caller_state=0;
 				}
-				
-				const char msg_no_carry[12]="NO CARRIER";
-				const char msg_dtmf[10]="+DTMF:";
-				digitalWrite(PIN_VOICE_EN,HIGH);
-				delay(100);
-				digitalWrite(PIN_VOICE_EN,LOW);
-				delay(100);
-				/*if(RX_FINISHED==gsm.WaitResp(500,100)){
-					Serial.print(F("feed back received"));	
-					 Serial.println((char*)gsm.comm_buf);
-					
-				 if (gsm.IsStringReceived(msg_no_carry))
-					{
-						Serial.println(F("call hang up"));
-						Voice_stop();
-						Current_caller_state =0;
-						return ret_val;
-					}
-				 if (gsm.IsStringReceived(msg_dtmf))
-				 {
-					 Serial.print(F("DTMF>"));
-					 Serial.println((char*)gsm.comm_buf);					 
-							  if (strncmp(gsm.comm_buf+7,"0",1)>0)
-							  {
-								  Serial.println(F("Alarm canceled by DTMF"));
-								  strcpy(mode_change_source,"DTMF");
-								  Voice_stop();
-								  eCurrent_state=0;
-								  myAlarm_pannel.set_system_state(DEACTIVE,GSM_MODULE,0);
-								  ret_val=0;
-								  return ret_val;
-							  }
-							
-				 }
-					}*/
 					
 			}break;			
 	}	
