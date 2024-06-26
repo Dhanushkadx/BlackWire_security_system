@@ -713,6 +713,12 @@ void ALARM :: alarm_process_wired(){
 		//#ifdef _DEBUG		
 			Serial.printf_P(PSTR("Pro ID>>%d "),scanning_index);				
 //#endif
+		// zone is bypassed currntly
+		if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_BYPASSED))){
+			Serial.println(F("BYPASSED"));
+			 continue; // Skip the rest of the code and continue with the next iteration
+			 }
+
 		if((pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_RF))){
 			Serial.print(F("RF_ZONE."));
 		}
@@ -721,11 +727,7 @@ void ALARM :: alarm_process_wired(){
 			Serial.println(F("UNAVAILABLE."));
 			continue; // Skip the rest of the code and continue with the next iteration
 			}
-		// zone is bypassed currntly
-		else if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_BYPASSED))){
-			Serial.println(F("BYPASSED"));
-			 continue; // Skip the rest of the code and continue with the next iteration
-			 }
+		
 		
 		bool alarm_enable = false;
 
@@ -904,6 +906,12 @@ void ALARM :: enable_only_closed_sensors_as_it_is(){
 //#ifdef _DEBUG		
 		Serial.printf_P(PSTR("Zone ID>>%d "),scanning_index);				
 //#endif
+		// zone is bypassed currntly
+		if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_BYPASSED))){
+			Serial.println(F("BYPASSED"));
+			 continue; // Skip the rest of the code and continue with the next iteration
+			 }
+
 		if((pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_RF))){
 			Serial.print(F("RF_ZONE."));
 		}
@@ -911,12 +919,7 @@ void ALARM :: enable_only_closed_sensors_as_it_is(){
 		else if(!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_AVAILABLE))){ 
 			Serial.println(F("UNAVAILABLE."));
 			continue; // Skip the rest of the code and continue with the next iteration
-			}
-		// zone is bypassed currntly
-		else if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_BYPASSED))){
-			Serial.println(F("BYPASSED"));
-			 continue; // Skip the rest of the code and continue with the next iteration
-			 }	
+			}	
 				
 				
 			if (pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_LAST_STATE))// if the sensor is opened
