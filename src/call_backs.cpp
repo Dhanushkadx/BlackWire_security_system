@@ -9,38 +9,32 @@ GSM_CONTACTS_INFO STRUCT_GSM_contact_infor;
 SENS_INFO STRUCT_sens_infor;
 
 uint8_t call_back_alarm_Calling(){
-
-		publish_system_state("TRIGGERD","info/mode",true);
-	
-		uint8_t ret_val = 5;
-		#ifdef GSM_OK		
+		uint8_t ret_val = 1;
+		publish_system_state("TRIGGERD","info/mode",true);	
 		xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
-		
-		// check if there is alradey calling
-		EventBits_t uxBits = xEventGroupGetBits( EventRTOS_gsm );
-		
-		if(  ( uxBits & TASK_6_BIT ) != 0  )// alradey calling
-		{
-		/* if counter is equal 2 then set event bit of task1 */
-		}
-		else{
-			/* Set bit 0 and bit 4 in xEventGroup. */
-			xEventGroupSetBits(EventRTOS_gsm,    TASK_1_BIT );// call task invoking request
-			/* Set bit 0 and bit 4 in xEventGroup. */
-			xEventGroupClearBits(EventRTOS_gsm,    TASK_2_BIT );
-			ret_val = 0;
-		}
-
-		
-		#endif
-		
-		//eCrrunt_lcd_page = ALARMING;
-		
+#ifdef GSM_OK	
+		// check if calling enable flag
+		if(systemConfig.call_en==true){
+			//check if there is alradey calling
+			EventBits_t uxBits = xEventGroupGetBits( EventRTOS_gsm );
+			
+			if(  ( uxBits & TASK_6_BIT ) != 0  )// alradey calling
+			{
+			/* if counter is equal 2 then set event bit of task1 */
+			}
+			else{
+				/* Set bit 0 and bit 4 in xEventGroup. */
+				xEventGroupSetBits(EventRTOS_gsm,    TASK_1_BIT );// call task invoking request
+				/* Set bit 0 and bit 4 in xEventGroup. */
+				xEventGroupClearBits(EventRTOS_gsm,    TASK_2_BIT );
+				ret_val = 0;
+			}
+		}		
+#endif		
+		//eCrrunt_lcd_page = ALARMING;		
 		// set event for lcd
-		EventBits_t uxBits_lcd;
-		
-		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,    TASK_3_BIT );
-		
+		EventBits_t uxBits_lcd;		
+		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,    TASK_3_BIT );		
 		return ret_val;
 }
 
