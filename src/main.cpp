@@ -1428,13 +1428,16 @@ void buzzer(){
 		  {
 			  
 			   Serial.println(F("EVENT BUZZER_ALARM"));
-			  eCurrent_buzzer_state = BUZZER_ALARM;
+			   eCurrent_buzzer_state = BUZZER_ALARM;
 		  }
 		   if(  ( uxBits & TASK_3_BIT ) != 0  )// Disarm
 		   {
 			   
 			   Serial.println(F("EVENT BUZZER_RF"));
-			  if(eCurrent_buzzer_state != BUZZER_ALARM){ eCurrent_buzzer_state = BUZZER_RF;}
+			  if(eCurrent_buzzer_state != BUZZER_ALARM){ 
+					eCurrent_buzzer_state = BUZZER_RF;
+					ePrev_buzzer_state = BUZZER_OFF;// bug fix for no buzzer sound when sensor trigger in disarm mode
+				}
 			   
 			  
 		   }

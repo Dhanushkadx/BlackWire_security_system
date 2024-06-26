@@ -381,8 +381,19 @@ if (request->hasParam("txt0")) {
 		inputMessage = request->getParam("txt2")->value();
 		docrz["sysconf"]["bell_time_out"]= inputMessage;
 		
+	}    // calling attempts
+	 if (request->hasParam("list0")) {
+            inputMessage = request->getParam("list0")->value();
+            Serial.printf("Selected call attempt value:%s",inputMessage.c_str());
+			docrz["sysconf"]["call_attempts"] = inputMessage;
+     }
+	 /*"alrm call Enable"*/
+	if (request->hasParam("cb5")) {
+		docrz["sysconf"]["call_en"]= true;
 	}
-	
+	else{
+		docrz["sysconf"]["call_en"]= false;
+	}
 	
 	/*"wifissid_sta"*/
 	if (request->hasParam("txt3")) {

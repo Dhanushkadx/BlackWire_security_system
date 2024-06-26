@@ -582,7 +582,7 @@ void gsm_manager(){
 				EventBits_t uxBits;
 				uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_5_BIT );// SMS task invoking request
 			 }
-			 if(  ( uxBits & TASK_1_BIT ) != 0  )// CALL TASK invoking request.
+			 if(  ( uxBits & TASK_1_BIT ) != 0  )// CALL TASK invoking request form alarm notify functions.
 			 {
 				 /* Clear bit 1. */
 				 uxBits = xEventGroupClearBits(
@@ -856,7 +856,7 @@ void creat_power_sms(bool power_state){
 //6.move to next number
 uint8_t ultimate_call_hadlr(){
 	static int  Prev_caller_state = -1;
-	static int call_try_times=2;
+	static int call_try_times=systemConfig.call_attempts;
 	uint8_t ret_val=3;
 	static char current_phone_number[15];
 	
@@ -1062,7 +1062,7 @@ uint8_t ultimate_call_hadlr(){
 						if (!call_try_times)
 						{
 							Serial.println(F("try times over moving to next number"));
-							call_try_times=2;
+							call_try_times=systemConfig.call_attempts;
 							alarm_calling_index++;
 						}
 						Current_caller_state=0;

@@ -36,7 +36,7 @@ Struct_SENS_INFO SENS_array[sensor_count];
 
 
 void setup_sensor_settings(){
-
+	Serial.print(F("SETUP SENSORS"));
 	// defaultly all sensors are disable
 	for(uint8_t index=0; index<48; index++){
 		any_sensor_array[index].device_state &= ~(1 << BIT_MASK_AVAILABLE);

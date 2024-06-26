@@ -65,13 +65,8 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 	 systemConfig.sensor_debounce_time = doc["sysconf"]["debounce_time"];
 	 systemConfig.wifi_sta_en = doc["sysconf"]["wifi_sta_en"];
 	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
-	/*char wifissid_ap[15]; //":"dxdxdxdxdx",
-	 char wifissid_sta[15]; //":"dxdxdxdxdx",
-	 char wifipass[15]; //": "xxxxxxxxxx",
-	 uint8_t call_attempts;//": 2,
-	 boolean call_en;  //": true,
-	 char  installer_no[10];  //":"000000000000",
-	 char installer_pass[10]   //":"000*/
+	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
+	 systemConfig.call_en = doc["sysconf"]["call_en"];
 	if (!digitalRead(PROGRAM_PIN))
 	{		
 		 strcpy(systemConfig.installer_pass, "admin");	
