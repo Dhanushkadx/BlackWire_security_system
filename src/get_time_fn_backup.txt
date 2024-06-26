@@ -1,0 +1,22 @@
+char buff[100];
+		 fona.getTime(buff,100);
+		 Serial.print(F("Time:"));
+		 Serial.println(buff);
+		 char time_buff[20];
+		 if (strlen(buff)>0)
+		 {
+			    strlcpy( TimeToSend_buff,buff+10,5);
+				const TickType_t x100ms = pdMS_TO_TICKS( 100 );
+				/* Send the string to the message buffer.  Return immediately if there is
+				not enough space in the buffer. */
+				size_t xBytesSent;
+				xBytesSent = xMessageBufferSend( xTimeBuffer,
+											( void * ) TimeToSend_buff,
+											strlen( TimeToSend_buff ), 0 );
+
+				if( xBytesSent != strlen( TimeToSend_buff ) )
+				{
+					/* The string could not be added to the message buffer because there was
+					not enough free space in the buffer. */
+				}
+		 }	

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GSM Alarm System</title>
+    <style type="text/css">
+        .navsec {
+            font-family: Helvetica Neue, Helvetica, sans-serif;
+            background: tomato;
+            border: 1px solid black;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-right: 10px;
+            margin-left: 10px;
+            padding: 20px 12px 10px 10px;
+        }
+
+        .fieldSET {
+            display: inline;
+            text-align: left;
+            padding: 10px 12px 10px 10px;
+
+        }
+
+        .submit {
+            text-align: center;
+
+            padding: 10px 120px 10px 10px;
+
+
+        }
+
+        .selSpan ui {
+            display: inline;
+
+        }
+
+        .skew-menu {
+            text-align: center;
+            margin-top: 9em;
+            margin-bottom: 20px;
+            margin-top: 60px;
+        }
+
+        .skew-menu ul {
+            display: inline-block;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            transform: skew(-25deg);
+        }
+
+        .skew-menu ul li {
+            background: #fff;
+            float: left;
+            border-right: 1px solid #eee;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+            text-transform: uppercase;
+            color: #555;
+            font-weight: bolder;
+            transition: all 0.3s linear;
+        }
+
+        .skew-menu ul li:first-child {
+            border-radius: 7px 0 0 7px;
+        }
+
+        .skew-menu ul li:last-child {
+            border-right: none;
+            border-radius: 0 7px 7px 0;
+        }
+
+        .skew-menu ul li:hover {
+            background: #eee;
+            color: tomato;
+        }
+
+        .skew-menu ul li a {
+            display: block;
+            padding: 1em 2em;
+            color: inherit;
+            text-decoration: none;
+            transform: skew(25deg);
+        }
+
+        .input-field {
+            display: inline-block;
+        }
+
+        .form-style-2 {
+            max-width: 750px;
+            padding: 20px 12px 10px 100px;
+            font: 13px Arial, Helvetica, sans-serif;
+        }
+
+        .form-style-2-heading {
+            text-align: left;
+            font-weight: bold;
+            font-style: italic;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+            font-size: 15px;
+            padding-bottom: 3px;
+            padding-top: 10px;
+        }
+
+        .form-style-2 label {
+            display: inline;
+            margin: 0px 0px 15px 0px;
+        }
+
+        .form-style-2 label>span {
+            width: 100px;
+            font-weight: bold;
+            float: left;
+            padding-top: 8px;
+            padding-right: 5px;
+        }
+
+        .form-style-2 span.required {
+            color: red;
+        }
+
+        .form-style-2 .tel-number-field {
+            width: 40px;
+            text-align: center;
+        }
+
+        .form-style-2 input.input-field,
+        .form-style-2 .select-field {
+            width: 48%;
+        }
+
+        .form-style-2 input.input-field,
+        .form-style-2 .tel-number-field,
+        .form-style-2 .textarea-field,
+        .form-style-2 .select-field {
+            box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            border: 1px solid #C2C2C2;
+            box-shadow: 1px 1px 4px #EBEBEB;
+            -moz-box-shadow: 1px 1px 4px #EBEBEB;
+            -webkit-box-shadow: 1px 1px 4px #EBEBEB;
+            border-radius: 3px;
+            -webkit-border-radius: 3px;
+            -moz-border-radius: 3px;
+            padding: 7px;
+            outline: none;
+        }
+
+        .form-style-2 .input-field:focus,
+        .form-style-2 .tel-number-field:focus,
+        .form-style-2 .textarea-field:focus,
+        .form-style-2 .select-field:focus {
+            border: 1px solid #0C0;
+        }
+
+        .form-style-2 .textarea-field {
+            height: 100px;
+            width: 55%;
+        }
+
+        .form-style-2 input[type=submit],
+        .form-style-2 input[type=button] {
+            border: none;
+            padding: 8px 15px 8px 15px;
+            background: #FF8500;
+            color: #fff;
+            box-shadow: 1px 1px 4px #DADADA;
+            -moz-box-shadow: 1px 1px 4px #DADADA;
+            -webkit-box-shadow: 1px 1px 4px #DADADA;
+            border-radius: 3px;
+            -webkit-border-radius: 3px;
+            -moz-border-radius: 3px;
+        }
+
+        .form-style-2 input[type=submit]:hover,
+        .form-style-2 input[type=button]:hover {
+            background: #EA7B00;
+            color: #fff;
+        }
+
+    </style>
+
+        <script type="text/javascript">
+        var gateway = `ws://${window.location.hostname}/ws`;
+        var websocket;
+        window.addEventListener('load', onLoad);
+
+        function onLoad(event) {
+            initWebSocket();
+            initButtons();
+        }
+
+        function initWebSocket() {
+            console.log('Trying to open a WebSocket connection...');
+            websocket = new WebSocket(gateway);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+        }
+
+        function onOpen(event) {
+            console.log('Connection opened so get default values');
+            websocket.send(JSON.stringify({
+                action: "sys"
+            }));
+
+        }
+
+        function onClose(event) {
+            console.log('Connection closed');
+            setTimeout(initWebSocket, 2000);
+        }
+
+        function onMessage(event) {
+
+            const objectToRead = JSON.parse(event.data);
+
+            if (objectToRead.respHeader === "pint") {
+                console.log(objectToRead.respHeader);
+                document.getElementById('txt0').value = objectToRead.sysconf.entry_delay_time;
+                document.getElementById('txt1').value = objectToRead.sysconf.exit_delay_time;
+                document.getElementById('txt2').value = objectToRead.sysconf.bell_time_out;
+                document.getElementById('txt3').value = objectToRead.sysconf.wifissid_sta;
+                document.getElementById('psw0').value = objectToRead.sysconf.wifipass;
+                document.getElementById('txt4').value = objectToRead.sysconf.installer_no;
+                document.getElementById('psw1').value = objectToRead.sysconf.installer_pass;
+
+                document.getElementById('txt5').value = objectToRead.sysconf.mqtt_server;
+                document.getElementById('txt6').value = objectToRead.sysconf.mqtt_port;
+                document.getElementById('txt7').value = objectToRead.sysconf.mqtt_user;
+                document.getElementById('psw2').value = objectToRead.sysconf.mqtt_pass;
+                      
+                document.getElementById('cb0').checked = objectToRead.sysconf.et_en;
+                document.getElementById('cb1').checked = objectToRead.sysconf.et_beep;
+                document.getElementById('cb2').checked = objectToRead.sysconf.xt_en;
+                document.getElementById('cb3').checked = objectToRead.sysconf.xt_beep;
+                document.getElementById('cb4').checked = objectToRead.sysconf.siren_en;
+                document.getElementById('cb5').checked = objectToRead.sysconf.call_en;
+                document.getElementById('cb6').checked = objectToRead.sysconf.wifi_sta_en;
+                document.getElementById('cb7').checked = objectToRead.sysconf.mqtt_en;
+            }
+            if (objectToRead.respHeader === "data") {
+                console.log(objectToRead.data);
+                document.getElementById('rfid').value = objectToRead.scan_rfid;
+            }
+
+        }
+
+        function initButtons() {
+            document.getElementById('bt2').addEventListener('click', callBack_bt2);
+            document.getElementById('bt0').addEventListener('click', callBack_bt0);
+            document.getElementById('bt1').addEventListener('click', callBack_bt1);
+        }
+
+
+
+        function callBack_bt0(event) {
+            websocket.send(JSON.stringify({
+                action: "pg_system_cmd",
+                command: "bt0",
+                
+            }));
+        }
+
+        function callBack_bt1(event) {
+            websocket.send(JSON.stringify({
+                action: "pg_system_cmd",
+                command: "bt1"
+            }));
+        }
+
+        function callBack_bt2(event) {
+            websocket.send(JSON.stringify({
+                action: "pg_system_cmd",
+                command: "bt2",
+               
+            }));
+        }
+    </script>
+
+
+</head>
+
+<body>
+    <div class="navsec">
+        <!-- partial:index.partial.html -->
+        <nav class="skew-menu">
+            <ul>
+                <li><a href="index.html">System</a></li>
+                <li><a href="zone.html">Zones</a></li>
+                <li><a href="contact.html">contacts</a></li>
+                <li><a href="log.html">log</a></li>
+            </ul>
+        </nav>
+        <!-- partial -->
+    </div>
+    <div class="form-style-2">
+        <h2>SYSTEM SETTING</h2>
+        <div class="form-style-2-heading">General </div>
+
+        <form action="/get" target="hidden-form">
+            <div class="fieldSET">
+                <div>
+                    <span id=s elect_div>
+  <label for="txt0">Entry Delay Time:</label>
+  <input type="text" id="txt0" name="txt0"/>
+  <input type = "checkbox" id = "cb0" name = "cb0"> Enable
+  <input type = "checkbox" id = "cb1" name = "cb1"> Beep
+ </span>
+                </div>
+                <br>
+                <div>
+                    <label for="txt1">Exit Delay Time:</label>
+                    <input type="text" id="txt1" name="txt1" />
+                    <input type="checkbox" id="cb2" name="cb2"> Enable
+                    <input type="checkbox" id="cb3" name="cb3"> Beep
+
+                </div>
+                <br>
+                <div>
+                    <label for="txt2">Siren Duration:</label>
+                    <input type="text" id="txt2" name="txt2" />
+                    <input type="checkbox" id="cb4" name="cb4"> Enable
+
+                </div>
+                <br>
+                <div>
+                    <span id=s elect_div>
+            <label for="list0">Calling Attempts:</label>
+            <select name="list0" id="list0">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+          <input type = "checkbox" id = "cb5" name = "cb5"> Enable
+     </span>
+                      </div>
+                <br>
+                 <div>
+                   <label for="txt4">Installer Number:</label>
+                    <input type="txt" id="txt4" name="txt4" />
+                </div>
+                <br>
+                 <div>
+                   <label for="psw1">Installer code:</label>
+                    <input type="password" id="psw1" name="psw1" />
+                </div>
+                <br> 
+                <div class="form-style-2-heading">Server </div>
+                <br> 
+                <div>
+                    <label for="txt3">Wi-Fi SSID:</label>
+                    <input type="txt" id="txt3" name="txt3" />
+                    <input type="checkbox" id="cb6" name="cb6"> Enable STA             
+                </div>
+                <br>
+                <div>
+                   <label for="psw0">Passwrd:</label>
+                    <input type="password" id="psw0" name="psw0" />
+                </div>
+                <br>
+                <div>
+                   <label for="txt5">Server:</label>
+                    <input type="txt" id="txt5" name="txt5" />
+                    <input type="checkbox" id="cb7" name="cb7"> Enable MQTT
+                </div>
+                <br>
+                 <div>
+                   <label for="txt6">Port:</label>
+                    <input type="txt" id="txt6" name="txt6" />
+                </div>
+                <br>
+                <div>
+                   <label for="txt7">User:</label>
+                    <input type="txt" id="txt7" name="txt7" />
+                </div>
+                <br>
+                 <div>
+                   <label for="psw2">Password:</label>
+                    <input type="password" id="psw2" name="psw2" />
+                </div>
+            </div>
+            <div class="submit">
+                <label><span> </span><input type="submit" value="Submit" /></label>
+            </div>
+        </form>
+          <div class="form-style-2-heading">Function Test </div>
+          <div>
+                   <button id="bt0" type="button">Siren Test</button>
+             <button id="bt1" type="button">Arm</button>
+            <button id="bt2" type="button">Disarm</button>
+                </div>
+</body>
+
+</html>

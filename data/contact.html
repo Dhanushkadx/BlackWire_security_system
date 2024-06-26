@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>GSM Alarm System</title>
+</head>
+<body>
+    <div class="navsec">
+    <!-- partial:index.partial.html -->
+    <nav class="skew-menu">
+      <ul>
+        <li><a href="index.html">System</a></li>
+        <li><a href="zone.html">Zones</a></li>
+        <li><a href="contact.html">contacts</a></li>
+        <li><a href="log.html">log</a></li>
+      </ul>
+    </nav>
+    <!-- partial -->
+    </div>
+<div class="form-style-2">
+<h2>CONTACTS</h2>
+<div class="form-style-2-heading">Provide your information</div>
+
+<form action="/get" target="hidden-form">
+ <div>
+  <label for="tp1">TELEPHONE 1:</label>
+  <input type="text" id="tp1" name="tp1"/>
+  <input type = "checkbox" id = "SMS1" name = "SMS1" > SMS
+  <input type = "checkbox" id = "CALL1" name = "CALL1" > CALL
+ </div>
+ <br>
+ <div>
+  <label for="tp2">TELEPHONE 2:</label>
+  <input type="text" id="tp2" name="tp2"/>
+  <input type = "checkbox" id = "SMS2" name = "SMS2" > SMS
+  <input type = "checkbox" id = "CALL2" name = "CALL2" > CALL
+ </div>
+ <br>
+  <div>
+  <label for="tp3">TELEPHONE 3:</label>
+  <input type="text" id="tp3" name="tp3"/>
+ <input type = "checkbox" id = "SMS3" name = "SMS3" > SMS
+  <input type = "checkbox" id = "CALL3" name = "CALL3" > CALL
+ </div>
+ <br>
+  <div>
+  <label for="tp4">TELEPHONE 4:</label>
+  <input type="text" id="tp4" name="tp4" />
+ <input type = "checkbox" id = "SMS4" name = "SMS4" > SMS
+  <input type = "checkbox" id = "CALL4" name = "CALL4" > CALL
+ </div>
+ <br>
+  <div>
+  <label for="tp5">TELEPHONE 5:</label>
+  <input type="text" id="tp5" name="tp5"/>
+  <input type = "checkbox" id = "SMS5" name = "SMS5" > SMS
+  <input type = "checkbox" id = "CALL5" name = "CALL5" > CALL
+ </div>
+ <br>
+ <div>
+  <label for="tp6">TELEPHONE 6:</label>
+  <input type="text" id="tp6" name="tp6"/>
+  <input type = "checkbox" id = "SMS6" name = "SMS6" > SMS
+  <input type = "checkbox" id = "CALL6" name = "CALL6" > CALL
+ </div>
+ <br>
+  <div>
+  <label for="tp7">TELEPHONE 7:</label>
+  <input type="text" id="tp7" name="tp7"/>
+  <input type = "checkbox" id = "SMS7" name = "SMS7" > SMS
+  <input type = "checkbox" id = "CALL7" name = "CALL7" > CALL
+ </div>
+ <br>
+  <div>
+  <label for="tp8">TELEPHONE 8:</label>
+  <input type="text" id="tp8" name="tp8"/>
+  <input type = "checkbox" id = "SMS8" name = "SMS8" > SMS
+  <input type = "checkbox" id = "CALL8" name = "CALL8" > CALL
+ </div>
+ <br>
+ 
+<input type="submit" value="Submit" onclick="submitMessage()">
+</form>
+<iframe style="display:none" name="hidden-form"></iframe>
+<div class="form-style-2-heading">RF Remote scanning</div>
+ 
+ <div class = "fieldSET">
+     <span id = select_div>
+            <label for="remidlist">Select zone:</label>
+            <select name="zone" id="remidlist">
+            <option value="1">User 1</option>
+            <option value="2">User 2</option>
+            <option value="3">User 3</option>
+            <option value="4">User 4</option>
+            <option value="5">User 5</option>
+            <option value="6">User 6</option>
+            <option value="7">User 7</option>
+            <option value="8">User 8</option>
+          </select>
+     </span>
+ <span id = "rfbox">
+            <label for="remid">Remote ID:</label>
+            <input type="text" id="remid" name="remid"/>
+            <button id="p2bt0" type="button">Read</button>
+             <button id="p2bt1" type="button">Scan</button>
+            <button id="p2bt2" type="button">Set</button>
+     </span>
+ 
+ </div>
+</div>
+</div>
+  
+</body>
+</html>
+<style type="text/css">
+
+    .navsec {
+  font-family: Helvetica Neue, Helvetica, sans-serif;
+  background: tomato;
+  border: 1px solid black;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  margin-right: 10px;
+  margin-left: 10px;
+ padding: 20px 12px 10px 10px;
+}
+.fieldSET{
+    display: inline;
+    text-align: left;
+    padding: 10px 12px 10px 10px;
+    
+}
+
+.submit{
+    text-align: center;
+ padding: 10px 120px 10px 10px;
+}
+
+.selSpan ui  {
+  display: inline;
+ 
+}
+.skew-menu {
+  text-align: center;
+  margin-top: 9em;
+  margin-bottom: 20px;
+   margin-top: 60px;
+}
+.skew-menu ul {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transform: skew(-25deg);
+}
+.skew-menu ul li {
+  background: #fff;
+  float: left;
+  border-right: 1px solid #eee;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  text-transform: uppercase;
+  color: #555;
+  font-weight: bolder;
+  transition: all 0.3s linear;
+}
+.skew-menu ul li:first-child {
+  border-radius: 7px 0 0 7px;
+}
+.skew-menu ul li:last-child {
+  border-right: none;
+  border-radius: 0 7px 7px 0;
+}
+.skew-menu ul li:hover {
+  background: #eee;
+  color: tomato;
+}
+.skew-menu ul li a {
+  display: block;
+  padding: 1em 2em;
+  color: inherit;
+  text-decoration: none;
+  transform: skew(25deg);
+}
+.input-field {
+   display:inline-block;
+}
+.form-style-2{
+	max-width: 750px;
+	padding: 20px 12px 10px 100px;
+	font: 13px Arial, Helvetica, sans-serif;
+}
+.form-style-2-heading{
+    text-align: left;
+	font-weight: bold;
+	font-style: italic;
+	border-bottom: 2px solid #ddd;
+	margin-bottom: 20px;
+	font-size: 15px;
+	padding-bottom: 3px;
+	padding-top: 10px;
+}
+.form-style-2 label{
+	display: inline;
+	margin: 0px 0px 15px 0px;
+}
+.form-style-2 label > span{
+	width: 100px;
+	font-weight: bold;
+	float: left;
+	padding-top: 8px;
+	padding-right: 5px;
+}
+.form-style-2 span.required{
+	color:red;
+}
+.form-style-2 .tel-number-field{
+	width: 40px;
+	text-align: center;
+}
+.form-style-2 input.input-field, .form-style-2 .select-field{
+	width: 48%;	
+}
+.form-style-2 input.input-field, 
+.form-style-2 .tel-number-field, 
+.form-style-2 .textarea-field, 
+ .form-style-2 .select-field{
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	border: 1px solid #C2C2C2;
+	box-shadow: 1px 1px 4px #EBEBEB;
+	-moz-box-shadow: 1px 1px 4px #EBEBEB;
+	-webkit-box-shadow: 1px 1px 4px #EBEBEB;
+	border-radius: 3px;
+	-webkit-border-radius: 3px;
+	-moz-border-radius: 3px;
+	padding: 7px;
+	outline: none;
+}
+.form-style-2 .input-field:focus, 
+.form-style-2 .tel-number-field:focus, 
+.form-style-2 .textarea-field:focus,  
+.form-style-2 .select-field:focus{
+	border: 1px solid #0C0;
+}
+.form-style-2 .textarea-field{
+	height:100px;
+	width: 55%;
+}
+.form-style-2 input[type=submit],
+.form-style-2 input[type=button]{
+	border: none;
+	padding: 8px 15px 8px 15px;
+	background: #FF8500;
+	color: #fff;
+	box-shadow: 1px 1px 4px #DADADA;
+	-moz-box-shadow: 1px 1px 4px #DADADA;
+	-webkit-box-shadow: 1px 1px 4px #DADADA;
+	border-radius: 3px;
+	-webkit-border-radius: 3px;
+	-moz-border-radius: 3px;
+}
+.form-style-2 input[type=submit]:hover,
+.form-style-2 input[type=button]:hover{
+	background: #EA7B00;
+	color: #fff;
+}
+</style>
+
+<script>
+var gateway = `ws://${window.location.hostname}/ws`;
+var websocket;
+window.addEventListener('load', onLoad);
+
+function onLoad(event) {
+    initWebSocket();
+	initButtons();
+}
+function initWebSocket() {
+    console.log('Trying to open a WebSocket connection...');
+    websocket = new WebSocket(gateway);
+    websocket.onopen    = onOpen;
+    websocket.onclose   = onClose;
+    websocket.onmessage = onMessage;
+}
+
+function onOpen(event) {
+    console.log('Connection opened so get tp default values');
+  websocket.send(JSON.stringify({
+  action: "users"}));
+ 
+}
+
+function onClose(event) {
+    console.log('Connection closed');
+    setTimeout(initWebSocket, 2000);
+}
+
+function onMessage(event) {
+
+  const objectToRead = JSON.parse(event.data);
+
+  if (objectToRead.respHeader === "pint") {
+    console.log(objectToRead.respHeader);
+document.getElementById('tp1').value = objectToRead.P1.number;
+document.getElementById('tp2').value = objectToRead.P2.number;
+document.getElementById('tp3').value = objectToRead.P3.number;
+document.getElementById('tp4').value = objectToRead.P4.number;
+document.getElementById('tp5').value = objectToRead.P5.number;
+document.getElementById('tp6').value = objectToRead.P6.number;
+document.getElementById('tp7').value = objectToRead.P7.number;
+document.getElementById('tp8').value = objectToRead.P8.number;
+
+document.getElementById('SMS1').checked = objectToRead.P1.sms;
+document.getElementById('SMS2').checked = objectToRead.P2.sms;
+document.getElementById('SMS3').checked = objectToRead.P3.sms;
+document.getElementById('SMS4').checked = objectToRead.P4.sms;
+document.getElementById('SMS5').checked = objectToRead.P5.sms;
+document.getElementById('SMS6').checked = objectToRead.P6.sms;
+document.getElementById('SMS7').checked = objectToRead.P7.sms;
+document.getElementById('SMS8').checked = objectToRead.P8.sms;
+
+document.getElementById('CALL1').checked = objectToRead.P1.call;
+document.getElementById('CALL2').checked = objectToRead.P2.call;
+document.getElementById('CALL3').checked = objectToRead.P3.call;
+document.getElementById('CALL4').checked = objectToRead.P4.call;
+document.getElementById('CALL5').checked = objectToRead.P5.call;
+document.getElementById('CALL6').checked = objectToRead.P6.call;
+document.getElementById('CALL7').checked = objectToRead.P7.call;
+document.getElementById('CALL8').checked = objectToRead.P8.call;
+
+
+
+  }
+if (objectToRead.respHeader === "data") {
+    console.log(objectToRead.data);
+ document.getElementById('remid').value = objectToRead.scan_rfid ;
+}
+
+}
+
+function initButtons() {
+    document.getElementById('p2bt2').addEventListener('click', callBack_bt2);
+    document.getElementById('p2bt0').addEventListener('click', callBack_bt0);
+    document.getElementById('p2bt1').addEventListener('click', callBack_bt1);
+}
+
+function callBack_bt0(event) {  
+websocket.send(JSON.stringify({
+  action: "pg_contacts_cmd",
+  command: "p2bt0",
+  data0: document.getElementById('remidlist').value
+}));
+}
+function callBack_bt1(event) {  
+websocket.send(JSON.stringify({
+  action: "pg_contacts_cmd",
+  command: "p2bt1"
+}));
+}
+
+function callBack_bt2(event) {  
+websocket.send(JSON.stringify({
+  action: "pg_contacts_cmd",
+  command: "p2bt2",
+  data0: document.getElementById('remid').value,
+  data1: document.getElementById('remidlist').value
+}));
+}
+</script>

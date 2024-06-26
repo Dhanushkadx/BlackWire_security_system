@@ -1,0 +1,99 @@
+{
+  "zone08": {
+    "name": "zone 08",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone09": {
+    "name": "zone 09",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone10": {
+    "name": "zone 10",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone11": {
+    "name": "zone 11",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000",
+    "": false
+  },
+  "zone12": {
+    "name": "zone 12",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone13": {
+    "name": "zone 13",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone14": {
+    "name": "zone 14",
+    "bypass": false,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  },
+  "zone15": {
+    "name": "zone 15",
+    "bypass": true,
+    "exit_delay": false,
+    "entry_delay": false,
+    "x24h": false,
+    "alarm": false,
+    "perimeter": false,
+    "silent": false,
+    "rf": false,
+    "rfid": "00000000"
+  }
+}

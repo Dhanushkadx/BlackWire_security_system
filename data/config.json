@@ -1,0 +1,32 @@
+{
+  "sysconf": {
+     "entry_delay_time":15,
+     "exit_delay_time":15,
+     "et_en":false,
+     "et_beep":true,
+     "entry_delay_time": 20,
+     "xt_en": false,
+     "xt_beep":true,
+     "exit_delay_time": 20,
+     "wifissid_ap":"BLACK WIRE",
+     "wifissid_sta":"DeepNet",
+     "wifi_sta_en":true,
+     "wifipass": "dynamicocean093",
+     "call_attempts": 2,
+     "call_en": true,
+     "installer_no":"+94714427691",
+     "installer_pass":"000000",
+     "cli_access_level": 0,
+     "last_sms_sender": "+94714427691",
+     "battery_charging_en": 0,
+     "bell_time_out": 10,
+     "last_system_state": "Disarm",
+     "siren_en": true,
+     "debounce_time":25,
+     "mqtt_server":"192.168.25.20",
+     "mqtt_port":1883,
+     "mqtt_user":"dhanushkadx",
+     "mqtt_pass":"cyclone10153",
+     "mqtt_en":false
+   }
+ }

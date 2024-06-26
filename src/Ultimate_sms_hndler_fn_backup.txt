@@ -1,0 +1,243 @@
+void ultimate_sms_hadlr(){
+	static int Current_smsHdlr_state = 0, Prev_smsHdlr_state = -1;
+	static int now_sending_index = 0 ;
+	static int sms_send_try_time=0;
+	static boolean invalid_phone_number=true;
+	//return -1;
+	if (!sms_broad_cast_request)
+	{
+		Current_smsHdlr_state = 0;
+		now_sending_index = 0 ;
+		sms_broadcast_index=1;
+		sms_send_try_time=0;
+		return;
+	}
+	//sms_broad_cast_request = false;
+	//group sms-1, privet reply-2, notification phones only-3	
+	switch (Current_smsHdlr_state)
+	{
+		case 0:{
+		if (Prev_smsHdlr_state!= Current_smsHdlr_state)
+		{
+			Prev_smsHdlr_state = Current_smsHdlr_state;
+			Timer_sms_netwok_busy_delay.interval=10000;
+			Timer_sms_netwok_busy_delay.previousMillis=millis();
+			
+			
+		}
+		
+		/* Wait a maximum of 100ms for either bit 0 or bit 4 to be set within
+		  the event group.  Clear the bits before exiting. */
+		const TickType_t xTicksToWait = 100 / portTICK_PERIOD_MS;
+		EventBits_t uxBits;
+		uxBits = xEventGroupWaitBits(
+					EventRTOS_gsm,   /* The event group being tested. */
+					TASK_1_BIT, /* The bits within the event group to wait for. */
+					pdTRUE,        /* BIT_1 should be cleared before returning. */
+					pdFALSE,       /*wait for all both bits, . */
+					xTicksToWait );/* Wait a maximum of 100ms for either bit to be set. */
+
+		  if(  ( uxBits & TASK_1_BIT ) != 0  )
+		  {
+			  /* xEventGroupWaitBits() returned because both bits were set. */
+			   Serial.println(F("EVENT GSM - SMS task Suspended"));
+			  //Serial.print(F("SMS loop suspended"));
+			 
+			  //releaseMutex_GSM_CALLING();
+			  Current_caller_state=0;
+			  xTaskCreate(Task5code,"Task5",5000,NULL,5,&Task5);
+			  vTaskSuspend(NULL);
+			   Timer_sms_netwok_busy_delay.previousMillis=millis();
+		  }
+  
+			
+			if (Timer_sms_netwok_busy_delay.Timer_run())
+			{
+			
+				Serial.println(F("GSM busy time out request rest gsm module now"));
+				
+				/*if (!gsm.begin(38400))
+				{*/
+					gsm_module_disable = true;
+					Serial.println(F("GSM disable"));
+				//}
+				Current_smsHdlr_state = 0;
+				gsm_module_get_online_try_times++;
+				if (gsm_module_get_online_try_times>2)
+				{
+					Serial.println(F("GSM disable"));
+					gsm_module_disable = true;
+				}
+			}
+			
+			while(!(xSemaphoreTake( xMutex_GSM, portMAX_DELAY )));
+			
+			if (fona.getNetworkStatus()==1)
+			{
+				Current_smsHdlr_state=1;
+				Serial.println(F("CHECK_REGISTATION BEFOR SMS"));
+			}
+			//fona.SetCommLineStatus(CLS_FREE);
+			 xSemaphoreGive( xMutex_GSM );
+			 
+			
+		}break;
+		case 1:{
+		if (Prev_smsHdlr_state!= Current_smsHdlr_state)
+		{
+			Prev_smsHdlr_state = Current_smsHdlr_state;
+			char num[13]="";
+			// check sms type if type is 3 only send to last sender			
+			if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==3)
+			{
+				Serial.println(F("This sms only send to last sender!"));
+				strlcpy(num,systemConfig.last_sms_sender,13);//+94714427691
+				num[12]='\0';
+				if (!phone_number_validat(num))// validating number
+				{
+					Serial.println(F("this sms is only for last num but its a an invalid number"));
+					//Current_smsHdlr_state=0;
+					//sms_broad_cast_request=false;
+					Current_smsHdlr_state=2;					
+				}
+			}
+		
+			else{
+				
+			//check number
+			strlcpy(num,get_GSM_number(sms_broadcast_index),13);//+94714427691
+			num[12]='\0';
+			char* ch = strstr("N",num);// validating number
+			if (ch!=NULL)
+			{				
+				Serial.println(F("all complete for the given number"));
+				Current_smsHdlr_state=2;
+				return;
+			}	
+			/*		
+			if (!phone_number_validat(num))// validating number
+			{
+				Serial.println(F("Validating phone number Error! go to next number"));
+				sms_broadcast_index++;
+				Current_smsHdlr_state=0;
+				return;				
+			}						
+			if (!get_is_GSM_number_sms(sms_broadcast_index))
+			{
+				Serial.println(F("not a sms number"));
+				sms_broadcast_index++;
+				Current_smsHdlr_state=0;
+				return;				
+			}*/
+			}			
+			
+			Serial.print(F("Transmitting SMS to>"));
+			Serial.print(num);
+			Serial.print(F("sms>"));
+			Serial.println(SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str());
+			 // To send an SMS, call modem.sendSMS(SMS_TARGET, smsMessage)
+			 String smsMessage = SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str();
+			 // send an SMS!
+			 char sendto[21], message[141];
+			 strcpy(message,SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str());
+			 flushSerial();
+			 Serial.print(F("Send to #"));
+			
+			/*while (CLS_FREE!= fona.GetCommLineStatus())
+			{
+				Serial.println(F("wait for CLS free"));
+				delay(10);
+			}*/
+			while(!(xSemaphoreTake( xMutex_GSM, portMAX_DELAY )));
+			fona.SetCommLineStatus(CLS_ATCMD);
+			
+			 if (!fona.sendSMS(num, message)) {
+				 Serial.println(F("Failed"));
+				 Current_smsHdlr_state=2;
+				 } else {
+				 Serial.println(F("Sent!"));
+				Current_smsHdlr_state=3;
+				 
+			 }
+			 
+			 //fona.SetCommLineStatus(CLS_FREE);
+			 xSemaphoreGive(xMutex_GSM);
+		 }
+			//Serial.println(SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content);
+			//char result = sms.SendSMS(num, SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str());
+			
+		/*if (CLS_FREE==gsm.GetCommLineStatus())
+		{
+			Current_smsHdlr_state=2;
+		}*/
+		
+		}break;
+		case 2:{
+		if (Prev_smsHdlr_state!= Current_smsHdlr_state)
+		{
+			Prev_smsHdlr_state = Current_smsHdlr_state;
+			Serial.print(F("check other msg"));
+			// free malloc
+			//free(SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content);
+			now_sending_index++;
+			Serial.println(now_sending_index);
+			
+			if (now_sending_index>=alarm_sms_index)
+			{
+				Current_smsHdlr_state=0;
+				sms_broad_cast_request=false;
+				alarm_sms_index=0;
+				
+				return;
+			}
+			else{
+				sms_broadcast_index=1;
+				Current_smsHdlr_state=0;
+				Serial.println(F("processing next sms"));
+				return;
+			}
+		}
+		}
+		break;
+		
+		case 3:{
+				if (Prev_smsHdlr_state!=Current_smsHdlr_state)
+				{
+					Prev_smsHdlr_state=Current_smsHdlr_state;
+					Serial.println(F("now proceed next msgs"));
+					Timer_sms_send_delay.interval=120000;
+					Timer_sms_send_delay.previousMillis= millis();
+				}			
+				
+						
+						Current_smsHdlr_state=0;
+					
+						sms_send_try_time=0;
+						//get next number
+						if (sms_broadcast_index<3)
+						{
+							sms_broadcast_index++;
+						}
+						else{
+							Current_smsHdlr_state=2;
+							return;
+						}
+						if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==2)// only send to programmer
+						{
+							Serial.println(F("This sms is only for programmer"));
+							Current_smsHdlr_state=2;
+							return;
+						}
+						if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==3)// only send to last sender
+						{
+							Serial.println(F("This sms is only for last sender"));
+							Current_smsHdlr_state=2;
+							return;
+						}
+						
+					
+			}break;
+		
+	}
+	
+}
