@@ -10,8 +10,9 @@ SENS_INFO STRUCT_sens_infor;
 
 uint8_t call_back_alarm_Calling(){
 		uint8_t ret_val = 1;
-		publish_system_state("TRIGGERD","info/mode",true);	
-		xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
+		//publish_system_state("TRIGGERD","info/mode",true);	
+		//xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
+		//xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );
 #ifdef GSM_OK	
 		// check if calling enable flag
 		if(systemConfig.call_en==true){
@@ -24,7 +25,7 @@ uint8_t call_back_alarm_Calling(){
 			}
 			else{
 				/* Set bit 0 and bit 4 in xEventGroup. */
-				xEventGroupSetBits(EventRTOS_gsm,    TASK_1_BIT );// call task invoking request
+				xEventGroupSetBits(EventRTOS_gsm,    TASK_1_BIT );// call task invoking request send to gsm manager
 				/* Set bit 0 and bit 4 in xEventGroup. */
 				xEventGroupClearBits(EventRTOS_gsm,    TASK_2_BIT );
 				ret_val = 0;
@@ -72,13 +73,7 @@ void call_back_alarm_snoozed(){
 }
 
 uint8_t call_back_alarm_bell_time_out(){
-	Serial.println(F("Bell timeout"));
-	digitalWrite(RELAY_ALARM,LOW);
-	xEventGroupSetBits(EventRTOS_buzzer,    TASK_1_BIT );	
-	char buffer2[50];
-	sprintf(buffer2,"ALARM Muted in %d seconds!",systemConfig.bell_time_out);
 	
-	creatSMS(buffer2,1,0);	
 	return 0;
 }
 
@@ -94,7 +89,8 @@ void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_inv
 	digitalWrite(PIN_ARM,LOW);
 	digitalWrite(PIN_DISARM,HIGH);
 	digitalWrite(RELAY_ALARM,LOW);
-	xEventGroupSetBits(EventRTOS_buzzer,    TASK_6_BIT );
+	xEventGroupSetBits(EventRTOS_buzzer,    TASK_6_BIT );// disarm beep request
+	xEventGroupSetBits(EventRTOS_siren,    TASK_1_BIT );// stop siren request
 	char buffer[10];
 	get_eInvoker_type_to_char(_last_invoker,buffer);
 	
@@ -351,12 +347,14 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
-	xEventGroupSetBits(EventRTOS_buzzer,  TASK_2_BIT );
-	digitalWrite(RELAY_ALARM,HIGH);
+	publish_system_state("TRIGGERD","info/mode",true);	
+		xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
+		xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );
+	//digitalWrite(RELAY_ALARM,HIGH);
 
 	char buffer_sms[25];
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
-	Serial.print("SMS creat>");
+	Serial.print(F("SMS creat>"));
 	Serial.println(buffer_sms);
 	addTimeStamp(buffer_sms);
 	creatSMS(buffer_sms,1,0);

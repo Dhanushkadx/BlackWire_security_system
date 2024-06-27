@@ -31,6 +31,7 @@
 #include "sensor_scan.h"
 #include "config_manager.h"
 #include "async_web_server.h"
+#include "siren.h"
 
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
@@ -58,7 +59,7 @@ xQueueHandle xQueue_mqtt_Qhdlr;
 EventGroupHandle_t EventRTOS_lcd;
 EventGroupHandle_t EventRTOS_lcdkeyPad;
 EventGroupHandle_t EventRTOS_gsm;
-EventGroupHandle_t EventRTOS_buzzer;
+
 
  size_t xBufferSizeBytes = 100;
 MessageBufferHandle_t xMessageBuffer;
@@ -76,7 +77,6 @@ char pcStringToSend[50]=">";
 char TimeToSend_buff[50]="";
 
 //using json = nlohmann::json;
-TimerSW Timer_rf_id_auto_clr;
 RCSwitch mySwitch = RCSwitch();
 LiquidCrystal_I2C lcd(0x3C,16,2);
 
@@ -117,6 +117,7 @@ TimerSW Timer_keypad_lcd_event;
 TimerSW Timer_battery_charge;
 TimerSW Timer_alarm_calling_time_out;
 TimerSW Timer_mqtt_breath;
+TimerSW Timer_rf_id_auto_clr;
 
 eSYS_MODE system_mode = NOMAL_MODE_NO_WIFI;
 ALARM myAlarm_pannel(any_sensor_array);
@@ -375,6 +376,7 @@ void Task9code( void * parameter ){
 	for(;;){
 		delay(1);
 		buzzer();
+		relayTask();
 	}
 }
 
@@ -479,6 +481,7 @@ void setup()
   EventRTOS_buzzer = xEventGroupCreate();
   EventRTOS_lcdkeyPad = xEventGroupCreate();
   EventRTOS_gsm = xEventGroupCreate();
+  EventRTOS_siren = xEventGroupCreate();
  /* create the queue which size can contains 5 elements of Data */
  xQueue = xQueueCreate(1, sizeof(DataBuffer));
  xQueue_sensor_state = xQueueCreate(1, sizeof(DataBuffer));
@@ -500,7 +503,7 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
 	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
 	
-	xTaskCreatePinnedToCore(Task9code,"Task9",1000,NULL,1,&Task9,1);
+	xTaskCreatePinnedToCore(Task9code,"Task9",2040,NULL,1,&Task9,1);
 	xTaskCreatePinnedToCore(Task10code,"Task10",3000,NULL,1,&Task10,1);
 	/* Clear bit 0 and bit 4 in xEventGroup. */
 	xEventGroupSetBits(
@@ -1361,25 +1364,7 @@ void RFListiner(){
 	}
 	
 	
-	void disarm_busy_buzzer(){
-		for (uint8_t n=0;n<4;n++)
-		{
-			digitalWrite(BuzzerPin,HIGH);
-			delay(100);
-			digitalWrite(BuzzerPin,LOW);
-			delay(50);
-		}
-	}
-	void arm_busy_buzzer(){
-		for (uint8_t n=0;n<2;n++)
-		{
-			digitalWrite(BuzzerPin,HIGH);
-			delay(100);
-			digitalWrite(BuzzerPin,LOW);
-			delay(50);
-		}
-	}
-	
+
 	
 	void lcd_write_line(char *buffer, uint8_t line){
 		while(!(xSemaphoreTake( xMutex_I2C, portMAX_DELAY )));
@@ -1404,119 +1389,7 @@ void RFListiner(){
 		
 	}
 	
-	
-void buzzer(){
-	static eBuzzer_state eCurrent_buzzer_state, ePrev_buzzer_state;
-		const TickType_t xTicksToWait = pdMS_TO_TICKS( 1);
-		EventBits_t uxBits;
-		uxBits = xEventGroupWaitBits(
-		EventRTOS_buzzer,   /* The event group being tested. */
-		ALL_SYNC_BITS, /* The bits within the event group to wait for. */
-		pdTRUE,        /* BITS should be cleared before returning. */
-		pdFALSE,       /* Don't wait for all bits, either bit will do. */
-		xTicksToWait );/* Wait a maximum of 100ms for either bit to be set. */
-		
-		
-		  if(  ( uxBits & TASK_1_BIT ) != 0  )// Buzzer off
-		  {
-			  
-			  Serial.println(F("EVENT BUZZER_OFF"));
-			  eCurrent_buzzer_state = BUZZER_OFF;
-			  
-		  }
-		  if(  ( uxBits & TASK_2_BIT ) != 0  )// Disarm
-		  {
-			  
-			   Serial.println(F("EVENT BUZZER_ALARM"));
-			   eCurrent_buzzer_state = BUZZER_ALARM;
-		  }
-		   if(  ( uxBits & TASK_3_BIT ) != 0  )// Disarm
-		   {
-			   
-			   Serial.println(F("EVENT BUZZER_RF"));
-			  if(eCurrent_buzzer_state != BUZZER_ALARM){ 
-					eCurrent_buzzer_state = BUZZER_RF;
-					ePrev_buzzer_state = BUZZER_OFF;// bug fix for no buzzer sound when sensor trigger in disarm mode
-				}
-			   
-			  
-		   }
-		    if(  ( uxBits & TASK_4_BIT ) != 0  )// Disarm
-		    {
-			    
-			    Serial.println(F("EVENT BUZZER_GSM_ERROR"));
-			    eCurrent_buzzer_state = BUZZER_GSM_ERROR;
-		    }
-			if(  ( uxBits & TASK_5_BIT ) != 0  )// Disarm
-			{				
-				Serial.println(F("EVENT BUZZER_ARM"));
-				eCurrent_buzzer_state = BUZZER_ARM;
-				arm_busy_buzzer();
-			}
-			if(  ( uxBits & TASK_6_BIT ) != 0  )// Disarm
-			{
-				
-				Serial.println(F("EVENT BUZZER_DISARM"));
-				eCurrent_buzzer_state = BUZZER_DISARM;
-				disarm_busy_buzzer();
-			}
-			if(  ( uxBits & TASK_7_BIT ) != 0  )// Disarm
-			{
-				 digitalWrite(PIN_RF_LED,HIGH);
-				 delay(50);
-				 digitalWrite(PIN_RF_LED,LOW);
-			}
-		  
-		  
-		  
-		switch (eCurrent_buzzer_state)
-		{
-		case BUZZER_OFF:{
-			if (ePrev_buzzer_state!=eCurrent_buzzer_state)
-			{
-				ePrev_buzzer_state=eCurrent_buzzer_state;
-				
-			}
-			digitalWrite(BuzzerPin,LOW);
-		}
-			break;
-		case BUZZER_ALARM:{
-			if (ePrev_buzzer_state!=eCurrent_buzzer_state)
-			{
-				ePrev_buzzer_state=eCurrent_buzzer_state;
-			}
-			digitalWrite(BuzzerPin,HIGH);
-			delay(180);
-			digitalWrite(BuzzerPin,LOW);
-			delay(180);
-		}
-		break;
-		case BUZZER_RF:{
-			if (ePrev_buzzer_state!=eCurrent_buzzer_state)
-			{
-				ePrev_buzzer_state=eCurrent_buzzer_state;
-				digitalWrite(BuzzerPin,HIGH);
-				delay(180);
-				digitalWrite(BuzzerPin,LOW);
-				delay(180);
-				eCurrent_buzzer_state = BUZZER_OFF;
-			}
-		}
-		break;
-		case BUZZER_GSM_ERROR:{
-			if (ePrev_buzzer_state!=eCurrent_buzzer_state)
-			{
-				ePrev_buzzer_state=eCurrent_buzzer_state;
-			}
-		}
-		break;
-		}
-	}
-	
-	
 
-	
-	
 void Power_detect_loop() {
 	static int powerState = digitalRead(PIN_AC_DETECT);
 	static unsigned long stableStart = 0;
@@ -1528,7 +1401,7 @@ void Power_detect_loop() {
 		isStable = false;
 		// power state is not stable yet, reset stable duration timer
 		stableStart = millis();
-		Serial.println("power state has changed");
+		Serial.println(F("power state has changed"));
 	}
 	
 	powerState = newState;
@@ -1570,3 +1443,4 @@ void send_all_zone_states_mqtt(){
             }
            
 }
+

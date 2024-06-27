@@ -32,6 +32,7 @@ extern EventGroupHandle_t EventRTOS_lcd;
 extern EventGroupHandle_t EventRTOS_lcdkeyPad;
 extern EventGroupHandle_t EventRTOS_gsm;
 extern EventGroupHandle_t EventRTOS_buzzer;
+extern EventGroupHandle_t EventRTOS_siren;
 
 extern SemaphoreHandle_t xBinarySemaphore;
 extern SemaphoreHandle_t xMutex_GSM;
