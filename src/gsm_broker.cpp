@@ -590,9 +590,8 @@ void gsm_manager(){
 				 TASK_1_BIT);/* The bits being cleared. */
 				 //suspend req for SMS TASK
 				// EventBits_t uxBits;
-				 uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_3_BIT );// sms task suspend request
+				 uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_3_BIT );// sms task suspend request sent
 				 eCurruntGSM_state = GSM_SMS_SUSPENDING;
-				 //creat call task
 			 }
 			 
 			else if(  ( uxBits & TASK_5_BIT ) != 0  )// SMS resume.
@@ -623,19 +622,12 @@ void gsm_manager(){
 				ePrevGSM_state = eCurruntGSM_state;
 				Serial.println(F("GSM_SMS_SUSPENDING..."));
 				digitalWrite(PIN_GSM_BUSY_LED,LOW);
-				 /*if(  ( uxBits & TASK_4_BIT ) != 0  )// CALL TASK invoking request.
-				 {
-					 eCurruntGSM_state = GSM_CALL;
-				 }*/
 			}
-			if(  ( uxBits & TASK_4_BIT ) != 0  )// SMS TASK suspended ACK.
+			if(  ( uxBits & TASK_4_BIT ) != 0  )// SMS TASK suspended ACK recevide.
 			{
-				Serial.println(F("GSM_SMS_TASK_SUSPENDED."));
+				Serial.println(F("GSM_SMS_TASK_SUSPENDED."));			
+				eCurruntGSM_state = GSM_CALL;				
 				
-			
-				eCurruntGSM_state = GSM_CALL;
-				
-				//create call task
 			}
 		}
 		break;
@@ -652,8 +644,8 @@ void gsm_manager(){
 				xTaskCreatePinnedToCore(Task5code_call,"Task5",5000,NULL,3,&Task5,0);
 				digitalWrite(PIN_GSM_BUSY_LED,HIGH);
 			}
-			
-			if(  ( uxBits & TASK_2_BIT ) != 0  )// Disarm Event task delete
+			Serial.println("wait for call task responce");
+			if(  ( uxBits & TASK_2_BIT ) != 0  )// This bit will be set by Disarm call back so request to delete call task
 			{
 				Serial.println(F("CALL TASK delete request rent"));
 				xEventGroupClearBits(EventRTOS_gsm,    TASK_2_BIT );// clear event
@@ -663,7 +655,7 @@ void gsm_manager(){
 				eCurruntGSM_state = GSM_CALL_TASK_DELETEING;	
 			}
 			
-			if(  ( uxBits & TASK_6_BIT ) != 0  )// Disarm Event task delete
+			if(  ( uxBits & TASK_6_BIT ) != 0  )// wait for call task complete 
 			{
 				
 			}
@@ -868,7 +860,7 @@ uint8_t ultimate_call_hadlr(){
 	pdTRUE,        /* BITS should be cleared before returning. */
 	pdFALSE,       /* Don't wait for both bits, either bit will do. */
 	xTicksToWait );/* Wait a maximum of 100ms for either bit to be set. */
-	if(  ( uxBits & TASK_7_BIT ) != 0  )// CALL TASK invoking request.
+	if(  ( uxBits & TASK_7_BIT ) != 0  )// CALL TASK DELETE request received.
 	{
 		Current_caller_state=0;
 		alarm_calling_index=1;

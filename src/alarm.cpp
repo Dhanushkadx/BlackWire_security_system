@@ -397,14 +397,13 @@ void ALARM :: watcher(){
 			
 		}
 	}
-	// ALARM RELAY AUTO TIME OUT
+	// ALARM RELAY FIRST AUTO TIME OUT
 	 if (!_Timer_alarm_relay_time_out)
 	 {
 		 if (Timer_alarm_relay.Timer_run())
 		 {
 			 _Timer_alarm_relay_time_out=true;
-			 fn_alarm_bell_time_out();
-			 
+			 //fn_alarm_bell_time_out();			 
 		 }
 	 }
 

@@ -36,6 +36,8 @@ enum eDisplay_state{LOADING,HOME, SETTINGS};
 
 enum eBuzzer_state{BUZZER_DISARM,BUZZER_ARM,BUZZER_OFF,BUZZER_ALARM,BUZZER_GSM_ERROR,BUZZER_RF};
 
+enum eSiren_state{SIREN_ON,SIREN_OFF,SIREN_OFF_ITSELF,SIREN_MOMENT,SIREN_CONTINUOUS,SIREN_WAIT_INTERVAL};
+
 typedef struct systemConfig{
 	uint8_t sensor_debounce_time;
 	uint8_t entry_delay_time;
