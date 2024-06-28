@@ -53,6 +53,9 @@ typedef struct systemConfig{
 	bool card_E_en;
 	bool card_F_en;
 	uint16_t bell_time_out;
+	uint16_t beep_time_out;
+	bool beep_en;
+	bool siren_en;
 	eMain_state last_system_state;
 	char wifissid_ap[25]; //":"dxdxdxdxdx",
 	char wifissid_sta[25]; //":"dxdxdxdxdx",

@@ -330,7 +330,7 @@ if (request->hasParam("tp1")) {
 	
 if (request->hasParam("txt0")) {
 	File fileToReadz = SPIFFS.open("/config.json");
-	DynamicJsonDocument docrz(JSON_DOC_SIZE_CONFIG_DATA);
+	DynamicJsonDocument docrz(2048);
 	deserializeJson(docrz,  fileToReadz);
 	fileToReadz.close();
 	
@@ -376,12 +376,35 @@ if (request->hasParam("txt0")) {
 		docrz["sysconf"]["xt_beep"]= false;
 	}
 	
-	/*"siren duration"*/
+	/*"beep duration"*/
 	if (request->hasParam("txt2")) {
 		inputMessage = request->getParam("txt2")->value();
+		docrz["sysconf"]["beep_time_out"]= inputMessage;
+		
+	} 
+	/*"siren duration"*/
+	if (request->hasParam("txt8")) {
+		inputMessage = request->getParam("txt8")->value();
 		docrz["sysconf"]["bell_time_out"]= inputMessage;
 		
-	}    // calling attempts
+	}     
+
+	/*"beep_en"*/
+	if (request->hasParam("cb8")) {
+		docrz["sysconf"]["siren_en"]= true;
+	}
+	else{
+		docrz["sysconf"]["siren_en"]= false;
+	}
+
+	/*"siren_en"*/
+	if (request->hasParam("cb4")) {
+		docrz["sysconf"]["beep_en"]= true;
+	}
+	else{
+		docrz["sysconf"]["beep_en"]= false;
+	}	
+	 // calling attempts
 	 if (request->hasParam("list0")) {
             inputMessage = request->getParam("list0")->value();
             Serial.printf("Selected call attempt value:%s",inputMessage.c_str());
