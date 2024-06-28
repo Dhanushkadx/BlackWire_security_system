@@ -36,6 +36,12 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
         delay(5000);
 		ESP.restart();
 	}
+    if (strncmp("sms ap",smsbuffer,6)==0)
+	{
+		Serial.println(F("Restart in 5 sec"));
+        delay(5000);
+		ESP.restart();
+	}
 	
 	if (strncmp("net?",smsbuffer,4)==0)
 	{
