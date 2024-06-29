@@ -43,6 +43,21 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
         return true;    
 }
 
+bool setJson_key_bool(const char* path, const char* jkey, bool state){
+
+	DynamicJsonDocument doc(1024);	// set standerd doc size
+	File fileToRead = SPIFFS.open("/config.json");	
+	 if (!fileToRead)
+	 {
+		 Serial.println(F("no file found reset eeprom"));
+	 }
+	serializeJson(doc,  fileToRead);
+	doc[jkey]= state;
+	Serial.println("save config....................");
+	File fileToWrite = SPIFFS.open("/config.json",FILE_WRITE);	
+	fileToWrite.close();
+}
+
 	 
  void configLoad(){	 
 	
@@ -67,7 +82,8 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
 	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
-	if (!digitalRead(PROGRAM_PIN))
+	 systemConfig.wifissid_en = doc["sysconf"]["wifissid_en"];
+	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifissid_en==true))
 	{		
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));
