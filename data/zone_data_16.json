@@ -1,30 +1,30 @@
 {
   "zone08": {
-    "name": "zone 08",
+    "name": "FrontGate",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
     "x24h": false,
     "alarm": false,
     "perimeter": false,
-    "silent": false,
+    "silent": true,
     "rf": false,
     "rfid": "00000000"
   },
   "zone09": {
-    "name": "zone 09",
+    "name": "LeftSide",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
     "x24h": false,
     "alarm": false,
     "perimeter": false,
-    "silent": false,
+    "silent": true,
     "rf": false,
     "rfid": "00000000"
   },
   "zone10": {
-    "name": "zone 10",
+    "name": "BackSide",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
@@ -36,7 +36,7 @@
     "rfid": "00000000"
   },
   "zone11": {
-    "name": "zone 11",
+    "name": "Kitchen",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
@@ -49,7 +49,7 @@
     "": false
   },
   "zone12": {
-    "name": "zone 12",
+    "name": "RightSide",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
@@ -62,7 +62,7 @@
   },
   "zone13": {
     "name": "zone 13",
-    "bypass": false,
+    "bypass": true,
     "exit_delay": false,
     "entry_delay": false,
     "x24h": false,
@@ -73,7 +73,7 @@
     "rfid": "00000000"
   },
   "zone14": {
-    "name": "zone 14",
+    "name": "BackPark",
     "bypass": false,
     "exit_delay": false,
     "entry_delay": false,
