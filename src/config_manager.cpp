@@ -69,11 +69,17 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state){
 		 configReset();
 	 }
 	 
-	 DynamicJsonDocument doc(1024);
+	 DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
 	 deserializeJson(doc,  fileToRead);	 
 	 
 	 systemConfig.battery_charging_en = doc["sysconf"]["battery_charging_en"];
-	 systemConfig.bell_time_out = doc["sysconf"]["bell_time_out"];	
+
+	 systemConfig.bell_time_out = doc["sysconf"]["bell_time_out"];
+	 systemConfig.beep_time_out = doc["sysconf"]["beep_time_out"];
+	 systemConfig.siren_en = doc["sysconf"]["siren_en"];
+	 systemConfig.beep_en = doc["sysconf"]["beep_en"];
+
+
 	 systemConfig.cli_access_level = doc["sysconf"]["cli_access_level"];
 	 systemConfig.entry_delay_time = doc["sysconf"]["entry_delay_time"];
 	 systemConfig.exit_delay_time = doc["sysconf"]["exit_delay_time"];
@@ -156,7 +162,7 @@ void configReset(){
 
 
 void configSave(){
-	DynamicJsonDocument doc(1024);
+	DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
 	
 	doc["battery_charging_en"] = systemConfig.battery_charging_en;
 	doc["bell_time_out"] = systemConfig.bell_time_out;

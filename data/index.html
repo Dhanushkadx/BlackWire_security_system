@@ -223,26 +223,28 @@
                 console.log(objectToRead.respHeader);
                 document.getElementById('txt0').value = objectToRead.sysconf.entry_delay_time;
                 document.getElementById('txt1').value = objectToRead.sysconf.exit_delay_time;
-                document.getElementById('txt2').value = objectToRead.sysconf.bell_time_out;
-                document.getElementById('list0').value = objectToRead.sysconf.call_attempts;
+                document.getElementById('txt2').value = objectToRead.sysconf.beep_time_out;
                 document.getElementById('txt3').value = objectToRead.sysconf.wifissid_sta;
-                document.getElementById('psw0').value = objectToRead.sysconf.wifipass;
                 document.getElementById('txt4').value = objectToRead.sysconf.installer_no;
-                document.getElementById('psw1').value = objectToRead.sysconf.installer_pass;
-
                 document.getElementById('txt5').value = objectToRead.sysconf.mqtt_server;
                 document.getElementById('txt6').value = objectToRead.sysconf.mqtt_port;
                 document.getElementById('txt7').value = objectToRead.sysconf.mqtt_user;
+                document.getElementById('txt8').value = objectToRead.sysconf.bell_time_out;
+                document.getElementById('list0').value = objectToRead.sysconf.call_attempts;
+                
+                document.getElementById('psw0').value = objectToRead.sysconf.wifipass;                
+                document.getElementById('psw1').value = objectToRead.sysconf.installer_pass;                
                 document.getElementById('psw2').value = objectToRead.sysconf.mqtt_pass;
                       
                 document.getElementById('cb0').checked = objectToRead.sysconf.et_en;
                 document.getElementById('cb1').checked = objectToRead.sysconf.et_beep;
                 document.getElementById('cb2').checked = objectToRead.sysconf.xt_en;
                 document.getElementById('cb3').checked = objectToRead.sysconf.xt_beep;
-                document.getElementById('cb4').checked = objectToRead.sysconf.siren_en;
+                document.getElementById('cb4').checked = objectToRead.sysconf.beep_en;
                 document.getElementById('cb5').checked = objectToRead.sysconf.call_en;
                 document.getElementById('cb6').checked = objectToRead.sysconf.wifi_sta_en;
                 document.getElementById('cb7').checked = objectToRead.sysconf.mqtt_en;
+                document.getElementById('cb8').checked = objectToRead.sysconf.siren_en;
             }
             if (objectToRead.respHeader === "data") {
                 console.log(objectToRead.data);
@@ -323,9 +325,16 @@
                 </div>
                 <br>
                 <div>
-                    <label for="txt2">Siren Duration:</label>
+                    <label for="txt2">Beep Sound Duration:</label>
                     <input type="text" id="txt2" name="txt2" />
                     <input type="checkbox" id="cb4" name="cb4"> Enable
+
+                </div>
+                <br>
+                <div>
+                    <label for="txt8">Siren Duration:</label>
+                    <input type="text" id="txt8" name="txt8" />
+                    <input type="checkbox" id="cb8" name="cb8"> Enable
 
                 </div>
                 <br>
