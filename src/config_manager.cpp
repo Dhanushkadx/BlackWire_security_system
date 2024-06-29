@@ -42,22 +42,50 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 		Serial.printf(PSTR("%s:%s\n"),jkey,number);
         return true;    
 }
+#include <ArduinoJson.h>
+#include <SPIFFS.h>
 
-bool setJson_key_bool(const char* path, const char* jkey, bool state){
+bool setJson_key_bool(const char* path, const char* jkey, bool state) {
+    DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA); 
 
-	DynamicJsonDocument doc(1024);	// set standerd doc size
-	File fileToRead = SPIFFS.open("/config.json");	
-	 if (!fileToRead)
-	 {
-		 Serial.println(F("no file found reset eeprom"));
-	 }
-	serializeJson(doc,  fileToRead);
-	doc[jkey]= state;
-	Serial.println("save config....................");
-	File fileToWrite = SPIFFS.open("/config.json",FILE_WRITE);	
-	fileToWrite.close();
+    // Open file for reading
+    File fileToRead = SPIFFS.open(path, FILE_READ);
+    if (!fileToRead) {
+        Serial.println(F("No file found, reset EEPROM"));
+        return false; // Return false if file not found
+    }
+
+    // Deserialize JSON document
+    DeserializationError error = deserializeJson(doc, fileToRead);
+    fileToRead.close(); // Close the file after reading
+
+    if (error) {
+        Serial.print(F("Failed to read file, using default configuration"));
+        return false; // Return false if deserialization fails
+    }
+
+    // Set the JSON key to the new state
+    doc["wifiap_en"] = true;
+
+    Serial.println(F("Saving config..."));
+
+    // Open file for writing
+    File fileToWrite = SPIFFS.open(path, FILE_WRITE);
+    if (!fileToWrite) {
+        Serial.println(F("Failed to open file for writing"));
+        return false; // Return false if file could not be opened for writing
+    }
+
+    // Serialize JSON document to file
+    if (serializeJson(doc, fileToWrite) == 0) {
+        Serial.println(F("Failed to write to file"));
+        fileToWrite.close();
+        return false; // Return false if serialization fails
+    }
+
+    fileToWrite.close(); // Close the file after writing
+    return true; // Return true if successful
 }
-
 	 
  void configLoad(){	 
 	
@@ -88,8 +116,8 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state){
 	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
 	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
-	 systemConfig.wifissid_en = doc["sysconf"]["wifissid_en"];
-	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifissid_en==true))
+	 systemConfig.wifiap_en = doc["sysconf"]["wifiap_en"];
+	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifiap_en==true))
 	{		
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));
@@ -152,6 +180,25 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state){
 	serializeJsonPretty(users_docx, Serial);
 #endif		
 	users_fileToRead.close();		  
+
+	// finally set wifi ap if sms command asked for that
+	if(systemConfig.wifiap_en){
+		Serial.println(F("WIFI_TEMP_AP_REVERT_BACK"));
+		File fileToRead = SPIFFS.open("/config.json");
+		if (!fileToRead)
+		{
+			Serial.println(F("no file found reset eeprom"));
+			return;
+		}
+		DynamicJsonDocument docx(JSON_DOC_SIZE_CONFIG_DATA);
+		deserializeJson(docx,  fileToRead);
+		fileToRead.close();
+		docx["sysconf"]["wifiap_en"] = false;
+		File fileToWritey = SPIFFS.open("/config.json", FILE_WRITE);	
+		serializeJson(docx,  fileToWritey);
+		fileToWritey.close();
+
+	}
 }
 	 
 

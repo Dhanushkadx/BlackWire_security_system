@@ -448,7 +448,7 @@ void setup()
 	eeprom_load();
 	setup_sensor_settings();
 	//system_mode = CONFIG_MODE;
-	if(system_mode==CONFIG_MODE){
+	if((system_mode==CONFIG_MODE)||(systemConfig.wifiap_en)){
 		setup_web_server_with_AP();
 	}
 	else if(system_mode==NOMAL_MODE_WIFI){
@@ -495,7 +495,7 @@ xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
  
-	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
+	xTaskCreatePinnedToCore(Task1code,"Task1",10000,NULL,1,&Task1,0);	
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);

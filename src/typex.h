@@ -61,7 +61,7 @@ typedef struct systemConfig{
 	char wifissid_sta[25]; //":"dxdxdxdxdx",
 	char wifipass[25]; //": "xxxxxxxxxx",
 	bool wifi_sta_en;
-	bool wifissid_en;
+	bool wifiap_en;
 	bool mqtt_en;
 	uint8_t call_attempts;//": 2,
 	boolean call_en;  //": true,

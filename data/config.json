@@ -9,7 +9,7 @@
      "xt_beep":true,
      "exit_delay_time": 20,
      "wifissid_ap":"BLACK WIRE",
-     "wifissid_en":"false",
+     "wifiap_en":true,
      "wifissid_sta":"DeepNet",
      "wifi_sta_en":true,
      "wifipass": "dynamicocean093",
