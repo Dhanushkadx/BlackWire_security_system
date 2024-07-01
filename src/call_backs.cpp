@@ -82,6 +82,7 @@ uint8_t call_back_alarm_bell_time_out(){
 void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
 	/*systemConfig.last_system_state= DEACTIVE;
 	eeprom_save();*/
+	//time update from GSM
 	//Event log update;
 	Timer_battery_charge.previousMillis = millis();
 	digitalWrite(PIN_BATTERY,HIGH);

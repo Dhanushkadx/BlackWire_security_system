@@ -23,7 +23,7 @@ enumerator eInvalid?*/
 #include <freertos/message_buffer.h>
 #include "ESP32Time.h"
 #include "ESPAsyncWebServer.h"
-//#define GSM_OK
+#define GSM_OK
 #define MQTT_OK
 extern AsyncWebSocket ws;
 extern ESP32Time rtc;

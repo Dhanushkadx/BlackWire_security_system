@@ -12,7 +12,7 @@ bool request_from_sim800 = false;
 bool thisIs_Restart = true;
 bool gsm_init_done = false;
 bool gsm_available = false;
-
+bool timesync_need = true;
 // Use this for FONA 800 and 808s
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
@@ -62,11 +62,9 @@ bool gsm_init(){
 	 }
 
 	 fona.deleteAllSMS();
-	 char networkTime[30];
-	 char localTime[20];
-	 if (fona.getTime(networkTime, sizeof(networkTime))) {
-		 setESP32_rtc(networkTime);
-	 }
+	 setTime_from_gsm();
+	 
+	 
 #ifdef GSM_MODULE_AUTH
 	 if (thisIs_Restart==true)
 	 {
@@ -86,6 +84,14 @@ bool gsm_init(){
 #endif	 
 		return true;
 	 
+}
+
+void setTime_from_gsm(){
+	char networkTime[100];
+	// char localTime[20];
+	if (fona.getTime(networkTime, 100)) {
+		 setESP32_rtc(networkTime);
+	 }
 }
 
 void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SMS
@@ -490,6 +496,11 @@ bool ultimate_gsm_listiner(){
 	 if(fona.getNetworkStatus()==1){
 		 digitalWrite(GSM_LED,HIGH);
 		 Serial.println(F("Network ok"));	
+		 if(timesync_need== true){
+			timesync_need=false;
+			setTime_from_gsm();
+		 }
+
 	 }	 
 	 else{
 		  Serial.println(F("Not Reg"));

@@ -42,8 +42,6 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 		Serial.printf(PSTR("%s:%s\n"),jkey,number);
         return true;    
 }
-#include <ArduinoJson.h>
-#include <SPIFFS.h>
 
 bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA); 
@@ -65,7 +63,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     }
 
     // Set the JSON key to the new state
-    doc["wifiap_en"] = true;
+    doc["sysconf"]["wifiap_en"] = true;
 
     Serial.println(F("Saving config..."));
 
