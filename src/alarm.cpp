@@ -1109,7 +1109,7 @@ void ALARM :: chime_sound(){
 				}			
 			}
 		// zone is silent
-		else if(!(pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_SILENT))){
+		if(!(pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_SILENT))){
 			Serial.println(F("NO CHIME"));
 			return; // Skip the rest of the code and continue with the next iteration
 			 }
