@@ -43,6 +43,47 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
         return true;    
 }
 
+bool setJson_key_bool(const char* path, const char* jkey, bool state) {
+    DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA); 
+
+    // Open file for reading
+    File fileToRead = SPIFFS.open(path, FILE_READ);
+    if (!fileToRead) {
+        Serial.println(F("No file found, reset EEPROM"));
+        return false; // Return false if file not found
+    }
+
+    // Deserialize JSON document
+    DeserializationError error = deserializeJson(doc, fileToRead);
+    fileToRead.close(); // Close the file after reading
+
+    if (error) {
+        Serial.print(F("Failed to read file, using default configuration"));
+        return false; // Return false if deserialization fails
+    }
+
+    // Set the JSON key to the new state
+    doc["sysconf"]["wifiap_en"] = true;
+
+    Serial.println(F("Saving config..."));
+
+    // Open file for writing
+    File fileToWrite = SPIFFS.open(path, FILE_WRITE);
+    if (!fileToWrite) {
+        Serial.println(F("Failed to open file for writing"));
+        return false; // Return false if file could not be opened for writing
+    }
+
+    // Serialize JSON document to file
+    if (serializeJson(doc, fileToWrite) == 0) {
+        Serial.println(F("Failed to write to file"));
+        fileToWrite.close();
+        return false; // Return false if serialization fails
+    }
+
+    fileToWrite.close(); // Close the file after writing
+    return true; // Return true if successful
+}
 	 
  void configLoad(){	 
 	
@@ -54,11 +95,17 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 		 configReset();
 	 }
 	 
-	 DynamicJsonDocument doc(1024);
+	 DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
 	 deserializeJson(doc,  fileToRead);	 
 	 
 	 systemConfig.battery_charging_en = doc["sysconf"]["battery_charging_en"];
-	 systemConfig.bell_time_out = doc["sysconf"]["bell_time_out"];	
+
+	 systemConfig.bell_time_out = doc["sysconf"]["bell_time_out"];
+	 systemConfig.beep_time_out = doc["sysconf"]["beep_time_out"];
+	 systemConfig.siren_en = doc["sysconf"]["siren_en"];
+	 systemConfig.beep_en = doc["sysconf"]["beep_en"];
+
+
 	 systemConfig.cli_access_level = doc["sysconf"]["cli_access_level"];
 	 systemConfig.entry_delay_time = doc["sysconf"]["entry_delay_time"];
 	 systemConfig.exit_delay_time = doc["sysconf"]["exit_delay_time"];
@@ -67,7 +114,8 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
 	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
-	if (!digitalRead(PROGRAM_PIN))
+	 systemConfig.wifiap_en = doc["sysconf"]["wifiap_en"];
+	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifiap_en==true))
 	{		
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));
@@ -130,6 +178,25 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 	serializeJsonPretty(users_docx, Serial);
 #endif		
 	users_fileToRead.close();		  
+
+	// finally set wifi ap if sms command asked for that
+	if(systemConfig.wifiap_en){
+		Serial.println(F("WIFI_TEMP_AP_REVERT_BACK"));
+		File fileToRead = SPIFFS.open("/config.json");
+		if (!fileToRead)
+		{
+			Serial.println(F("no file found reset eeprom"));
+			return;
+		}
+		DynamicJsonDocument docx(JSON_DOC_SIZE_CONFIG_DATA);
+		deserializeJson(docx,  fileToRead);
+		fileToRead.close();
+		docx["sysconf"]["wifiap_en"] = false;
+		File fileToWritey = SPIFFS.open("/config.json", FILE_WRITE);	
+		serializeJson(docx,  fileToWritey);
+		fileToWritey.close();
+
+	}
 }
 	 
 
@@ -140,7 +207,7 @@ void configReset(){
 
 
 void configSave(){
-	DynamicJsonDocument doc(1024);
+	DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
 	
 	doc["battery_charging_en"] = systemConfig.battery_charging_en;
 	doc["bell_time_out"] = systemConfig.bell_time_out;

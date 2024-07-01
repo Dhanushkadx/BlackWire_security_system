@@ -31,7 +31,7 @@ void relayTask() {
 			  if(ePrev_siren_state==SIREN_OFF){
 			   Serial.println(F("EVENT SIREN_MOMENT"));
 			   eCurrent_siren_state = SIREN_MOMENT;
-			   Timer_siren.interval = 1500;
+			   Timer_siren.interval = 3000;
 			   Timer_siren.previousMillis = millis();
 			   digitalWrite(RELAY_ALARM,HIGH);
 			  }
@@ -67,7 +67,7 @@ void relayTask() {
 				 digitalWrite(RELAY_ALARM,LOW);
 				 eCurrent_siren_state = SIREN_WAIT_INTERVAL;
 				 Timer_siren.previousMillis = millis();
-				 Timer_siren.interval = 20000;
+				 Timer_siren.interval = 30000;
 				 Serial.println(F("FIRTS SIREN DONE!"));
 			}
 		}
@@ -182,7 +182,7 @@ void buzzer(){
 			{
 				ePrev_buzzer_state=eCurrent_buzzer_state;
 				Timer_buzzer.previousMillis = millis();
-				Timer_buzzer.interval = 5000;
+				Timer_buzzer.interval = systemConfig.beep_time_out*1000;
 			}
 			digitalWrite(BuzzerPin,HIGH);
 			delay(180);

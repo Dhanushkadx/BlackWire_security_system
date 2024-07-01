@@ -36,6 +36,15 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
         delay(5000);
 		ESP.restart();
 	}
+    if (strncmp("sms ap",smsbuffer,6)==0)
+	{
+        if(setJson_key_bool("/config.json", "wifiap_en", true)){
+            Serial.println("AP setup ok");
+        }
+		Serial.println(F("Restart in 5 sec"));        
+        delay(5000);
+		ESP.restart();
+	}
 	
 	if (strncmp("net?",smsbuffer,4)==0)
 	{

@@ -82,6 +82,7 @@ uint8_t call_back_alarm_bell_time_out(){
 void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
 	/*systemConfig.last_system_state= DEACTIVE;
 	eeprom_save();*/
+	//time update from GSM
 	//Event log update;
 	Timer_battery_charge.previousMillis = millis();
 	digitalWrite(PIN_BATTERY,HIGH);
@@ -348,9 +349,9 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
 	publish_system_state("TRIGGERD","info/mode",true);	
-		xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
-		xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );
-	//digitalWrite(RELAY_ALARM,HIGH);
+	
+	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 
 	char buffer_sms[25];
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));

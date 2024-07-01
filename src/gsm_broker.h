@@ -21,6 +21,7 @@ extern uint8_t sms_buffer_msg_count;
 extern uint8_t Current_caller_state;
 extern uint8_t alarm_calling_index;
 extern bool thisIs_Restart;
+extern bool timesync_need;
 bool gsm_init();
 	 
 void creatSMS(const char* buffer,uint8_t type, const char* number);// creat a SMS
@@ -71,7 +72,7 @@ bool waitForMutex_GSM();
 
 void tell_lcd(char *number);
 
-
+void setTime_from_gsm();
 void addTimeStamp(char* sms_buffer);
 
 
