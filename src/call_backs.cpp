@@ -9,10 +9,9 @@ GSM_CONTACTS_INFO STRUCT_GSM_contact_infor;
 SENS_INFO STRUCT_sens_infor;
 
 uint8_t call_back_alarm_Calling(){
-		uint8_t ret_val = 1;
-		//publish_system_state("TRIGGERD","info/mode",true);	
-		//xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );
-		//xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );
+	uint8_t ret_val = 1;	
+	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 #ifdef GSM_OK	
 		// check if calling enable flag
 		if(systemConfig.call_en==true){
@@ -349,9 +348,9 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
 	publish_system_state("TRIGGERD","info/mode",true);	
-	
-	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
-	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
+	// **we do not activate buzzer here as it will not trigger when remote panic
+	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+	//if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 
 	char buffer_sms[25];
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
