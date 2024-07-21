@@ -3,14 +3,15 @@
 
 
 //#define GSM_MINI_BOARD
-#define GSM_MINI_BOARD_V2
+#define GSM_MINI_BOARD_V3
 
-#ifdef GSM_MINI_BOARD_V2
+#ifdef GSM_MINI_BOARD_V3
+#define ADC_CH3 39
 #define PIN_BATTERY 18
 #define ANALOG_BAT A8
 #define ANALOG_PWR A7
 #define RELAY_ALARM 19
-#define PROGRAM_PIN 25
+#define PROGRAM_PIN ADC_CH3
 #define PIN_RF_LED 27
 #define PIN_GSM_BUSY_LED 27
 #define PIN_ARM 12

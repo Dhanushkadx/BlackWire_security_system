@@ -67,7 +67,7 @@ bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
 	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
 	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
-	if (!digitalRead(PROGRAM_PIN))
+	if (analogRead(PROGRAM_PIN)<100)
 	{		
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));

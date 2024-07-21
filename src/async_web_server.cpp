@@ -45,8 +45,6 @@ void setup_web_server_with_AP()
 	initWiFi_AP();	
 	initWebSocket();
 	initWebServer();
-	
-
 }
 
 void setup_web_server_with_STA()

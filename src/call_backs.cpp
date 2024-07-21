@@ -129,11 +129,8 @@ void call_back_ARM(uint8_t user, const char* _msg, eInvoking_source _last_invoke
 	eeprom_save();*/
 	//Event log update;
 	/*char time_buffer[25];
-	gsm.getNetwork_time(time_buffer);*/
-	
-	//save_event_info(0,user,time_buffer,"ARM");
-	
-	
+	gsm.getNetwork_time(time_buffer);*/	
+	//save_event_info(0,user,time_buffer,"ARM");		
 	digitalWrite(PIN_ARM,HIGH);
 	digitalWrite(PIN_DISARM,LOW);
 	xEventGroupSetBits(EventRTOS_buzzer,    TASK_5_BIT );
@@ -141,8 +138,7 @@ void call_back_ARM(uint8_t user, const char* _msg, eInvoking_source _last_invoke
 	get_eInvoker_type_to_char(_last_invoker,buffer);
 	char buffer2[25];
 	sprintf(buffer2," user %d >%s",user,buffer);
-	creat_arm_sms(buffer2);
-	
+	creat_arm_sms(buffer2);	
 	Current_caller_state=0;
 	alarm_calling_index=1;	
 	// set event for lcd

@@ -412,7 +412,7 @@ void init_timersSW(){
 void setup()
 {
 	pinMode(PIN_AC_DETECT,INPUT_PULLUP);
-	pinMode(PROGRAM_PIN,INPUT_PULLUP);
+	//pinMode(PROGRAM_PIN,INPUT_PULLUP);
 	pinMode(BuzzerPin,OUTPUT);
 	pinMode(PIN_RF_LED,OUTPUT);
 	pinMode(PIN_GSM_BUSY_LED,OUTPUT);
