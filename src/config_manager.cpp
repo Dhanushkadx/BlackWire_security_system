@@ -116,7 +116,8 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
 	 systemConfig.wifiap_en = doc["sysconf"]["wifiap_en"];
 	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifiap_en==true))
-	{		
+	{	
+	//if(systemConfig.wifiap_en==true){	
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));
 		 system_mode = CONFIG_MODE;

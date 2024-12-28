@@ -47,14 +47,12 @@ char mqttServer[100] = {0};
 char mqtt_username[100] = {0};
 char mqtt_password[100] = {0};
 uint32_t mqtt_port;
-bool mqtt_enable=false;
-
 //const char* mqttServer = "192.168.1.200";
 //onst int mqtt_port = 1883;
 //const char *mqtt_username = "dhanushkadx";
 //const char *mqtt_password = "cyclone10153";
 #endif
-
+bool mqtt_enable=false;
 // use wifi client to init mqtt client
 PubSubClient client(espClient);
 
@@ -69,8 +67,17 @@ char mqttTopic_panic_statusP[] PROGMEM = "blackwire/command/panic/state";
 _callbackFunctionType7 fn_onMQTT_connection;
 
 void setup_mqtt(){
-  // get mqtt credintial from spif
-
+  
+  
+  if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;}
+  else{
+    Serial.printf_P(PSTR("MQTT_SERVR:%s\nPORT:%d\nUSER:%s\nPASS:%s"),mqttServer,mqtt_port,mqtt_username,mqtt_password);
+  }
+      // set root ca cert
+#ifdef MQTT_SECURE
+  espClient.setCACert(ca_cert);
+#else
+// get mqtt credintial from spif
   if(!getJson_key_char("/config.json", "mqtt_server", mqttServer, 100)){
     Serial.println(F("MQTT CONFIG LOAD ERROR"));
   }
@@ -83,16 +90,7 @@ void setup_mqtt(){
   if(!getJson_key_int("/config.json", "mqtt_port", &mqtt_port)){
     Serial.println(F("MQTT CONFIG LOAD ERROR"));
   }
-  
-  if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;
-  }
-  else{
-    Serial.printf_P(PSTR("MQTT_SERVR:%s\nPORT:%d\nUSER:%s\nPASS:%s"),mqttServer,mqtt_port,mqtt_username,mqtt_password);
-  }
-      // set root ca cert
-  #ifdef MQTT_SECURE
-  espClient.setCACert(ca_cert);
-  #endif
+#endif
   client.setKeepAlive(60);
   // connecting to a mqtt broker
   client.setServer(mqttServer, mqtt_port);

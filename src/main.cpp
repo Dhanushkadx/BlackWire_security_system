@@ -423,7 +423,7 @@ void setup()
 	pinMode(PIN_ARM , OUTPUT);
 	pinMode(PIN_DISARM, OUTPUT);
 	pinMode(PIN_BATTERY, OUTPUT);
-	pinMode(PIN_VOICE_EN,OUTPUT);
+	//pinMode(PIN_VOICE_EN,OUTPUT);
 	
 	Wire.begin();
 	uint8_t dx;
