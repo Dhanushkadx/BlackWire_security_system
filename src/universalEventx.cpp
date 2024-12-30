@@ -105,7 +105,8 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	
 	if (strncmp_P(smsbuffer,PSTR("Zone="),4)==0)// "Zone=03,EXIT,0";
 	{
-		set_zone_param(smsbuffer);
+		ret_value = 1;
+		 set_zone_param(smsbuffer);
 		 eeprom_load();
 		 char reply_buff[5];
 		 strcpy_P(reply_buff,PSTR("OK"));
@@ -410,33 +411,61 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 #endif		
 	}
 
-	else if (strncmp("Relay a on=",smsbuffer,10)==0)
+	else if (strncmp("Relay 2 off",smsbuffer,10)==0)
 	{
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
 		//Relay_A.Activate(2000);
-		char buffer[5];
-		strcpy_P(buffer,PSTR("OK"));
+		char buffer[25];
+		strcpy_P(buffer,PSTR("Relay 2 off OK"));
 		creatSMS(buffer,2,0);
+		publish_system_state("false","cmd/relay2/status", true);
+#ifdef GSM_MINI_BOARD_V3
+		digitalWrite(RELAY_OUT_B,HIGH);
+#endif
 	}
-	else if (strncmp("Relay b on=",smsbuffer,10)==0)
+	else if (strncmp("Relay 2 on",smsbuffer,10)==0)
 	{
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		//Relay_A.Activate(2000);
+		char buffer[25];
+		strcpy_P(buffer,PSTR("Relay 2 on OK"));
+		creatSMS(buffer,2,0);
+		publish_system_state("true","cmd/relay2/status", true);
+#ifdef GSM_MINI_BOARD_V3
+		digitalWrite(RELAY_OUT_B,LOW);
+#endif
+	}
+	else if (strncmp("Relay 1 on",smsbuffer,10)==0)
+	{
+		ret_value = 1;
+		//check access
+		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
 		//relay_B_activate();
-		char buffer[5];
-		strcpy_P(buffer,PSTR("OK"));
+		char buffer[25];
+		strcpy_P(buffer,PSTR("Relay 1 on OK"));
 		creatSMS(buffer,2,0);
+		publish_system_state("true","cmd/relay1/status", true);
+#ifdef GSM_MINI_BOARD_V3
+		digitalWrite(RELAY_OUT_A,LOW);
+#endif
 	}
-	else if (strncmp("Relay b off=",smsbuffer,10)==0)
+	else if (strncmp("Relay 1 off",smsbuffer,10)==0)
 	{
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
-		//relay_B_deactivate();
-		creatSMS("Successful",2,0);
+		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		//relay_B_deactivate();char buffer[5];
+		char buffer[25];
+		strcpy_P(buffer,PSTR("Relay 1 off OK"));
+		creatSMS(buffer,2,0);
+		publish_system_state("false","cmd/relay1/status", true);
+#ifdef GSM_MINI_BOARD_V3
+		digitalWrite(RELAY_OUT_A,HIGH);
+#endif
 	}
 	else if (strncmp("Power?",smsbuffer,6)==0)
 	{

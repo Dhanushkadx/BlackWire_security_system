@@ -308,7 +308,7 @@ void ultimate_sms_hadlr(){
 						}
 						else{
 							//get next number
-							if (sms_broadcast_index<3)
+							if (sms_broadcast_index<8)
 							{
 								Serial.println(F("GET NEXT NUMBER"));
 								sms_broadcast_index++;

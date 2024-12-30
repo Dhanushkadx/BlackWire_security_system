@@ -52,9 +52,9 @@ void relayTask() {
 			{
 				ePrev_siren_state=eCurrent_siren_state;
 				Serial.println(F("SIREN_OFF"));
-				
+				digitalWrite(RELAY_ALARM,LOW);
 			}
-			digitalWrite(RELAY_ALARM,LOW);
+			
 		}
 			break;
 		case SIREN_MOMENT:{

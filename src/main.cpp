@@ -424,6 +424,12 @@ void setup()
 	pinMode(PIN_DISARM, OUTPUT);
 	pinMode(PIN_BATTERY, OUTPUT);
 	//pinMode(PIN_VOICE_EN,OUTPUT);
+#ifdef GSM_MINI_BOARD_V3
+	pinMode(RELAY_OUT_A,OUTPUT);
+	pinMode(RELAY_OUT_B,OUTPUT);
+	digitalWrite(RELAY_OUT_A,HIGH);
+	digitalWrite(RELAY_OUT_B,HIGH);
+#endif
 	
 	Wire.begin();
 	uint8_t dx;

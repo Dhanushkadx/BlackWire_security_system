@@ -228,7 +228,13 @@ void publish_json_to_mqtt(const char* jsonStr){
 
 void callback(char *topic, byte *payload, unsigned int length) {
    Serial.print(F("Message arrived in topic: "));
-    Serial.println(topic);
+   Serial.println(topic);
+   char my_topic[100];
+   uint8_t mac[6];
+    char device_id_macStr[18];
+    WiFi.macAddress(mac);	
+// Format the MAC address without colons and with underscores
+   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     String byteRead = "";
     Serial.print(F("Message: "));
@@ -236,21 +242,17 @@ void callback(char *topic, byte *payload, unsigned int length) {
         byteRead += (char)payload[i];
     }    
     Serial.println(byteRead);
+    memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
+    sprintf_P(my_topic,PSTR("blackwire/%s/cmd"),device_id_macStr);
 
-     // Parse JSON payload
-  DynamicJsonDocument jsonDoc(256);
-  deserializeJson(jsonDoc, payload, length);  
-
-  // Check if the received topic includes the ESP32 MAC address
-  uint8_t mac[6];
-  char device_id_macStr[18];
-  WiFi.macAddress(mac);	
 // Format the MAC address without colons and with underscores
-   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  if (strstr(topic, device_id_macStr) != NULL) {
+  if (strcmp(topic, device_id_macStr) == 0) {
     // The topic includes the ESP32 MAC address
     // Add your logic for handling the message for this device
     // Extract data from JSON
+    // Parse JSON payload
+    DynamicJsonDocument jsonDoc(256);
+    deserializeJson(jsonDoc, payload, length);  
     const char* cmd = jsonDoc["cmd"]; // "sms"
     JsonObject data = jsonDoc["data"];
     if(strncmp(cmd,"mod",3)==0){
@@ -293,8 +295,47 @@ void callback(char *topic, byte *payload, unsigned int length) {
 
     if(strncmp(cmd,"chime1",6)==0){
       transfer_mqtt_data(cmd);      
-    }    
+    } 
   } 
+
+  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
+  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/relay1/set"),device_id_macStr);
+
+  if(strcmp(topic,my_topic)==0){
+    // Temporary buffer for the payload
+        char payload_buffer[50]; // Adjust size as per your maximum expected payload length
+    // Ensure we copy only the specified length and avoid overflow
+        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1); // Reserve space for null terminator
+        memcpy(payload_buffer, payload, copy_length); // Copy payload
+        payload_buffer[copy_length] = '\0'; // Null-terminate
+
+      // Compare the payload with expected values
+        if (strcmp(payload_buffer, "on") == 0) {;
+            transfer_mqtt_data("Relay 1 on");
+        } 
+        else if (strcmp(payload_buffer, "off") == 0) {
+            transfer_mqtt_data("Relay 1 off");
+        }
+    }
+  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
+  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/relay2/set"),device_id_macStr);
+
+  if(strcmp(topic,my_topic)==0){
+    // Temporary buffer for the payload
+        char payload_buffer[50]; // Adjust size as per your maximum expected payload length
+    // Ensure we copy only the specified length and avoid overflow
+        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1); // Reserve space for null terminator
+        memcpy(payload_buffer, payload, copy_length); // Copy payload
+        payload_buffer[copy_length] = '\0'; // Null-terminate
+
+      // Compare the payload with expected values
+        if (strcmp(payload_buffer, "on") == 0) {;
+            transfer_mqtt_data("Relay 2 on");
+        } 
+        else if (strcmp(payload_buffer, "off") == 0) {
+            transfer_mqtt_data("Relay 2 off");
+        }
+    }
 }
 
 
@@ -332,9 +373,13 @@ void setup_subscriptions(){
 // Format the MAC address without colons and with underscores
   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   // Construct the MQTT topic
-  char mqttTopic[50];  // Adjust the size as needed
+  char mqttTopic[100];  // Adjust the size as needed
   sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd"), device_id_macStr);
     Serial.println(F("setup subscriptions"));    
+    client.subscribe(mqttTopic); // subscribe from the topic
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
+    client.subscribe(mqttTopic); // subscribe from the topic
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
     client.subscribe(mqttTopic); // subscribe from the topic
     Serial.println(mqttTopic);
    }

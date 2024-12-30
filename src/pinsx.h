@@ -3,7 +3,7 @@
 
 
 //#define GSM_MINI_BOARD
-#define GSM_MINI_BOARD_V2
+#define GSM_MINI_BOARD_V3
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18
@@ -42,6 +42,8 @@
 #define PIN_AC_DETECT 4
 #define  BuzzerPin 2
 #define GSM_LED 27
+#define RELAY_OUT_A 25
+#define RELAY_OUT_B 26
 //#define PIN_VOICE_EN 21
 #endif
 
