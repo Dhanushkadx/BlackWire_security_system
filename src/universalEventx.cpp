@@ -420,7 +420,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		char buffer[25];
 		strcpy_P(buffer,PSTR("Relay 2 off OK"));
 		creatSMS(buffer,2,0);
+#ifdef MQTT_OK
 		publish_system_state("false","cmd/relay2/status", true);
+#endif
 #ifdef GSM_MINI_BOARD_V3
 		digitalWrite(RELAY_OUT_B,HIGH);
 #endif
@@ -434,7 +436,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		char buffer[25];
 		strcpy_P(buffer,PSTR("Relay 2 on OK"));
 		creatSMS(buffer,2,0);
+#ifdef MQTT_OK
 		publish_system_state("true","cmd/relay2/status", true);
+#endif
 #ifdef GSM_MINI_BOARD_V3
 		digitalWrite(RELAY_OUT_B,LOW);
 #endif
@@ -448,7 +452,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		char buffer[25];
 		strcpy_P(buffer,PSTR("Relay 1 on OK"));
 		creatSMS(buffer,2,0);
+#ifdef MQTT_OK
 		publish_system_state("true","cmd/relay1/status", true);
+#endif
 #ifdef GSM_MINI_BOARD_V3
 		digitalWrite(RELAY_OUT_A,LOW);
 #endif
@@ -462,7 +468,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		char buffer[25];
 		strcpy_P(buffer,PSTR("Relay 1 off OK"));
 		creatSMS(buffer,2,0);
+#ifdef MQTT_OK
 		publish_system_state("false","cmd/relay1/status", true);
+#endif
 #ifdef GSM_MINI_BOARD_V3
 		digitalWrite(RELAY_OUT_A,HIGH);
 #endif
