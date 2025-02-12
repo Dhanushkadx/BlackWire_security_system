@@ -33,6 +33,7 @@
 #include "async_web_server.h"
 #include "siren.h"
 #include "universalEventx.h"
+#include "msg_store.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
@@ -48,6 +49,7 @@ SemaphoreHandle_t xMutex_GSM = NULL;
 SemaphoreHandle_t xMutex_GSM_CALLING = NULL;
 SemaphoreHandle_t xMutex_I2C = NULL;
 SemaphoreHandle_t sensorMutex = NULL;
+SemaphoreHandle_t xMutex_spiff = NULL;
 
 
 /* this variable hold queue handle */
@@ -218,7 +220,7 @@ void Task1code( void * parameter ){
 void Task2code_sms( void * parameter ){
 	/*Serial.print("Task2 is running on core ");
 	Serial.println(xPortGetCoreID());*/
-	creatSMS("Hi :-)",3,0);
+	//creatSMS("Hi :-)",3,0);
  TickType_t xLastWakeTime;
  const TickType_t xFrequency =  pdMS_TO_TICKS(1);;
  // Initialize the xLastWakeTime variable with the current time.
@@ -343,13 +345,14 @@ switch (system_mode) {
     case NOMAL_MODE_WIFI: {
 #ifdef MQTT_OK
         mqtt_com_loop();
-#endif
-        reconnect();
-        if (Timer_mqtt_breath.Timer_run()) {
+		if (Timer_mqtt_breath.Timer_run()) {
             publish_network_info();
             send_all_zone_states_mqtt();
             Timer_mqtt_breath.previousMillis = millis();
         }
+#endif
+        reconnect();
+        
     } break;
 
     case NOMAL_MODE_NO_WIFI: { // Assuming you meant a different mode here
@@ -481,12 +484,20 @@ void setup()
   xMutex_GSM = xSemaphoreCreateMutex(); 
   xMutex_GSM_CALLING = xSemaphoreCreateMutex();
   xMutex_I2C = xSemaphoreCreateMutex();
+  // Initialize the mutex before using any file operation
+  xMutex_spiff = xSemaphoreCreateMutex();
+    if (xMutex_spiff == NULL) {
+        Serial.println(F("Failed to create mutex xMutex_spiff"));
+        return;
+    }
   sensorMutex = xSemaphoreCreateMutex();
   EventRTOS_lcd = xEventGroupCreate();
   EventRTOS_buzzer = xEventGroupCreate();
   EventRTOS_lcdkeyPad = xEventGroupCreate();
   EventRTOS_gsm = xEventGroupCreate();
   EventRTOS_siren = xEventGroupCreate();
+
+ initMsgQueue();
  /* create the queue which size can contains 5 elements of Data */
  xQueue = xQueueCreate(1, sizeof(DataBuffer));
  xQueue_sensor_state = xQueueCreate(1, sizeof(DataBuffer));
@@ -505,7 +516,7 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
+	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,1);
 	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
 	
 	xTaskCreatePinnedToCore(Task9code,"Task9",2040,NULL,1,&Task9,1);

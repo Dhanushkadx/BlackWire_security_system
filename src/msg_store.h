@@ -1,11 +1,12 @@
 #ifndef OFFLINEMESSAGEHANDLER_H
 #define OFFLINEMESSAGEHANDLER_H
-
+#include "Arduino.h"
 #include <ArduinoJson.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <freertos/queue.h>
 // Constants
 // Path to store messages
 #define FILE_PATH ""
@@ -15,6 +16,12 @@
 #define FILE_INDEX_PATH "/file_index.txt"  // Path to store the current file index
 #define JSON_DOC_SIZE 4096            // Adjust based on expected JSON message size
 extern PubSubClient client;
+//#include <queue.h>
+
+extern xQueueHandle msgQueue;  // Declare a FreeRTOS queue to hold messages
+
+// Define maximum size for the message (adjust as needed)
+#define MAX_MSG_SIZE 512
 // Function Declarations
 
 /**
@@ -22,23 +29,20 @@ extern PubSubClient client;
  * 
  * @param msg The JSON message string to be saved.
  */
-void saveMessageToSPIFFS(const String &msg);
-void saveMessageToSPIFFSV2(JsonDocument& msg);
+void initMsgQueue();
+void processMessagesFromQueue();
+bool readLastNMessagesToQueue(int numMessages);
+
 void saveMessageToSPIFFSV3(JsonDocument& msg);
+
 uint8_t getNextFileIndex();
-bool processOfflineMessagesV2();
+
 void saveFileIndex(int fileIndex);
 /**
  * @brief Process and send offline messages from SPIFFS if the network is available.
  */
-bool processOfflineMessages();
+bool processOfflineMessagesV2();
 
-/**
- * @brief Mock function to check network availability.
- * 
- * @return true if the network is available, false otherwise.
- */
-bool isNetworkAvailable();
 
 /**
  * @brief Send a message over the network.

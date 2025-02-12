@@ -119,7 +119,7 @@ typedef struct creat_new_sms {
 // 	uint8_t event_id; //Event ID may be Alarm-1, Command Execution
  	uint8_t contact_id;// if the sms is a privet reply we must remember sender number
 	String number;
-}NEW_SMS, *PNEW_SMS ;
+}NEW_SMS, *PNEW_SMS;
 
 //int sms_broadcast_index=0;
 //NEW_SMS SMS_to_be_sent_FIXDMEM[10];

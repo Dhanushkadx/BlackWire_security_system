@@ -10,6 +10,7 @@
 #include "ESP32Time.h"
 #include "gsm_broker.h"
 #include "config_manager.h"
+#include "msg_store.h"
 
 
 #ifdef MQTT_OK

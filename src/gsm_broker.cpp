@@ -109,6 +109,10 @@ void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SM
 	else{
 		creatSMS_LL(buffer,type, number);
 	}
+	DynamicJsonDocument doc(2048);
+	doc["msgTyp"] = type;
+  	doc["msg"] = buffer;
+	saveMessageToSPIFFSV3(doc);
 	
 }
 

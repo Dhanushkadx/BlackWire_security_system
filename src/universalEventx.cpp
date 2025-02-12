@@ -30,6 +30,16 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		break;
 	}
 	
+	if (strncmp("log",smsbuffer,3)==0)
+	{
+		Serial.println(F("Reading Log"));
+        delay(500);
+		//processOfflineMessagesV2();
+		readLastNMessagesToQueue(10);
+		processMessagesFromQueue();
+		Serial.println("loop2 exit");
+		
+	}
 	if (strncmp("reboot",smsbuffer,6)==0)
 	{
 		Serial.println(F("Restart in 5 sec"));
