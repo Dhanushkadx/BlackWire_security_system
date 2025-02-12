@@ -9,6 +9,7 @@
 #include "call_backs.h"
 #include "Adafruit_FONA.h"
 #include "ESP32Time.h"
+#include "msg_store.h"
 
 //#define GSM_MODULE_AUTH
 extern bool gsm_init_done;
