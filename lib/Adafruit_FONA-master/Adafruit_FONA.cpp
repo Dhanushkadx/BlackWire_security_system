@@ -1127,6 +1127,7 @@ bool Adafruit_FONA::deleteSMSV2(uint8_t message_index) {
 
 	 DEBUG_PRINT(F("\t<--- "));
 	 DEBUG_PRINTLN(replybuffer);
+   return true;
  //return sendCheckReply(sendbuff, ok_reply, 2000);
 }
 

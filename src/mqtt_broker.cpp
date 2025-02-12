@@ -4,10 +4,10 @@
 //sensor status 
 uint8_t zone; 
 bool state;
-
+bool mqtt_enable = false;
 #ifdef MQTT_SECURE
 // load DigiCert Global Root CA ca_cert
-const char * ca_cert = \
+const char * ca_cert = PSTR(\
   "-----BEGIN CERTIFICATE-----\n"\
 "MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh\n"\
 "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"\
@@ -29,7 +29,7 @@ const char * ca_cert = \
 "PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls\n"\
 "YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk\n"\
 "CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4="\
-"-----END CERTIFICATE-----\n";
+"-----END CERTIFICATE-----\n");
 
 // init secure wifi client
 WiFiClientSecure espClient;
@@ -47,7 +47,7 @@ char mqttServer[100] = {0};
 char mqtt_username[100] = {0};
 char mqtt_password[100] = {0};
 uint32_t mqtt_port;
-bool mqtt_enable=false;
+
 
 //const char* mqttServer = "192.168.1.200";
 //onst int mqtt_port = 1883;
