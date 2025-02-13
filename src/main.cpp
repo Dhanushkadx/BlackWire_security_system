@@ -7,7 +7,7 @@
 */
 #define _DEBUG
 #define ARDUINOJSON_ENABLE_STD_STREAM 1
-
+SET_LOOP_TASK_STACK_SIZE( 4*1024 );
 #include <freertos/message_buffer.h>
 #include "pinsx.h"
 #include <ESPmDNS.h>
@@ -52,6 +52,7 @@ SemaphoreHandle_t sensorMutex = NULL;
 SemaphoreHandle_t xMutex_spiff = NULL;
 
 
+
 /* this variable hold queue handle */
 xQueueHandle xQueue;
 /* this variable hold queue handle */
@@ -81,7 +82,7 @@ char TimeToSend_buff[50]="";
 //using json = nlohmann::json;
 RCSwitch mySwitch = RCSwitch();
 LiquidCrystal_I2C lcd(0x3C,16,2);
-
+TaskHandle_t mainTaskHandle = NULL;
 TaskHandle_t Task1;
 TaskHandle_t Task2_sms;
 TaskHandle_t Task3;
@@ -96,7 +97,7 @@ TaskHandle_t Task10;
 
 // Use this one for FONA 3G
 //Adafruit_FONA_3G fona = Adafruit_FONA_3G(FONA_RST);
-
+void printStackUsage();
 //uint8_t readline(char *buff, uint8_t maxbuff, uint16_t timeout = 0);
 void rfid_int_to_str(char* buff, unsigned long rf_id);
 void transfer_rf_scan_data(char* rfid);
@@ -433,6 +434,9 @@ void setup()
 	digitalWrite(RELAY_OUT_A,HIGH);
 	digitalWrite(RELAY_OUT_B,HIGH);
 #endif
+
+  // Capture the main task handle
+  mainTaskHandle = xTaskGetCurrentTaskHandle();  // Get handle for the main task
 	
 	Wire.begin();
 	uint8_t dx;
@@ -461,10 +465,13 @@ void setup()
 		setup_web_server_with_AP();
 	}
 	else if(system_mode==NOMAL_MODE_WIFI){
-		setup_web_server_with_STA();
+		//setup_web_server_with_STA();
 #ifdef MQTT_OK
 		if(systemConfig.mqtt_en){mqtt_enable = true; setup_mqtt();}
-		else{mqtt_enable = false;}
+		else{mqtt_enable = false; setup_web_server_with_STA();
+		}
+#else
+		setup_web_server_with_STA();
 #endif
 	}
 	else if(system_mode==NOMAL_MODE_NO_WIFI){//
@@ -516,7 +523,7 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,1);
+	xTaskCreatePinnedToCore(Task8code,"Task8",16000,NULL,1,&Task8,1);
 	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
 	
 	xTaskCreatePinnedToCore(Task9code,"Task9",2040,NULL,1,&Task9,1);
@@ -1002,4 +1009,13 @@ void send_all_zone_states_mqtt(){
             }
            
 }
+
+
+void printStackUsage() {
+	// Get the stack high water mark for the loop task
+	UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(mainTaskHandle);
+	Serial.print("Minimum stack remaining for loop task: ");
+	Serial.print(highWaterMark);
+	Serial.println(" words.");
+  }
 

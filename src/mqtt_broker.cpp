@@ -127,6 +127,10 @@ void reconnectMQTT() {
   while (!client.connected()) {
     vTaskDelay(5000/portTICK_PERIOD_MS);
     Serial.printf("Reconnecting to MQTT broker... at %s\n",mqttServer);
+     // set root ca cert
+#ifdef MQTT_SECURE
+  espClient.setCACert(ca_cert);
+#endif
     if (client.connect(client_id.c_str(), mqtt_username, mqtt_password,lastwill_topic, 1, true, "offline")) {
         Serial.println(F("Connected to MQTT broker."));
         client.publish(lastwill_topic,"online",true);
@@ -394,4 +398,5 @@ void mqtt_com_loop() {
     reconnectMQTT();
   }
   client.loop(); 
+  delay(500);
 }

@@ -8,6 +8,7 @@ AsyncWebSocket ws("/ws");
 
 
 void notifyClients_pageZones() {
+	printStackUsage();
 	File fileToReadx = SPIFFS.open("/zone_data_8.json");
 	if (!fileToReadx)
 	{
@@ -15,12 +16,14 @@ void notifyClients_pageZones() {
 		return;
 	}
 	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_DEVICE_DATA);
+	DynamicJsonDocument docx(3000);
 	DeserializationError err = deserializeJson(docx,  fileToReadx);
 	fileToReadx.close();
 	if (err) {
 		Serial.print(F("deserializeJson() failed with code "));
 		Serial.println(err.f_str());
+		Serial.print(F("Free Memory after deserialization: "));
+		Serial.println(ESP.getFreeHeap());
 		return;
 	}
 

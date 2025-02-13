@@ -13,7 +13,7 @@
 #include "WiFi.h"
 #include <SPIFFS.h>
 #include "call_backs.h"
-
+extern void printStackUsage();
 extern AsyncWebSocket ws;
 
 void notifyClients_pageZones();
