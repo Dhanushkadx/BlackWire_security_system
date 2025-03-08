@@ -63,7 +63,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     }
 
     // Set the JSON key to the new state
-    doc["sysconf"]["wifiap_en"] = true;
+    doc["sysconf"][jkey] = state;
 
     Serial.println(F("Saving config..."));
 

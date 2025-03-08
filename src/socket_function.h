@@ -13,9 +13,11 @@
 #include "WiFi.h"
 #include <SPIFFS.h>
 #include "call_backs.h"
+#include "sensor_scan.h"
+#include "Adafruit_FONA.h"
 extern void printStackUsage();
 extern AsyncWebSocket ws;
-
+void notifyClients_pageInfo();
 void notifyClients_pageZones();
 
 void notifyClients_pageUser();

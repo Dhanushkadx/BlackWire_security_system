@@ -49,7 +49,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
     if (strncmp("sms ap",smsbuffer,6)==0)
 	{
         if(setJson_key_bool("/config.json", "wifiap_en", true)){
-            Serial.println("AP setup ok");
+            Serial.println(F("AP setup ok"));
         }
 		Serial.println(F("Restart in 5 sec"));        
         delay(5000);

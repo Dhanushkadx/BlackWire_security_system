@@ -55,8 +55,14 @@ void setup_web_server_with_STA()
 	initWiFi_STA();	
 	initWebSocket();
 	initWebServer();
-	
+}
 
+void setup_web_server_with_STA_info()
+{
+	Serial.println(F("setting WiFi-STA Info"));
+	initWiFi_STA();	
+	initWebSocket();
+	initWebServer_info();
 }
 
 void cleanClients(){
@@ -178,6 +184,7 @@ String processor(const String &var) {
 }
 
 
+void onGetRequest_info(AsyncWebServerRequest *request) {}
  // Send a GET request to <ESP_IP>/get?inputString=<inputMessage>
 void onGetRequest(AsyncWebServerRequest *request) {
 	String inputMessage;
@@ -507,7 +514,15 @@ if (request->hasParam("txt0")) {
  }
 
  
-
+ void onRootRequest_info(AsyncWebServerRequest *request) {
+	if(!request->authenticate(http_username, systemConfig.installer_pass))
+	return request->requestAuthentication();	 
+	String path = request->url();
+	if(path == "/") {
+		path = "/info.html";
+	}
+	request->send(SPIFFS, path, "text/html", false, processor);
+}
 
 void onRootRequest(AsyncWebServerRequest *request) {
 	 if(!request->authenticate(http_username, systemConfig.installer_pass))
@@ -531,6 +546,23 @@ void initWebServer() {
 	.serveStatic("/", SPIFFS, "/www/")
 	.setDefaultFile("default.html")
 	.setAuthentication("user", "pass");*/
+}
+
+void initWebServer_info() {
+	
+	//server.on("/", onRootRequest_info);
+	//server.on("/get", onGetRequest_info);
+	//server.serveStatic("/", SPIFFS, "/");
+	//AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+	//server.begin();
+	/*server*/
+	 // send a file when /index is requested
+	 server.on("/", HTTP_ANY, [](AsyncWebServerRequest *request){
+		request->send(SPIFFS, "/info.html");
+	  });
+	  server.begin();
+	//server.setDefaultFile("info.html");
+	//server.setAuthentication("user", "pass");
 }
 
 

@@ -26,6 +26,7 @@ extern TimerSW Timer_WIFIreconnect;
 
 void setup_web_server_with_AP();
 void setup_web_server_with_STA();
+void setup_web_server_with_STA_info();
 void cleanClients();
 void initWebSocket();
 void reconnect();
@@ -37,6 +38,11 @@ String processor(const String &var);
 void onRootRequest(AsyncWebServerRequest *request);
 void onGetRequest(AsyncWebServerRequest *request);
 void initWebServer();
+
+void onRootRequest_info(AsyncWebServerRequest *request);
+void onGetRequest_info(AsyncWebServerRequest *request);
+void initWebServer_info();
+
 
 
 

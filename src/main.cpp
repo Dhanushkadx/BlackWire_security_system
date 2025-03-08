@@ -97,7 +97,7 @@ TaskHandle_t Task10;
 
 // Use this one for FONA 3G
 //Adafruit_FONA_3G fona = Adafruit_FONA_3G(FONA_RST);
-void printStackUsage();
+void printStackUsage(TaskHandle_t);
 //uint8_t readline(char *buff, uint8_t maxbuff, uint16_t timeout = 0);
 void rfid_int_to_str(char* buff, unsigned long rf_id);
 void transfer_rf_scan_data(char* rfid);
@@ -121,6 +121,7 @@ TimerSW Timer_battery_charge;
 TimerSW Timer_alarm_calling_time_out;
 TimerSW Timer_mqtt_breath;
 TimerSW Timer_rf_id_auto_clr;
+TimerSW Timer_websocket_update;
 
 eSYS_MODE system_mode = NOMAL_MODE_NO_WIFI;
 ALARM myAlarm_pannel(any_sensor_array);
@@ -412,6 +413,7 @@ void init_timersSW(){
 	  Timer_battery_charge.interval = 5000000;
 	  Timer_sms_send_delay.interval = 60000;
 	  Timer_mqtt_breath.interval = 30000;
+	  Timer_websocket_update.interval = 500;
 }
 
 void setup()
@@ -465,13 +467,19 @@ void setup()
 		setup_web_server_with_AP();
 	}
 	else if(system_mode==NOMAL_MODE_WIFI){
-		//setup_web_server_with_STA();
+
 #ifdef MQTT_OK
-		if(systemConfig.mqtt_en){mqtt_enable = true; setup_mqtt();}
-		else{mqtt_enable = false; setup_web_server_with_STA();
-		}
+		if(systemConfig.mqtt_en){
+			mqtt_enable = true; 
+			setup_mqtt(); 
+			setup_web_server_with_STA_info();
+			}
+		else{
+			mqtt_enable = false; 
+			//setup_web_server_with_STA();
+			}
 #else
-		setup_web_server_with_STA();
+			setup_web_server_with_STA();
 #endif
 	}
 	else if(system_mode==NOMAL_MODE_NO_WIFI){//
@@ -526,8 +534,8 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	xTaskCreatePinnedToCore(Task8code,"Task8",16000,NULL,1,&Task8,1);
 	xTaskCreatePinnedToCore(Task2code_sms,"Task2",5000,NULL,2,&Task2_sms,1);
 	
-	xTaskCreatePinnedToCore(Task9code,"Task9",2040,NULL,1,&Task9,1);
-	xTaskCreatePinnedToCore(Task10code,"Task10",3000,NULL,1,&Task10,1);
+	xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
+	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
 	/* Clear bit 0 and bit 4 in xEventGroup. */
 	xEventGroupSetBits(
 	EventRTOS_gsm,  /* The event group being updated. */
@@ -537,8 +545,16 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 
 void loop()
 {
-	if(system_mode!=NOMAL_MODE_NO_WIFI){
-	cleanClients();}
+	if(system_mode!=NOMAL_MODE_NO_WIFI){ 
+		if(Timer_websocket_update.Timer_run()){
+			Timer_websocket_update.previousMillis = millis(); 
+			notifyClients_pageInfo();
+			printStackUsage(mainTaskHandle);	
+			printStackUsage(Task9);
+			Serial.println(ESP.getFreeHeap());
+		}
+			cleanClients();
+}
 /*
 delay(1000);
 	 printLocalTime();*/
@@ -1011,9 +1027,10 @@ void send_all_zone_states_mqtt(){
 }
 
 
-void printStackUsage() {
+void printStackUsage(TaskHandle_t TaskHandle) {
 	// Get the stack high water mark for the loop task
-	UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(mainTaskHandle);
+
+	UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(TaskHandle);
 	Serial.print("Minimum stack remaining for loop task: ");
 	Serial.print(highWaterMark);
 	Serial.println(" words.");

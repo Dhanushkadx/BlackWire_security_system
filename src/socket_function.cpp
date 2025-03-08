@@ -5,10 +5,53 @@
 
 AsyncWebSocket ws("/ws");
 
+void notifyClients_pageInfo() {
+	DynamicJsonDocument readings(512);
+	char msg[150] = {0};
+	String ipAddress = WiFi.localIP().toString();
+	String macAddress = WiFi.macAddress();
+	int32_t rssi = WiFi.RSSI();
+	String wifiStatus;
+	(!WiFi.isConnected())?wifiStatus = "offline": wifiStatus = "online";
+	sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nRSSI:%d dBm\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress.c_str(), macAddress.c_str(), rssi);
+	//sms_broad_cast_request = true;
+	SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].type = 1;
+	if (myAlarm_pannel.get_system_state()!=DEACTIVE)
+	{
+		readings["P1"] = "ACTIVE";
+	}
+	else
+	{
+		readings["P1"] = "DEACTIVE";
+	}
+	if(!client.connected()){
+		readings["P9"] = "DISCONNECTED";
+	}
+	else{
+		readings["P9"] = "CONNECTED";
+	}
 
+	
+  	readings["P10"] = getSignal_strength();
+ 	readings["P2"] = rssi;
+  	readings["P3"] = ipAddress;
+	readings["P4"] = macAddress;
+	// Loop through each sensor and dynamically generate keys "P0", "P1", "P2", ...
+	for (int i = 0; i < 4; i++) {
+	String key = "P" + String(i+5);  // Generate key like "P0", "P1", "P2", ...
+	readings[key] = getSensor(i);    // Assign the state to the generated key
+	}
+	
+  	String data;
+	//data.reserve(12288);
+	readings["respHeader"]= "pint";
+	size_t len = serializeJson(readings, data);
+	ws.textAll(data.c_str(),len);
+	readings.garbageCollect();
+	
+}
 
 void notifyClients_pageZones() {
-	printStackUsage();
 	File fileToReadx = SPIFFS.open("/zone_data_8.json");
 	if (!fileToReadx)
 	{
@@ -146,6 +189,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 		if (strcmp(action, "sys") == 0) {
 			Serial.println(F("sys"));
 			notifyClients_pageSys();
+		}
+		if (strcmp(action, "info") == 0) {
+			Serial.println(F("info"));
+			notifyClients_pageInfo();
 		}
 			
 		

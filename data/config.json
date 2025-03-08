@@ -28,6 +28,6 @@
      "mqtt_port":1883,
      "mqtt_user":"dhanushkadx",
      "mqtt_pass":"cyclone10153",
-     "mqtt_en":false
+     "mqtt_en":true
    }
  }

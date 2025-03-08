@@ -13,6 +13,7 @@ bool thisIs_Restart = true;
 bool gsm_init_done = false;
 bool gsm_available = false;
 bool timesync_need = true;
+uint8_t gsmsignal_rssi;
 // Use this for FONA 800 and 808s
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
@@ -84,6 +85,11 @@ bool gsm_init(){
 #endif	 
 		return true;
 	 
+}
+
+uint8_t getSignal_strength(){
+
+	return  gsmsignal_rssi;
 }
 
 void setTime_from_gsm(){
@@ -499,7 +505,10 @@ bool ultimate_gsm_listiner(){
 	 waitForMutex_GSM();
 	 if(fona.getNetworkStatus()==1){
 		 digitalWrite(GSM_LED,HIGH);
-		 Serial.println(F("Network ok"));	
+		 Serial.print(F("Network ok>"));	
+			
+		 gsmsignal_rssi = fona.getRSSI();
+		 Serial.println(gsmsignal_rssi);
 		 if(timesync_need== true){
 			timesync_need=false;
 			setTime_from_gsm();

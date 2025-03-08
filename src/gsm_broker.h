@@ -54,6 +54,9 @@ void creat_panic_sms(char* str);
 
 void creat_power_sms(bool power_state);
 
+uint8_t getSignal_strength();
+
+extern uint8_t gsmsignal_rssi;
 //retuns
 //0 - succesfully done
 //1 - somethong is wrong
