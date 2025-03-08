@@ -7,7 +7,7 @@
 */
 #define _DEBUG
 #define ARDUINOJSON_ENABLE_STD_STREAM 1
-SET_LOOP_TASK_STACK_SIZE( 4*1024 );
+SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include <freertos/message_buffer.h>
 #include "pinsx.h"
 #include <ESPmDNS.h>
@@ -519,12 +519,12 @@ xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
  
-	xTaskCreatePinnedToCore(Task1code,"Task1",10000,NULL,1,&Task1,0);	
+	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
 	xTaskCreatePinnedToCore(Task8code,"Task8",16000,NULL,1,&Task8,1);
-	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
+	xTaskCreatePinnedToCore(Task2code_sms,"Task2",5000,NULL,2,&Task2_sms,1);
 	
 	xTaskCreatePinnedToCore(Task9code,"Task9",2040,NULL,1,&Task9,1);
 	xTaskCreatePinnedToCore(Task10code,"Task10",3000,NULL,1,&Task10,1);

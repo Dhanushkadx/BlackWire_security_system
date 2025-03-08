@@ -5,7 +5,7 @@
 */
 #include "async_web_server.h"
 
-#define TOTAL_DEVICES 24
+#define TOTAL_DEVICES 8
 String hostname = "Digital Security";
 TimerSW Timer_WIFIreconnect;
 const char* http_username = "admin";
@@ -184,7 +184,7 @@ void onGetRequest(AsyncWebServerRequest *request) {
 	
 	if (request->hasParam("z0")) {// I need to know the source web page of the GET request if this para available it s mean page is zone page
 		File fileToReadx = SPIFFS.open("/zone_data_8.json") ;
-		DynamicJsonDocument docrx(JSON_DOC_SIZE_DEVICE_DATA);
+		DynamicJsonDocument docrx(JSON_DOC_SIZE_ZONE_DATA);
 		deserializeJson(docrx,  fileToReadx);
 		fileToReadx.close();
 		for (int index=0; index<TOTAL_DEVICES; index++)
@@ -193,15 +193,15 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			char buffer[20]; char buffer2[20];
 			sprintf(buffer,"z%d",index);
 			if (index < 10) {
-				sprintf(buffer2, "zone0%d", index);
+				sprintf(buffer2, "z0%d", index);
 			}
 			else {
-				sprintf(buffer2, "zone%d", index);
+				sprintf(buffer2, "z%d", index);
 			}
 			
 			if (request->hasParam(buffer)) {
 				inputMessage = request->getParam(buffer)->value();
-				docrx[buffer2]["name"]= inputMessage;
+				docrx[buffer2]["n"]= inputMessage;
 			}
 			
 			char buffer_cbb[10];
@@ -209,10 +209,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cbb,buff_cb);
 			strcat(buffer_cbb,buff_cbb);
 			if (request->hasParam(buffer_cbb)) {
-				docrx[buffer2]["bypass"]= true;
+				docrx[buffer2]["by"]= true;
 			}
 			else{
-				docrx[buffer2]["bypass"]= false;
+				docrx[buffer2]["by"]= false;
 			}
 			
 			char buffer_cben[10];
@@ -221,10 +221,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cben,buff_cben);
 			if (request->hasParam(buffer_cben)) {
 				
-				docrx[buffer2]["entry_delay"]= true;
+				docrx[buffer2]["ed"]= true;
 			}
 			else{
-				docrx[buffer2]["entry_delay"]= false;
+				docrx[buffer2]["ed"]= false;
 			}
 			
 			char buffer_cbxt[10];
@@ -234,10 +234,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			if (request->hasParam(buffer_cbxt)) {
 				
 				
-				docrx[buffer2]["exit_delay"]= true;
+				docrx[buffer2]["xd"]= true;
 			}
 			else{
-				docrx[buffer2]["exit_delay"]= false;
+				docrx[buffer2]["xd"]= false;
 			}
 			
 			char buffer_cb24[10];
@@ -248,10 +248,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			if (request->hasParam(buffer_cb24)) {
 				
 				
-				docrx[buffer2]["x24h"]= true;
+				docrx[buffer2]["x24"]= true;
 			}
 			else{
-				docrx[buffer2]["x24h"]= false;
+				docrx[buffer2]["x24"]= false;
 			}
 			
 			char buffer_cbrf[10];
@@ -270,15 +270,16 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cbch,buff_cbch);
 			if (request->hasParam(buffer_cbch)) {
 				
-				docrx[buffer2]["silent"]= true;
+				docrx[buffer2]["sl"]= true;
 			}
 			else{
-				docrx[buffer2]["silent"]= false;
+				docrx[buffer2]["sl"]= false;
 			}
 		}
 		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);
 		
 		serializeJson(docrx,  fileToWritex);
+		serializeJsonPretty(docrx, Serial); 
 		fileToWritex.close();
 	}
 	
@@ -324,6 +325,12 @@ if (request->hasParam("tp1")) {
 	
 	serializeJson(docry,  fileToWritey);
 	fileToReady.close();
+	 // Serve the HTML file stored in SPIFFS
+	 if (SPIFFS.exists("/info.html")) {
+		request->send(SPIFFS, "/info.html", "text/html");
+	  } else {
+		request->send(404, "text/plain", "File not found");
+	  }
 }	
 	
 	

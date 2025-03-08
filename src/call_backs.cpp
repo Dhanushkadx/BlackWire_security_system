@@ -593,14 +593,14 @@ char* get_device_RFID(uint8_t device_index){
 	
 	
 		if (device_index < 10) {
-			sprintf(buff, "zone0%d", device_index);
+			sprintf(buff, "z0%d", device_index);
 		}
 		else {
-			sprintf(buff, "zone%d", device_index);
+			sprintf(buff, "z%d", device_index);
 		}
 		/*Serial.print("get rfid ");
 		Serial.println(buff);*/
-		const char* rf_id = docx[buff]["rfid"];	
+		const char* rf_id = docx[buff]["id"];	
 	
 	strcpy(STRUCT_sens_infor.device_rf_id, rf_id);
 	
@@ -653,14 +653,14 @@ void set_device_RFID(uint8_t device_index, const char* rf_id){
 
 	memset(buff, '\0', 20);
 	if (device_index < 10) {
-		sprintf(buff, "zone0%d", device_index);
+		sprintf(buff, "z0%d", device_index);
 	}
 	else {
-		sprintf(buff, "zone%d", device_index);
+		sprintf(buff, "ze%d", device_index);
 	}
 
 	Serial.printf_P(PSTR("set zone rfid:%s"),buff);
-	docx[buff]["rfid"] = rf_id;	
+	docx[buff]["id"] = rf_id;	
 	
 	File fileToWritex;
 	if(device_index < 8){

@@ -245,37 +245,37 @@ void load_zones(const char* path, uint8_t index_start, uint8_t index_end){
 	{
 		memset(buff, '\0', 20);
 		if (index_start < 10) {
-			sprintf(buff, "zone0%d", index_start);
+			sprintf(buff, "z0%d", index_start);
 		}
 		else {
-			sprintf(buff, "zone%d", index_start);
+			sprintf(buff, "z%d", index_start);
 		}
 		
 //#ifdef _DEBUG
 
-		const char *zone_name = docx[buff]["name"];
+		const char *zone_name = docx[buff]["n"];
 		Serial.printf("id:%d	name:%s \n",index_start,zone_name);
 		
 //#endif
-		if (docx[buff]["entry_delay"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_ENTRY_DELAY); }
+		if (docx[buff]["ed"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_ENTRY_DELAY); }
 		else { any_sensor_array[index_start].device_state &= ~(1 << BIT_MASK_ENTRY_DELAY); }
 
-		if (docx[buff]["exit_delay"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_EXIT_DELAY); }
+		if (docx[buff]["xd"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_EXIT_DELAY); }
 		else { any_sensor_array[index_start].device_state &= ~(1 << BIT_MASK_EXIT_DELAY); }			 
 
-		if (docx[buff]["bypass"]) {any_sensor_array[index_start].device_state |= (1 << BIT_MASK_BYPASSED); }
+		if (docx[buff]["by"]) {any_sensor_array[index_start].device_state |= (1 << BIT_MASK_BYPASSED); }
 		else { any_sensor_array[index_start].device_state &= ~(1 << BIT_MASK_BYPASSED); }
 		
 		if (docx[buff]["rf"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_RF); }
 		else { any_sensor_array[index_start].device_type &= ~(1 << BIT_MASK_RF); }
 		
-		if (docx[buff]["perimeter"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_PERIMETER); }
+		if (docx[buff]["pm"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_PERIMETER); }
 		else { any_sensor_array[index_start].device_type &= ~(1 << BIT_MASK_PERIMETER); }
 		
-		if (docx[buff]["x24h"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_24H); }
+		if (docx[buff]["x24"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_24H); }
 		else { any_sensor_array[index_start].device_type &= ~(1 << BIT_MASK_24H); }
 		
-		if (docx[buff]["silent"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_SILENT); }
+		if (docx[buff]["sl"]) { any_sensor_array[index_start].device_type |= (1 << BIT_MASK_SILENT); }
 		else { any_sensor_array[index_start].device_type &= ~(1 << BIT_MASK_SILENT); }
 		
 

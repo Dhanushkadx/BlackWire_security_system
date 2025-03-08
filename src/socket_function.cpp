@@ -16,7 +16,7 @@ void notifyClients_pageZones() {
 		return;
 	}
 	
-	DynamicJsonDocument docx(3000);
+	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
 	DeserializationError err = deserializeJson(docx,  fileToReadx);
 	fileToReadx.close();
 	if (err) {
@@ -24,6 +24,12 @@ void notifyClients_pageZones() {
 		Serial.println(err.f_str());
 		Serial.print(F("Free Memory after deserialization: "));
 		Serial.println(ESP.getFreeHeap());
+		// Get the task handle for the current task
+		TaskHandle_t taskHandle = xTaskGetCurrentTaskHandle();
+    
+		// Print the task handle
+		Serial.print("Current Task Handle: ");
+		Serial.println((uintptr_t)taskHandle, DEC);  // Cast to uintptr_t for printing the task handle value
 		return;
 	}
 
@@ -107,7 +113,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 	AwsFrameInfo *info = (AwsFrameInfo*)arg;
 	if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
 		
-		DynamicJsonDocument json_req(JSON_DOC_SIZE_DEVICE_DATA);
+		//DynamicJsonDocument json_req(JSON_DOC_SIZE_DEVICE_DATA);
+		// Dynamically allocate memory for JSON document based on incoming data length
+        size_t json_doc_size = len + 100; // Adding 100 bytes as extra padding for deserialization overhead
+        DynamicJsonDocument json_req(json_doc_size);
+
 		DeserializationError err = deserializeJson(json_req, data);
 		if (err) {
 			Serial.print(F("deserializeJson() failed with code "));

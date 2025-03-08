@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Sensor Data</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #f4f4f4;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #ff6600;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #1e1e1e;
+        }
+
+        table, th, td {
+            border: 1px solid #444;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #ff6600;
+            color: #fff;
+        }
+
+        td {
+            background-color: #333;
+        }
+
+        #loading {
+            text-align: center;
+            color: #ff6600;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ESP32 Sensor Data</h1>
+    <div id="loading">Loading data...</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Sensor</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody id="data-table">
+            <tr>
+                <td>Status</td>
+                <td id="P1">-</td>
+            </tr>
+            <tr>
+                <td>Wi-Fi RSSI</td>
+                <td id="P2">-</td>
+            </tr>
+            <tr>
+                <td>IP</td>
+                <td id="P3">-</td>
+            </tr>
+            <tr>
+                <td>MAC</td>
+                <td id="P4">-</td>
+            </tr>
+            <tr>
+                <td>Z0</td>
+                <td id="P5">-</td>
+            </tr>
+            <tr>
+                <td>Z1</td>
+                <td id="P6">-</td>
+            </tr>
+            <tr>
+                <td>Z2</td>
+                <td id="P7">-</td>
+            </tr>
+            <tr>
+                <td>Z3</td>
+                <td id="P8">-</td>
+            </tr>
+            <tr>
+                <td>Server</td>
+                <td id="P9">-</td>
+            </tr>
+            <tr>
+                <td>GSM RSSI</td>
+                <td id="P10">-</td>
+            </tr>
+            <!-- Add more sensors as needed -->
+        </tbody>
+    </table>
+
+    <script>
+        var gateway = `ws://${window.location.hostname}/ws`;
+        var websocket;
+
+        // Init web socket when the page loads
+        window.addEventListener('load', onload);
+
+        function onload(event) {
+            initWebSocket();
+        }
+
+        function getReadings(){
+            websocket.send("getReadings");
+        }
+
+        function initWebSocket() {
+            console.log('Trying to open a WebSocket connection…');
+            websocket = new WebSocket(gateway);
+            websocket.onopen = onOpen;
+            websocket.onclose = onClose;
+            websocket.onmessage = onMessage;
+        }
+
+        // When websocket is established, call the getReadings() function
+        function onOpen(event) {
+            console.log('Connection opened so get tp default values');
+            websocket.send(JSON.stringify({
+            action: "info"}));
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function onClose(event) {
+            console.log('Connection closed');
+            setTimeout(initWebSocket, 2000);
+        }
+
+        // Function that receives the message from the ESP32 with the readings
+        function onMessage(event) {
+            console.log(event.data);
+            var myObj = JSON.parse(event.data);
+            var keys = Object.keys(myObj);
+
+            for (var i = 0; i < keys.length; i++){
+                var key = keys[i];
+                document.getElementById(key).innerHTML = myObj[key];
+            }
+        }
+    </script>
+</body>
+</html>
