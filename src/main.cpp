@@ -413,7 +413,7 @@ void init_timersSW(){
 	  Timer_battery_charge.interval = 5000000;
 	  Timer_sms_send_delay.interval = 60000;
 	  Timer_mqtt_breath.interval = 30000;
-	  Timer_websocket_update.interval = 500;
+	  Timer_websocket_update.interval = 2000;
 }
 
 void setup()
@@ -460,7 +460,7 @@ void setup()
 		return;
 	}
 	//eeprom_reset();
-	eeprom_load();
+	eeprom_load(0);
 	setup_sensor_settings();
 	//system_mode = CONFIG_MODE;
 	if((system_mode==CONFIG_MODE)||(systemConfig.wifiap_en)){
@@ -527,7 +527,7 @@ xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
  
-	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
+	xTaskCreatePinnedToCore(Task1code,"Task1",1024*10,NULL,1,&Task1,0);	
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
@@ -545,7 +545,7 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 
 void loop()
 {
-	if(system_mode!=NOMAL_MODE_NO_WIFI){ 
+	if(system_mode==NOMAL_MODE_WIFI){ 
 		if(Timer_websocket_update.Timer_run()){
 			Timer_websocket_update.previousMillis = millis(); 
 			notifyClients_pageInfo();
@@ -624,12 +624,12 @@ void transfer_rf_scan_data(char* rfid){
 
 
 void eeprom_save(){configSave();}
-void eeprom_load(){ configLoad();
+void eeprom_load(uint8_t mode){ configLoad(mode);
 	myAlarm_pannel.set_entry_delay_timer_interval(systemConfig.entry_delay_time);
 	myAlarm_pannel.set_exit_delay_timer_interval(systemConfig.exit_delay_time);
 	myAlarm_pannel.set_bell_time_timer_interval(systemConfig.bell_time_out);
  }
-void eeprom_reset(){configReset(); configLoad();}
+void eeprom_reset(){configReset(); configLoad(0);}
 
 		
 		
@@ -1029,7 +1029,7 @@ void send_all_zone_states_mqtt(){
 
 void printStackUsage(TaskHandle_t TaskHandle) {
 	// Get the stack high water mark for the loop task
-
+	return;
 	UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(TaskHandle);
 	Serial.print("Minimum stack remaining for loop task: ");
 	Serial.print(highWaterMark);

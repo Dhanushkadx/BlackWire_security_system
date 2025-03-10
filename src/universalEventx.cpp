@@ -117,7 +117,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	{
 		ret_value = 1;
 		 set_zone_param(smsbuffer);
-		 eeprom_load();
+		 eeprom_load(0);
 		 char reply_buff[5];
 		 strcpy_P(reply_buff,PSTR("OK"));
 		 creatSMS(reply_buff,2,0);
@@ -353,7 +353,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		//check access
 		//if (sys_data.cli_access_level<2){ creatSMS("Unauthorized action",3); return; }
 		Serial.println(F("EEPROM Reset"));
-		configReset(); configLoad();
+		configReset(); configLoad(0);
 		
 	}
 	

@@ -85,9 +85,35 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     return true; // Return true if successful
 }
 	 
- void configLoad(){	 
+ void configLoad(uint8_t mode){	 
+
+	switch (mode)
+	{
+	case 2:{
+		// load zone data 
+	load_zones("/zone_data_8.json",0,8);
+	load_zones("/zone_data_16.json",8,16);
+	load_zones("/zone_data_24.json",16,24);
+	load_zones("/zone_data_32.json",24,32);
+	load_zones("/zone_data_40.json",32,40);
+	load_zones("/zone_data_48.json",40,48);
+
+	File users_fileToRead = SPIFFS.open("/personx.json");
 	
-	 Serial.println(F("reload config data...................."));
+	DynamicJsonDocument users_docx(JSON_DOC_SIZE_USER_DATA);
+	deserializeJson(users_docx,  users_fileToRead);
+#ifdef _DEBUG
+	// This code will only be included in the Debug configuration
+	serializeJsonPretty(users_docx, Serial);
+#endif		
+	users_fileToRead.close();
+
+	}
+		/* code */
+		break;
+	
+	case 0:{
+		Serial.println(F("reload config data...................."));
 	 File fileToRead = SPIFFS.open("/config.json");
 	 if (!fileToRead)
 	 {
@@ -198,6 +224,11 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 		fileToWritey.close();
 
 	}
+	}
+		break;
+	}
+	
+	 
 }
 	 
 

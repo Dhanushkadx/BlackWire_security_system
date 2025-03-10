@@ -48,6 +48,7 @@ void notifyClients_pageInfo() {
 	size_t len = serializeJson(readings, data);
 	ws.textAll(data.c_str(),len);
 	readings.garbageCollect();
+	Serial.println("PG");
 	
 }
 

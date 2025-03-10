@@ -416,13 +416,13 @@ else{
 	
 		memset(buff, '\0', 20);
 		if (device_index < 10) {
-			sprintf(buff, "zone0%d", device_index);
+			sprintf(buff, "z0%d", device_index);
 		}
 		else {
-			sprintf(buff, "zone%d", device_index);
+			sprintf(buff, "z%d", device_index);
 		}
 		
-		const char *zone_name = docx[buff]["name"];
+		const char *zone_name = docx[buff]["n"];
 		
 		strcpy(STRUCT_sens_infor.device_name,zone_name);
 		
@@ -469,15 +469,15 @@ void set_device_name(uint8_t device_index, const char* device_name){
 
 	memset(buff, '\0', 20);
 	if (device_index < 10) {
-		sprintf(buff, "zone0%d", device_index);
+		sprintf(buff, "z0%d", device_index);
 	}
 	else {
-		sprintf(buff, "zone%d", device_index);
+		sprintf(buff, "z%d", device_index);
 	}
 
 	Serial.printf_P(PSTR("zone id:%d	zone name:%s\n"),device_index, device_name);
 
-	docx[buff]["name"] = device_name;
+	docx[buff]["n"] = device_name;
 	
 
 	File fileToWritex;
@@ -539,13 +539,13 @@ int8_t comp_device_RFID(const char* rf_id_rx){
 
 		memset(buff, '\0', 20);
 		if (device_index < 10) {
-			sprintf(buff, "zone0%d", device_index);
+			sprintf(buff, "z0%d", device_index);
 		}
 		else {
-			sprintf(buff, "zone%d", device_index);
+			sprintf(buff, "z%d", device_index);
 		}
 		//Serial.printf("get rfid for %s > %s",buff,rf_id_rx);
-		const char* rf_id = docx[buff]["rfid"];
+		const char* rf_id = docx[buff]["id"];
 		//Serial.print(F("zone rfid is:"));
 		//Serial.println(rf_id);
 
@@ -858,19 +858,19 @@ byte set_zone_param(const char* smsbuffer){
 
 		 if (device_index>9)
 		 {
-			 sprintf(zone_index_char,"zone%d",device_index);
+			 sprintf(zone_index_char,"z%d",device_index);
 		 }
 		 else{
-			 sprintf(zone_index_char,"zone0%d",device_index);
+			 sprintf(zone_index_char,"z0%d",device_index);
 		 }
 		 char zone_paraName_char[20];
 		 memset(zone_paraName_char,'\0',20);
 		 token = strtok(NULL, "=,");		 
-		 if (strcmp_P(token,PSTR("ENTRY"))==0){strcpy(zone_paraName_char,"entry_delay"); Serial.println(F("entry_delay"));}
-		 else if (strcmp_P(token,PSTR("EXIT"))==0){strcpy(zone_paraName_char,"exit_delay");Serial.println(F("exit_delay"));}
-		 else if (strcmp_P(token,PSTR("24H"))==0){strcpy(zone_paraName_char,"x24h");Serial.println(F("x24h"));}
-		 else if (strcmp_P(token,PSTR("CHIME"))==0){strcpy(zone_paraName_char,"silent");Serial.println(F("silent"));}
-		 else if (strcmp_P(token,PSTR("BYPASS"))==0){strcpy(zone_paraName_char,"bypass");Serial.println(F("bypass"));}
+		 if (strcmp_P(token,PSTR("ENTRY"))==0){strcpy(zone_paraName_char,"ed"); Serial.println(F("entry_delay"));}
+		 else if (strcmp_P(token,PSTR("EXIT"))==0){strcpy(zone_paraName_char,"xd");Serial.println(F("exit_delay"));}
+		 else if (strcmp_P(token,PSTR("24H"))==0){strcpy(zone_paraName_char,"x24");Serial.println(F("x24h"));}
+		 else if (strcmp_P(token,PSTR("CHIME"))==0){strcpy(zone_paraName_char,"sl");Serial.println(F("silent"));}
+		 else if (strcmp_P(token,PSTR("BYPASS"))==0){strcpy(zone_paraName_char,"by");Serial.println(F("bypass"));}
 		 else {
 			Serial.println(F("ERROR"));
 			return 0;

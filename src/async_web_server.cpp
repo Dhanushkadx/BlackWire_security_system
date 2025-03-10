@@ -288,6 +288,7 @@ void onGetRequest(AsyncWebServerRequest *request) {
 		serializeJson(docrx,  fileToWritex);
 		serializeJsonPretty(docrx, Serial); 
 		fileToWritex.close();
+		request->send(200, "text/text", "OK");
 	}
 	
 if (request->hasParam("tp1")) {
@@ -315,29 +316,26 @@ if (request->hasParam("tp1")) {
 		sprintf(buffer3,"CALL%d",index);
 		if (request->hasParam(buffer))
 		{
-			docry[buffer2]["sms"]= true;
+			docry[buffer2]["sms"]= "1";
 		}
 		else{
-			docry[buffer2]["sms"]= false;
+			docry[buffer2]["sms"]= "0";
 		}
 		if (request->hasParam(buffer3))
 		{
-			docry[buffer2]["call"]= true;
+			docry[buffer2]["call"]= "1";
 		}
 		else{
-			docry[buffer2]["call"]= false;
+			docry[buffer2]["call"]= "0";
 		}
 	}
 	File fileToWritey = SPIFFS.open("/personx.json", FILE_WRITE);
 	
 	serializeJson(docry,  fileToWritey);
+	serializeJsonPretty(docry, Serial);
 	fileToReady.close();
-	 // Serve the HTML file stored in SPIFFS
-	 if (SPIFFS.exists("/info.html")) {
-		request->send(SPIFFS, "/info.html", "text/html");
-	  } else {
-		request->send(404, "text/plain", "File not found");
-	  }
+	request->send(200, "text/text", "OK");
+	 
 }	
 	
 	
@@ -509,7 +507,7 @@ if (request->hasParam("txt0")) {
 	fileToReadz.close();
 }	
 // reload config
-     eeprom_load();
+     eeprom_load(2);
 	 request->send(200, "text/text", "OK");
  }
 
