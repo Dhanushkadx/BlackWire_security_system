@@ -56,14 +56,6 @@ bool mqtt_enable=false;
 // use wifi client to init mqtt client
 PubSubClient client(espClient);
 
-char mqttTopic_arm_setP[] PROGMEM = "blackwire/command/arm/set";
-char mqttTopic_disarm_setP[] PROGMEM = "blackwire/command/disarm/set";
-char mqttTopic_panic_setP[] PROGMEM = "blackwire/command/panic/set";
-
-char mqttTopic_arm_statusP[] PROGMEM = "blackwire/command/arm/state";
-char mqttTopic_disarm_statusP[] PROGMEM = "blackwire/command/disarm/state";
-char mqttTopic_panic_statusP[] PROGMEM = "blackwire/command/panic/state";
-
 _callbackFunctionType7 fn_onMQTT_connection;
 
 void setup_mqtt(){
@@ -157,9 +149,6 @@ void send_sensor_state_update_to_mqtt(uint8_t _zone,bool _state){
     char topic[50];
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("sensors/z%d"),_zone);
-//#ifdef _DEBUG
-    Serial.print(F("MQTT topic- sensor state update>"));
-    Serial.println(topic);
     if(_state){ publish_system_state("true", topic, true);}
     else{ publish_system_state("false", topic, true);}
    
@@ -192,12 +181,16 @@ void publish_system_state(const char* state, const char* subtopic, bool retaind_
     char topic[50];
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/%s"),device_id_macStr,subtopic);
-//#ifdef _DEBUG
-    Serial.print(F("MQTT topic- arm state update>"));
-    Serial.println(topic);
-    if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;}
-    client.publish(topic, state,retaind_flag);    
-//#endif
+    if(!mqtt_enable){
+      //#ifdef _DEBUG
+            Serial.println(F("MQTT DISABLED")); 
+      //#endif
+            return;
+          }
+      //#ifdef _DEBUG
+          Serial.printf_P(PSTR("MQTT - Update - topic>%s \n"), topic);
+      //#endif
+        client.publish(topic, state,retaind_flag);
 }
 
 void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n ){
@@ -206,8 +199,6 @@ void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n ){
 		doc["number"] = n;
 		String jsonStr;
 		serializeJson(doc, jsonStr);
-//#ifdef _DEBUG
-    Serial.print(F("MQTT topic- sensor state update>"));
     publish_system_state(jsonStr.c_str(),"info/sms",true);
 }
 
@@ -222,12 +213,17 @@ void publish_json_to_mqtt(const char* jsonStr){
     char topic[50];
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/info/sensors"),device_id_macStr);
+    if(!mqtt_enable){
 //#ifdef _DEBUG
-    Serial.print(F("MQTT topic- sensor state update>"));
-    Serial.println(topic);
-    if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;}
-    client.publish(topic, jsonStr,true);    
+      Serial.println(F("MQTT DISABLED")); 
 //#endif
+      return;
+    }
+//#ifdef _DEBUG
+    Serial.printf_P(PSTR("MQTT - Update - topic>%s \n"), topic);
+//#endif
+    client.publish(topic, jsonStr,true);    
+
 }
 
 void callback(char *topic, byte *payload, unsigned int length) {

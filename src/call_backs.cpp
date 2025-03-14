@@ -326,21 +326,16 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 		Serial.println(F("zone is still open"));	
 		myAlarm_pannel.set_system_state(ALARM_CALLING,SYSTEM_ITSELF,0);
 		// set event for lcd
-		EventBits_t uxBits_lcd;
-		
-		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,TASK_3_BIT );
-		
+		EventBits_t uxBits_lcd;		
+		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,TASK_3_BIT );		
 	}
-	else{	
-		
+	else{			
 		Serial.println(F("No problem"));
 		myAlarm_pannel.set_system_state(SYS1_IDEAL,SYSTEM_ITSELF,0);
 		//tun off buzzer and stay on arm state
 		// set event for lcd
-		EventBits_t uxBits_lcd;
-		
-		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,TASK_1_BIT );
-		
+		EventBits_t uxBits_lcd;		
+		uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,TASK_1_BIT );		
 	}
 	return 0;
 }
@@ -348,17 +343,15 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
 	publish_system_state("TRIGGERD","info/mode",true);	
-	// **we do not activate buzzer here as it will not trigger when remote panic
+	//**we do not activate buzzer here as it will not trigger when remote panic
 	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
 	//if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
-
 	char buffer_sms[25];
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
 	Serial.print(F("SMS creat>"));
 	Serial.println(buffer_sms);
 	addTimeStamp(buffer_sms);
-	creatSMS(buffer_sms,1,0);
-	
+	creatSMS(buffer_sms,1,0);	
 	// send info to LCD
 	char zone_char[25];
 	memset(zone_char, '\0', 25);
@@ -405,16 +398,17 @@ char* get_device_name(uint8_t device_index){
     fileToReadx = SPIFFS.open("/zone_data_48.json");
 }
 else{
-	return "invalid";
+	strcpy(STRUCT_sens_infor.device_name,"invalie");
+	return STRUCT_sens_infor.device_name;
 }
 	
 	
 	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
 	deserializeJson(docx,  fileToReadx);
 	fileToReadx.close();
-	char buff[20];
-	
-		memset(buff, '\0', 20);
+	char buff[100];
+	memset(buff, '\0', 100);
+
 		if (device_index < 10) {
 			sprintf(buff, "z0%d", device_index);
 		}
@@ -458,16 +452,11 @@ void set_device_name(uint8_t device_index, const char* device_name){
 	 }
 
 	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-
 	deserializeJson(docx, fileToReadx);
 	fileToReadx.close();
-	
-	/*serializeJsonPretty(docx, Serial);
-	return;*/
+	char buff[100];
+	memset(buff, '\0', 100);
 
-	char buff[20];
-
-	memset(buff, '\0', 20);
 	if (device_index < 10) {
 		sprintf(buff, "z0%d", device_index);
 	}
@@ -507,37 +496,27 @@ void set_device_name(uint8_t device_index, const char* device_name){
 
 int8_t comp_device_RFID(const char* rf_id_rx){
 	int8_t ret = -1;
-
 	File fileToReadx;
-
- for(uint8_t device_index = 0; device_index<48; device_index++){
-
-	if(device_index < 8){
-    fileToReadx = SPIFFS.open("/zone_data_8.json");
-} else if(device_index >= 8 && device_index < 16){
-    fileToReadx = SPIFFS.open("/zone_data_16.json");
-} else if(device_index >= 16 && device_index < 24){
-    fileToReadx = SPIFFS.open("/zone_data_24.json");
-} else if(device_index >= 24 && device_index < 32){
-    fileToReadx = SPIFFS.open("/zone_data_32.json");
-} else if(device_index >= 32 && device_index < 40){
-    fileToReadx = SPIFFS.open("/zone_data_40.json");
-} else if(device_index >= 40 && device_index < 48){
-    fileToReadx = SPIFFS.open("/zone_data_48.json");
-}
-
+	fileToReadx = SPIFFS.open("/rfid.json");
 	if(!fileToReadx){
 		 Serial.println(F("? failed to open directory"));
 		 return ret;
 	 }
-
 	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-	deserializeJson(docx,  fileToReadx);
+	DeserializationError err = deserializeJson(docx,  fileToReadx);
 	fileToReadx.close();
-	char buff[20];
-	
+	if (err) {
+		Serial.print(F("deserializeJson() failed with code "));
+		Serial.println(err.f_str());
+		Serial.print(F("Free Memory after deserialization: "));
+		Serial.println(ESP.getFreeHeap());
+		return ret;
+	}
 
-		memset(buff, '\0', 20);
+ for(uint8_t device_index = 0; device_index<48; device_index++){
+    
+	char buff[25];
+	memset(buff, '\0', 25);
 		if (device_index < 10) {
 			sprintf(buff, "z0%d", device_index);
 		}
@@ -545,7 +524,7 @@ int8_t comp_device_RFID(const char* rf_id_rx){
 			sprintf(buff, "z%d", device_index);
 		}
 		//Serial.printf("get rfid for %s > %s",buff,rf_id_rx);
-		const char* rf_id = docx[buff]["id"];
+		const char* rf_id = docx[buff];
 		//Serial.print(F("zone rfid is:"));
 		//Serial.println(rf_id);
 
@@ -559,39 +538,25 @@ int8_t comp_device_RFID(const char* rf_id_rx){
 }
 
 char* get_device_RFID(uint8_t device_index){
-	File fileToReadx;
-	if(device_index < 8){
-    fileToReadx = SPIFFS.open("/zone_data_8.json");
-	} 
-	else if(device_index >= 8 && device_index < 16){
-		fileToReadx = SPIFFS.open("/zone_data_16.json");
-	} 
-	else if(device_index >= 16 && device_index < 24){
-		fileToReadx = SPIFFS.open("/zone_data_24.json");
-	} 
-	else if(device_index >= 24 && device_index < 32){
-		fileToReadx = SPIFFS.open("/zone_data_32.json");
-	} 
-	else if(device_index >= 32 && device_index < 40){
-		fileToReadx = SPIFFS.open("/zone_data_40.json");
-	} 
-	else if(device_index >= 40 && device_index < 48){
-		fileToReadx = SPIFFS.open("/zone_data_48.json");
-	}
-
+	File fileToReadx;	
+	fileToReadx = SPIFFS.open("/rfid.json");
 	 if(!fileToReadx){
 		 Serial.println("? failed to open directory");
 		 return nullptr;
 	 }
 	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-
-	deserializeJson(docx,  fileToReadx);
-	char buff[20];
-	
-	memset(buff, '\0', 20);
-	
-	
+	 DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
+	 DeserializationError err = deserializeJson(docx,  fileToReadx);
+	 fileToReadx.close();
+	 if (err) {
+		 Serial.print(F("deserializeJson() failed with code "));
+		 Serial.println(err.f_str());
+		 Serial.print(F("Free Memory after deserialization: "));
+		 Serial.println(ESP.getFreeHeap());
+		 return nullptr;
+	 }
+	char buff[25];	
+	memset(buff, '\0', 25);	
 		if (device_index < 10) {
 			sprintf(buff, "z0%d", device_index);
 		}
@@ -600,7 +565,7 @@ char* get_device_RFID(uint8_t device_index){
 		}
 		/*Serial.print("get rfid ");
 		Serial.println(buff);*/
-		const char* rf_id = docx[buff]["id"];	
+		const char* rf_id = docx[buff];	
 	
 	strcpy(STRUCT_sens_infor.device_rf_id, rf_id);
 	
@@ -612,46 +577,28 @@ char* get_device_RFID(uint8_t device_index){
 void set_device_RFID(uint8_t device_index, const char* rf_id){
 
 	File fileToReadx;
-	if(device_index < 8){
-    fileToReadx = SPIFFS.open("/zone_data_8.json");
-	} 
-	else if(device_index >= 8 && device_index < 16){
-		fileToReadx = SPIFFS.open("/zone_data_16.json");
-	} 
-	else if(device_index >= 16 && device_index < 24){
-		fileToReadx = SPIFFS.open("/zone_data_24.json");
-	} 
-	else if(device_index >= 24 && device_index < 32){
-		fileToReadx = SPIFFS.open("/zone_data_32.json");
-	} 
-	else if(device_index >= 32 && device_index < 40){
-		fileToReadx = SPIFFS.open("/zone_data_40.json");
-	} 
-	else if(device_index >= 40 && device_index < 48){
-		fileToReadx = SPIFFS.open("/zone_data_48.json");
-	}
-
+	fileToReadx = SPIFFS.open("/rfid.json");
 	 if(!fileToReadx){
 		 Serial.println("? failed to open directory");
 		 return;
 	 }
-	
-	 if(!fileToReadx){
-		 Serial.println(F("? failed to open directory"));
+
+	 DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
+	 DeserializationError err = deserializeJson(docx,  fileToReadx);
+	 fileToReadx.close();
+	 if (err) {
+		 Serial.print(F("deserializeJson() failed with code "));
+		 Serial.println(err.f_str());
+		 Serial.print(F("Free Memory after deserialization: "));
+		 Serial.println(ESP.getFreeHeap());
 		 return;
 	 }
-
-	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-
-	deserializeJson(docx, fileToReadx);
-	fileToReadx.close();
 	
 	/*serializeJsonPretty(docx, Serial);
 	return;*/
 
-	char buff[20];
-
-	memset(buff, '\0', 20);
+	char buff[25];
+	memset(buff, '\0', 25);
 	if (device_index < 10) {
 		sprintf(buff, "z0%d", device_index);
 	}
@@ -660,26 +607,13 @@ void set_device_RFID(uint8_t device_index, const char* rf_id){
 	}
 
 	Serial.printf_P(PSTR("set zone rfid:%s"),buff);
-	docx[buff]["id"] = rf_id;	
+	docx[buff] = rf_id;	
 	
 	File fileToWritex;
-	if(device_index < 8){
-    fileToWritex = SPIFFS.open("/zone_data_8.json",FILE_WRITE);
-	} 
-	else if(device_index >= 8 && device_index < 16){
-		fileToWritex = SPIFFS.open("/zone_data_16.json",FILE_WRITE);
-	} 
-	else if(device_index >= 16 && device_index < 24){
-		fileToWritex = SPIFFS.open("/zone_data_24.json",FILE_WRITE);
-	} 
-	else if(device_index >= 24 && device_index < 32){
-		fileToWritex = SPIFFS.open("/zone_data_32.json",FILE_WRITE);
-	} 
-	else if(device_index >= 32 && device_index < 40){
-		fileToWritex = SPIFFS.open("/zone_data_40.json",FILE_WRITE);
-	} 
-	else if(device_index >= 40 && device_index < 48){
-		fileToWritex = SPIFFS.open("/zone_data_48.json",FILE_WRITE);
+	fileToWritex = SPIFFS.open("/rfid.json",FILE_WRITE);
+	if(!fileToWritex){
+		Serial.println("? failed to open directory");
+		return;
 	}
 	serializeJson(docx, fileToWritex);
 	fileToWritex.close();
@@ -697,10 +631,10 @@ int8_t comp_User_id(const char *number){
 	}
 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
 	deserializeJson(docx,  fileToReadx);
-	char buff[20];
+	char buff[25];
 	for (int user_index = 1; user_index < 9; user_index++)
 	{
-		memset(buff, '\0', 20);
+		memset(buff, '\0', 25);
 		sprintf(buff, "P%d", user_index);
 		const char* user_number_strord = docx[buff]["number"];
 		//if (user_number_strord!=NULL)
@@ -729,10 +663,10 @@ int8_t comp_remote_RFID(uint32_t rx_rf_id_uint, uint8_t command_length){
 	}	
 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
 	deserializeJson(docx,  fileToReadx);
-	char buff[20];
+	char buff[25];
 	for (int user_index = 1; user_index < 9; user_index++)
 	{
-		memset(buff, '\0', 20);		
+		memset(buff, '\0', 25);		
 	    sprintf(buff, "P%d", user_index);
 		const char* remRf_id = docx[buff]["remID"];
 		Serial.println(remRf_id);
@@ -756,8 +690,8 @@ char* get_remote_RFID(uint8_t device_index){
 	File fileToReadx = SPIFFS.open("/personx.json");	
 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
 	deserializeJson(docx,  fileToReadx);
-	char buff[20];	
-	memset(buff, '\0', 20);
+	char buff[25];	
+	memset(buff, '\0', 25);
 	sprintf(buff, "P%d", device_index);	
 	const char *remote_rfid = docx[buff]["remID"];	
 	if (remote_rfid!=NULL)
@@ -781,16 +715,10 @@ void set_remote_RFID(uint8_t device_index, const char* rf_id){
 	 }
 
 	deserializeJson(docx, fileToRead);
-	fileToRead.close();
-	
-	char buff[20];
-
-	memset(buff, '\0', 20);
-	
-		sprintf(buff, "P%d", device_index);
-	
-
-
+	fileToRead.close();	
+	char buff[25];
+	memset(buff, '\0', 25);	
+	sprintf(buff, "P%d", device_index);
 	Serial.print(F("set remote id"));
 	Serial.println(buff);
 	docx[buff]["remID"] = rf_id;	
@@ -1113,7 +1041,6 @@ void onMqtt_connection(){
 	for(uint8_t index = 0; index<4; index++){
 		send_sensor_state_update_to_mqtt(index,digitalRead(GPIO_array[index].GPIOpin));
 	}
-	Serial.println(F("send zone states to mqtt"));	
 	
 	if(myAlarm_pannel.get_system_state()!=DEACTIVE){
 		 publish_system_state("ARMED","info/mode",true);

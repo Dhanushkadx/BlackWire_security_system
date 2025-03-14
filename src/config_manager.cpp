@@ -284,8 +284,7 @@ void load_zones(const char* path, uint8_t index_start, uint8_t index_end){
 		
 //#ifdef _DEBUG
 
-		const char *zone_name = docx[buff]["n"];
-		Serial.printf("id:%d	name:%s \n",index_start,zone_name);
+		Serial.printf("id:%d \n",index_start);
 		
 //#endif
 		if (docx[buff]["ed"]) { any_sensor_array[index_start].device_state |= (1 << BIT_MASK_ENTRY_DELAY); }

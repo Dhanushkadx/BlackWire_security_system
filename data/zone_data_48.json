@@ -1,6 +1,6 @@
 {
   "z40": {
-    "n": "z 40",
+    "n": "Z40",
     "by": false,
     "ed": false,
     "xd": false,
@@ -8,11 +8,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z41": {
-    "n": "z 41",
+    "n": "Z41",
     "by": false,
     "ed": false,
     "xd": false,
@@ -20,11 +19,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z42": {
-    "n": "z 42",
+    "n": "Z42",
     "by": false,
     "ed": false,
     "xd": false,
@@ -32,11 +30,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z43": {
-    "n": "z 43",
+    "n": "Z43",
     "by": false,
     "ed": false,
     "xd": false,
@@ -44,11 +41,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z44": {
-    "n": "z 44",
+    "n": "Z44",
     "by": false,
     "ed": false,
     "xd": false,
@@ -56,11 +52,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z45": {
-    "n": "z 45",
+    "n": "Z45",
     "by": false,
     "ed": false,
     "xd": false,
@@ -68,11 +63,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z46": {
-    "n": "z 46",
+    "n": "Z46",
     "by": false,
     "ed": false,
     "xd": false,
@@ -80,11 +74,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z47": {
-    "n": "z 47",
+    "n": "Z47",
     "by": false,
     "ed": false,
     "xd": false,
@@ -92,7 +85,6 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   }
 }

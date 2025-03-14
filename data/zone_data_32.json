@@ -1,6 +1,6 @@
 {
-  "z24": {
-    "n": "z 24",
+  "z17": {
+    "n": "Z17",
     "by": false,
     "ed": false,
     "xd": false,
@@ -8,11 +8,87 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
+  },
+  "z18": {
+    "n": "Z18",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z19": {
+    "n": "Z19",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z20": {
+    "n": "Z20",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z21": {
+    "n": "Z21",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z22": {
+    "n": "Z22",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z23": {
+    "n": "Z23",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
+  },
+  "z24": {
+    "n": "Z24",
+    "by": false,
+    "ed": false,
+    "xd": false,
+    "x24": false,
+    "al": false,
+    "pm": false,
+    "sl": false,
+    "rf": false
   },
   "z25": {
-    "n": "z 25",
+    "n": "Z25",
     "by": false,
     "ed": false,
     "xd": false,
@@ -20,11 +96,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z26": {
-    "n": "z 26",
+    "n": "Z26",
     "by": false,
     "ed": false,
     "xd": false,
@@ -32,11 +107,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z27": {
-    "n": "z 27",
+    "n": "Z27",
     "by": false,
     "ed": false,
     "xd": false,
@@ -44,11 +118,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z28": {
-    "n": "z 28",
+    "n": "Z28",
     "by": false,
     "ed": false,
     "xd": false,
@@ -56,11 +129,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z29": {
-    "n": "z 29",
+    "n": "Z29",
     "by": false,
     "ed": false,
     "xd": false,
@@ -68,11 +140,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z30": {
-    "n": "z 30",
+    "n": "Z30",
     "by": false,
     "ed": false,
     "xd": false,
@@ -80,11 +151,10 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   },
   "z31": {
-    "n": "z 31",
+    "n": "Z31",
     "by": false,
     "ed": false,
     "xd": false,
@@ -92,7 +162,6 @@
     "al": false,
     "pm": false,
     "sl": false,
-    "rf": false,
-    "id": "00000000"
+    "rf": false
   }
 }

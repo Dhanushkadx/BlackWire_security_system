@@ -283,8 +283,7 @@ void onGetRequest(AsyncWebServerRequest *request) {
 				docrx[buffer2]["sl"]= false;
 			}
 		}
-		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);
-		
+		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);		
 		serializeJson(docrx,  fileToWritex);
 		serializeJsonPretty(docrx, Serial); 
 		fileToWritex.close();

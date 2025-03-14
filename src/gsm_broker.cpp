@@ -1117,7 +1117,6 @@ bool waitForMutex_GSM(){
 	Serial.println(F("Taking GSM Mutex"));
 	while (1)
 	{
-		delay(5);		
 		if (xSemaphoreTake( xMutex_GSM, portMAX_DELAY ))
 		{
 			break;

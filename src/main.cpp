@@ -313,8 +313,6 @@ void Task6code(void * parameter){
 			json["scan_rfid"] = data.char_buffer_rx+5;
 			String data_str;
 			size_t len = serializeJson(json, data_str);
-			Serial.print(F("send json and free heap>"));
-			Serial.println(ESP.getFreeHeap());
 			notifyClients_rfidRx(data_str.c_str(),len);
 			break;
 		}
@@ -527,12 +525,12 @@ xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
  
-	xTaskCreatePinnedToCore(Task1code,"Task1",1024*10,NULL,1,&Task1,0);	
+	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",16000,NULL,1,&Task8,1);
-	xTaskCreatePinnedToCore(Task2code_sms,"Task2",5000,NULL,2,&Task2_sms,1);
+	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
+	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
 	
 	xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
 	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
@@ -549,9 +547,9 @@ void loop()
 		if(Timer_websocket_update.Timer_run()){
 			Timer_websocket_update.previousMillis = millis(); 
 			notifyClients_pageInfo();
-			printStackUsage(mainTaskHandle);	
-			printStackUsage(Task9);
-			Serial.println(ESP.getFreeHeap());
+			//printStackUsage(mainTaskHandle);	
+			//printStackUsage(Task9);
+			Serial.printf_P(PSTR("Free Heap:%d \n"),ESP.getFreeHeap());
 		}
 			cleanClients();
 }
@@ -784,10 +782,11 @@ if (strncmp("RID",rf_id_msg,3)==0)// rf id received  RFD=254266
 	{				
 		if (strncmp("=",rf_id_msg+3,1)==0)
 		{			
-			
+			char RFID_char[15]={0};
+			strlcpy(RFID_char,rf_id_msg+5,9);	
 			// check remote actions
 			int8_t remote_user_index;
-			int8_t remote_command = remcode(rf_id_msg+5, &remote_user_index);
+			int8_t remote_command = remcode(RFID_char, &remote_user_index);
 			
 			if ((remote_command!=-1)&&(remote_user_index != -1))
 			{
@@ -845,10 +844,18 @@ if (strncmp("RID",rf_id_msg,3)==0)// rf id received  RFD=254266
 			else{
 				Serial.println(F("Not a Remote"));
 				// get RFID and pass it to the function
-			char RFID_char[15]={0};
-			strlcpy(RFID_char,rf_id_msg+5,9);	
-			int8_t zone = comp_device_RFID(RFID_char);
+			int8_t zone;
+			uint8_t attempts = 0;
+			do {// try two times to compaire rfid
+				zone = comp_device_RFID(RFID_char);
+				if (zone != -1) {
+					break;
+				}
+				attempts++;
+			} while (zone == -1 && attempts < 2);
+#ifdef MQTT_OK
 			send_rfid_state_update_to_mqtt(RFID_char);
+#endif	
 			if(zone!=-1){ 
 				myAlarm_pannel.Universal_zone_state_update(zone, 1); 
 #ifdef MQTT_OK

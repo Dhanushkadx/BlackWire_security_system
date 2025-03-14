@@ -48,7 +48,6 @@ void notifyClients_pageInfo() {
 	size_t len = serializeJson(readings, data);
 	ws.textAll(data.c_str(),len);
 	readings.garbageCollect();
-	Serial.println("PG");
 	
 }
 
@@ -68,29 +67,14 @@ void notifyClients_pageZones() {
 		Serial.println(err.f_str());
 		Serial.print(F("Free Memory after deserialization: "));
 		Serial.println(ESP.getFreeHeap());
-		// Get the task handle for the current task
-		TaskHandle_t taskHandle = xTaskGetCurrentTaskHandle();
-    
-		// Print the task handle
-		Serial.print("Current Task Handle: ");
-		Serial.println((uintptr_t)taskHandle, DEC);  // Cast to uintptr_t for printing the task handle value
 		return;
 	}
-
 	String data;
 	//data.reserve(12288);
 	docx["respHeader"]= "pint";
 	size_t len = serializeJson(docx, data);
-	//ws.textAll(data, len);
-	
-	/*char buffer[100];
-	sprintf(buffer, "{\"zone01\":{\"name\":\"NILUS ROOM\"}}");*/
-	Serial.print(F("send contact json and free heap>"));
-	Serial.println(ESP.getFreeHeap());
 	ws.textAll(data.c_str(),len);
-	docx.garbageCollect();
-	//Serial.println(data.c_str());
-	
+	docx.garbageCollect();	
 }
 
 void notifyClients_pageUser() {
@@ -114,12 +98,6 @@ void notifyClients_pageUser() {
 	//data.reserve(12288);
 	docx["respHeader"]= "pint";
 	size_t len = serializeJson(docx, data);
-	//ws.textAll(data, len);
-	
-	/*char buffer[100];
-	sprintf(buffer, "{\"zone01\":{\"name\":\"NILUS ROOM\"}}");*/
-	Serial.print(F("send contact json and free heap>"));
-	Serial.println(ESP.getFreeHeap());
 	ws.textAll(data.c_str(),len);
 }
 
@@ -143,8 +121,6 @@ void notifyClients_pageSys() {
 	String data;
 	docx["respHeader"]= "pint";
 	size_t len = serializeJson(docx, data);
-	Serial.print(F("send config json and free heap>"));
-	Serial.println(ESP.getFreeHeap());
 	ws.textAll(data.c_str(),len);
 	
 }
