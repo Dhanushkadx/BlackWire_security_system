@@ -71,7 +71,7 @@ size_t xBufferSizeBytes_number = 20;
 MessageBufferHandle_t xMessageBuffer_number;
 
 MessageBufferHandle_t xMessageBuffer_zone;
-size_t xBufferSizeBytes_zone = 25;
+size_t xBufferSizeBytes_zone = 50;
 
 MessageBufferHandle_t xTimeBuffer;
  size_t xTimeBufferSizeBytes = 50;

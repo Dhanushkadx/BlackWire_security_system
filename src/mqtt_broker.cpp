@@ -214,43 +214,41 @@ void publish_json_to_mqtt(const char* jsonStr){
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/info/sensors"),device_id_macStr);
     if(!mqtt_enable){
-//#ifdef _DEBUG
+#ifdef _DEBUG
       Serial.println(F("MQTT DISABLED")); 
-//#endif
+#endif
       return;
     }
-//#ifdef _DEBUG
+#ifdef _DEBUG
     Serial.printf_P(PSTR("MQTT - Update - topic>%s \n"), topic);
-//#endif
+#endif
     client.publish(topic, jsonStr,true);    
 
 }
 
 void callback(char *topic, byte *payload, unsigned int length) {
+#ifdef _DEBUG
    Serial.print(F("Message arrived in topic: "));
    Serial.println(topic);
+#endif
    char my_topic[100];
    uint8_t mac[6];
     char device_id_macStr[18];
     WiFi.macAddress(mac);	
 // Format the MAC address without colons and with underscores
    sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
+#ifdef _DEBUG
     String byteRead = "";
     Serial.print(F("Message: "));
     for (int i = 0; i < length; i++) {
         byteRead += (char)payload[i];
     }    
     Serial.println(byteRead);
-    memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
-    sprintf_P(my_topic,PSTR("blackwire/%s/cmd"),device_id_macStr);
+#endif
+  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
+  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/sys/set"),device_id_macStr);
 
-// Format the MAC address without colons and with underscores
-  if (strcmp(topic, device_id_macStr) == 0) {
-    // The topic includes the ESP32 MAC address
-    // Add your logic for handling the message for this device
-    // Extract data from JSON
-    // Parse JSON payload
+  if(strcmp(topic,my_topic)==0){
     DynamicJsonDocument jsonDoc(256);
     deserializeJson(jsonDoc, payload, length);  
     const char* cmd = jsonDoc["cmd"]; // "sms"
@@ -258,7 +256,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
     if(strncmp(cmd,"mod",3)==0){
 
       if(strncmp(data["mod"],"a",1)==0){
-            Serial.println(F("HOME ARM by MQTT"));
+            //Serial.println(F("HOME ARM by MQTT"));
            // myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
            // myAlarm_pannel.set_system_state(SYS1_IDEAL,APP,0);
             transfer_mqtt_data("Home arm");
@@ -266,7 +264,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
 
         }
         else if(strncmp(data["mod"],"d",1)==0){
-            Serial.println(F("DISARM by MQTT"));
+           // Serial.println(F("DISARM by MQTT"));
            // eCurrent_state=DEACTIVE;
            // myAlarm_pannel.set_system_state(DEACTIVE,APP,0);  
             transfer_mqtt_data("Disarm");         
@@ -296,7 +294,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
     if(strncmp(cmd,"chime1",6)==0){
       transfer_mqtt_data(cmd);      
     } 
-  } 
+  }
 
   memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
   sprintf_P(my_topic,PSTR("blackwire/%s/cmd/relay1/set"),device_id_macStr);
@@ -380,6 +378,8 @@ void setup_subscriptions(){
   sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
     client.subscribe(mqttTopic); // subscribe from the topic
   sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
+    client.subscribe(mqttTopic); // subscribe from the topic
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
     client.subscribe(mqttTopic); // subscribe from the topic
     Serial.println(mqttTopic);
    }

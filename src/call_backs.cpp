@@ -346,15 +346,15 @@ void call_back_alarm_notify(uint8_t alarm_zone){
 	//**we do not activate buzzer here as it will not trigger when remote panic
 	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
 	//if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
-	char buffer_sms[25];
+	char buffer_sms[160] = {0};
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
 	Serial.print(F("SMS creat>"));
 	Serial.println(buffer_sms);
 	addTimeStamp(buffer_sms);
 	creatSMS(buffer_sms,1,0);	
 	// send info to LCD
-	char zone_char[25];
-	memset(zone_char, '\0', 25);
+	char zone_char[50];
+	memset(zone_char, '\0', 50);
 	sprintf(zone_char,">%s",get_device_name(alarm_zone));
 	const TickType_t x100ms = pdMS_TO_TICKS( 10 );
 				/* Send the string to the message buffer.  Return immediately if there is

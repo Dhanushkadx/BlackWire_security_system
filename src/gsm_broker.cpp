@@ -508,7 +508,6 @@ bool ultimate_gsm_listiner(){
 		 Serial.print(F("Network ok>"));	
 			
 		 gsmsignal_rssi = fona.getRSSI();
-		 Serial.println(gsmsignal_rssi);
 		 if(timesync_need== true){
 			timesync_need=false;
 			setTime_from_gsm();
@@ -972,7 +971,10 @@ uint8_t ultimate_call_hadlr(){
 				 TASK_6_BIT);/* The bits being cleared. */
 				 //resume sms task
 				 uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_5_BIT );
-				 myAlarm_pannel.set_system_state(SYS1_IDEAL,SYSTEM_ITSELF,0);				  
+				 if(ALARM_CALLING == myAlarm_pannel.get_system_state()){
+					myAlarm_pannel.set_system_state(SYS1_IDEAL,SYSTEM_ITSELF,0);		
+				 }
+				 		  
 				 vTaskDelete(NULL); 			
 			}
 			if (!get_is_GSM_number_call(alarm_calling_index))
