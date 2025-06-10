@@ -3,7 +3,7 @@
 
 
 //#define GSM_MINI_BOARD
-#define GSM_MINI_BOARD_V2
+#define GSM_MINI_BOARD_V3
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18

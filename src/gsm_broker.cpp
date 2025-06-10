@@ -505,9 +505,9 @@ bool ultimate_gsm_listiner(){
 	 waitForMutex_GSM();
 	 if(fona.getNetworkStatus()==1){
 		 digitalWrite(GSM_LED,HIGH);
-		 Serial.print(F("Network ok>"));	
-			
 		 gsmsignal_rssi = fona.getRSSI();
+		 Serial.printf_P(PSTR("Network ok> RSSI: %d\n"), gsmsignal_rssi);
+ 
 		 if(timesync_need== true){
 			timesync_need=false;
 			setTime_from_gsm();
@@ -667,7 +667,7 @@ void gsm_manager(){
 				xTaskCreatePinnedToCore(Task5code_call,"Task5",5000,NULL,3,&Task5,0);
 				digitalWrite(PIN_GSM_BUSY_LED,HIGH);
 			}
-			Serial.println("wait for call task responce");
+			Serial.println(F("wait for call task resp"));
 			if(  ( uxBits & TASK_2_BIT ) != 0  )// This bit will be set by Disarm call back so request to delete call task
 			{
 				Serial.println(F("CALL TASK delete request rent"));
@@ -813,12 +813,8 @@ void creat_arm_sms(char* str_invorker){
 	else{
 		//add time stamp
 		addTimeStamp(sms_buffer);
-		creatSMS("Too big msg",1,0);
-		
-	}
-	
-	
-	
+		creatSMS("Too big msg",1,0);		
+	}	
 }
 
 void creat_disarm_sms(char* str){

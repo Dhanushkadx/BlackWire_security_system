@@ -125,13 +125,14 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	if (strncmp("Status?",smsbuffer,7)==0)
 	{
 		ret_value = 1;
-		char msg[150] = {0};
+		char msg[159] = {0};
 		String ipAddress = WiFi.localIP().toString();
   		String macAddress = WiFi.macAddress();
   		int32_t rssi = WiFi.RSSI();
+		int8_t gsmrssi =  getSignal_strength();
 		String wifiStatus;
 		(!WiFi.isConnected())?wifiStatus = "offline": wifiStatus = "online";
-  		sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nRSSI:%d dBm\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress.c_str(), macAddress.c_str(), rssi);
+  		sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nWiFi RSSI:%d dBm\nGSM SIG:%d\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress.c_str(), macAddress.c_str(), rssi,gsmrssi);
 		//sms_broad_cast_request = true;
 		SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].type = 1;
 		if (myAlarm_pannel.get_system_state()!=DEACTIVE)
