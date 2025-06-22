@@ -228,113 +228,120 @@ void publish_json_to_mqtt(const char* jsonStr){
 
 void callback(char *topic, byte *payload, unsigned int length) {
 #ifdef _DEBUG
-   Serial.print(F("Message arrived in topic: "));
-   Serial.println(topic);
+    Serial.print(F("Message arrived in topic: "));
+    Serial.println(topic);
 #endif
-   char my_topic[100];
-   uint8_t mac[6];
+
+    char my_topic[100];
+    uint8_t mac[6];
     char device_id_macStr[18];
-    WiFi.macAddress(mac);	
-// Format the MAC address without colons and with underscores
-   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    WiFi.macAddress(mac);
+    sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
 #ifdef _DEBUG
     String byteRead = "";
     Serial.print(F("Message: "));
     for (int i = 0; i < length; i++) {
         byteRead += (char)payload[i];
-    }    
+    }
     Serial.println(byteRead);
 #endif
-  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
-  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/sys/set"),device_id_macStr);
 
-  if(strcmp(topic,my_topic)==0){
-    DynamicJsonDocument jsonDoc(256);
-    deserializeJson(jsonDoc, payload, length);  
-    const char* cmd = jsonDoc["cmd"]; // "sms"
-    JsonObject data = jsonDoc["data"];
-    if(strncmp(cmd,"mod",3)==0){
+    memset(my_topic, '\0', sizeof(my_topic));
+    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
 
-      if(strncmp(data["mod"],"a",1)==0){
-            //Serial.println(F("HOME ARM by MQTT"));
-           // myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-           // myAlarm_pannel.set_system_state(SYS1_IDEAL,APP,0);
-            transfer_mqtt_data("Home arm");
-            publish_system_state("ARMED","info/mode",true);
+    if (strcmp(topic, my_topic) == 0) {
+        DynamicJsonDocument jsonDoc(256);
+        DeserializationError err = deserializeJson(jsonDoc, payload, length);
 
-        }
-        else if(strncmp(data["mod"],"d",1)==0){
-           // Serial.println(F("DISARM by MQTT"));
-           // eCurrent_state=DEACTIVE;
-           // myAlarm_pannel.set_system_state(DEACTIVE,APP,0);  
-            transfer_mqtt_data("Disarm");         
-            publish_system_state("DISARMED","info/mode",true);
+        if (err) {
+#ifdef _DEBUG
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(err.c_str());
+#endif
+            return;
         }
 
+        if (!jsonDoc.containsKey("cmd")) return;
+
+        const char* cmd = jsonDoc["cmd"];
+        if (jsonDoc.containsKey("data") && jsonDoc["data"].is<JsonObject>()) {
+            JsonObject data = jsonDoc["data"];
+
+            if (strncmp(cmd, "mod", 3) == 0) {
+                if (data.containsKey("mod")) {
+                    const char* mod = data["mod"];
+                    if (strncmp(mod, "a", 1) == 0) {
+                        transfer_mqtt_data("Home arm");
+                        publish_system_state("ARMED", "info/mode", true);
+                    } else if (strncmp(mod, "d", 1) == 0) {
+                        transfer_mqtt_data("Disarm");
+                        publish_system_state("DISARMED", "info/mode", true);
+                    }
+                }
+            }
+
+            if (strncmp(cmd, "sms", 3) == 0) {
+                if (data.containsKey("msg") && data.containsKey("tp")) {
+                    const char* data_msg = data["msg"];
+                    const char* data_number = data["tp"];
+                    uint8_t data_type = 4;
+                    creatSMS(data_msg, data_type, data_number);
+                }
+            }
+
+            if (strncmp(cmd, "siren", 5) == 0) {
+                int data_duration = data.containsKey("tm") ? data["tm"] : 0;
+                bool data_state = data.containsKey("ste") ? data["ste"] : false;
+                char cmdBuff[20] = "";
+                sprintf_P(cmdBuff, PSTR("siren=%d"), data_state);
+                transfer_mqtt_data(cmdBuff);
+            }
+        }
+
+        if (strncmp(cmd, "alarm", 5) == 0) {
+            transfer_mqtt_data("Alarm_call");
+        } else if (strncmp(cmd, "chime1", 6) == 0) {
+            transfer_mqtt_data(cmd);
+        }
     }
-    if(strncmp(cmd,"alarm",5)==0){
-      transfer_mqtt_data("Alarm_call");      
-    }
 
-    if(strncmp(cmd,"sms",3)==0){
-      uint8_t data_type = 4; // 1
-      const char* data_msg = data["msg"]; // "test sms"
-      const char* data_number = data["tp"]; // "phone number"   
-      creatSMS(data_msg,data_type,data_number);
-    }
+    // Relay1
+    memset(my_topic, '\0', sizeof(my_topic));
+    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
 
-    if(strncmp(cmd,"siren",5)==0){
-      int data_duration = data["tm"]; // 1  
-      bool data_state = data["ste"];
-      char cmdBuff[20]= "";
-      sprintf_P(cmdBuff,PSTR("siren=%d"),data_state);
-      transfer_mqtt_data(cmdBuff);      
-    }
+    if (strcmp(topic, my_topic) == 0) {
+        char payload_buffer[50];
+        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
+        memcpy(payload_buffer, payload, copy_length);
+        payload_buffer[copy_length] = '\0';
 
-    if(strncmp(cmd,"chime1",6)==0){
-      transfer_mqtt_data(cmd);      
-    } 
-  }
-
-  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
-  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/relay1/set"),device_id_macStr);
-
-  if(strcmp(topic,my_topic)==0){
-    // Temporary buffer for the payload
-        char payload_buffer[50]; // Adjust size as per your maximum expected payload length
-    // Ensure we copy only the specified length and avoid overflow
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1); // Reserve space for null terminator
-        memcpy(payload_buffer, payload, copy_length); // Copy payload
-        payload_buffer[copy_length] = '\0'; // Null-terminate
-
-      // Compare the payload with expected values
-        if (strcmp(payload_buffer, "on") == 0) {;
+        if (strcmp(payload_buffer, "on") == 0) {
             transfer_mqtt_data("Relay 1 on");
-        } 
-        else if (strcmp(payload_buffer, "off") == 0) {
+        } else if (strcmp(payload_buffer, "off") == 0) {
             transfer_mqtt_data("Relay 1 off");
         }
     }
-  memset(my_topic, '\0', sizeof(my_topic)); // Initialize the buffer
-  sprintf_P(my_topic,PSTR("blackwire/%s/cmd/relay2/set"),device_id_macStr);
 
-  if(strcmp(topic,my_topic)==0){
-    // Temporary buffer for the payload
-        char payload_buffer[50]; // Adjust size as per your maximum expected payload length
-    // Ensure we copy only the specified length and avoid overflow
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1); // Reserve space for null terminator
-        memcpy(payload_buffer, payload, copy_length); // Copy payload
-        payload_buffer[copy_length] = '\0'; // Null-terminate
+    // Relay2
+    memset(my_topic, '\0', sizeof(my_topic));
+    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
 
-      // Compare the payload with expected values
-        if (strcmp(payload_buffer, "on") == 0) {;
+    if (strcmp(topic, my_topic) == 0) {
+        char payload_buffer[50];
+        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
+        memcpy(payload_buffer, payload, copy_length);
+        payload_buffer[copy_length] = '\0';
+
+        if (strcmp(payload_buffer, "on") == 0) {
             transfer_mqtt_data("Relay 2 on");
-        } 
-        else if (strcmp(payload_buffer, "off") == 0) {
+        } else if (strcmp(payload_buffer, "off") == 0) {
             transfer_mqtt_data("Relay 2 off");
         }
     }
 }
+
 
 
 void transfer_mqtt_data(const char* msg){
