@@ -34,6 +34,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "siren.h"
 #include "universalEventx.h"
 #include "msg_store.h"
+#include "modbusx.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
@@ -180,7 +181,7 @@ void Task1code( void * parameter ){
 	//xSemaphoreTake( xMutex_GSM_CALLING, portMAX_DELAY );
 	/* keep the status of receiving data */
 	TickType_t xLastWakeTime;
-    const TickType_t xFrequency =  pdMS_TO_TICKS(1);;
+    const TickType_t xFrequency =  pdMS_TO_TICKS(1);
 	BaseType_t xStatus_queu_sensorTsk, xStatus_queu_mqttTsk;
 	/* time to block the task until data is available */
 	const TickType_t xTicksToWait = pdMS_TO_TICKS(10);
@@ -207,7 +208,7 @@ void Task1code( void * parameter ){
 		}
 #endif		
 		myAlarm_pannel.watcher();
-		
+		loop_modbus();
 		if (stringComplete_at_serial0)
 		{
 			stringComplete_at_serial0 = false;
@@ -286,7 +287,7 @@ void Task5code_call( void * parameter ){
 	for(;;){
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );
 #ifdef GSM_OK	
-		ultimate_call_hadlr();		
+		ultimate_call_hadlr();	
 #endif
 	}
 }
@@ -429,10 +430,10 @@ void setup()
 	pinMode(PIN_BATTERY, OUTPUT);
 	//pinMode(PIN_VOICE_EN,OUTPUT);
 #ifdef GSM_MINI_BOARD_V3
-	pinMode(RELAY_OUT_A,OUTPUT);
-	pinMode(RELAY_OUT_B,OUTPUT);
-	digitalWrite(RELAY_OUT_A,HIGH);
-	digitalWrite(RELAY_OUT_B,HIGH);
+	//pinMode(RELAY_OUT_A,OUTPUT);
+	//pinMode(RELAY_OUT_B,OUTPUT);
+	//digitalWrite(RELAY_OUT_A,HIGH);
+	//digitalWrite(RELAY_OUT_B,HIGH);
 #endif
 
   // Capture the main task handle
@@ -443,6 +444,7 @@ void setup()
 	init_timersSW();
 	Serial.begin(115200);
 	Serial.print(F("Smart Security Alarm System Rev 2.0"));
+	setup_modbus();
 	//lcd.init();
 
 	//lcd.backlight();
@@ -513,7 +515,7 @@ void setup()
  initMsgQueue();
  /* create the queue which size can contains 5 elements of Data */
  xQueue = xQueueCreate(1, sizeof(DataBuffer));
- xQueue_sensor_state = xQueueCreate(1, sizeof(DataBuffer));
+ xQueue_sensor_state = xQueueCreate(6, sizeof(DataBuffer));
  xQueue_mqtt_Qhdlr = xQueueCreate(3, sizeof(DataBuffer));
  if (!xQueue || !xQueue_sensor_state || !xQueue_mqtt_Qhdlr) {
     // Code inside this block will execute if any of the queue creations failed

@@ -183,7 +183,7 @@ void transfer_sensor_scan_data(const char* sensor_data){
 	/* keep the status of sending data */
 	BaseType_t xStatus;
 	/* time to block the task until the queue has free space */
-	const TickType_t xTicksToWait = pdMS_TO_TICKS(30);
+	const TickType_t xTicksToWait = pdMS_TO_TICKS(50);
 	/* create data to send */
 	DataBuffer data;
 	/* sender 1 has id is 1 */
@@ -201,6 +201,22 @@ void transfer_sensor_scan_data(const char* sensor_data){
 		Serial.println(F("send OK"));
 	}
 	/* we delay here so that receiveTask has chance to receive data */
+	else if (xStatus != pdPASS) {
+        // If queue is full, remove oldest item from back
+        DataBuffer droppedData;
+        xQueueReceive(xQueue_sensor_state, &droppedData, 0);  // Remove item at back (oldest)
+
+        // Try sending again
+        xStatus = xQueueSendToFront(xQueue_sensor_state, &data, xTicksToWait);
+
+        if (xStatus == pdPASS) {
+            Serial.println(F("Old data dropped"));
+        } else {
+            Serial.println(F("Still failed"));
+        }
+    } else {
+        Serial.println(F("send OK"));
+    }
 	delay(100);
 }
 
