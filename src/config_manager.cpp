@@ -141,7 +141,13 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
 	 systemConfig.call_en = doc["sysconf"]["call_en"];
 	 systemConfig.wifiap_en = doc["sysconf"]["wifiap_en"];
-	if ((!digitalRead(PROGRAM_PIN))||(systemConfig.wifiap_en==true))
+#ifdef GSM_PULSEX_IOT_BOARD
+	 	bool reset_pin_state = true;
+#else
+	 	bool reset_pin_state = digitalRead(PROGRAM_PIN);
+#endif
+
+	if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
 	{	
 	//if(systemConfig.wifiap_en==true){	
 		 strcpy(systemConfig.installer_pass, "admin");	

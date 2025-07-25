@@ -76,10 +76,50 @@ void initWebSocket() {
 	server.addHandler(&ws);
 }
 
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.println(F("Connected to AP successfully!"));
+
+  }
+  
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.printf_P(PSTR("\nConnected to %s\n"), systemConfig.wifissid_sta);
+		delay(3000);
+		char IP[] = "xxx.xxx.xxx.xxx";          // buffer
+		IPAddress ip = WiFi.localIP();
+		String my_ip = ip.toString();
+		Serial.print(F("IP: "));
+		Serial.println(my_ip.c_str());
+		//initRTC();
+		wifiStarted = true;
+  }
+  
+  void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.println(F("Disconnected from WiFi access point"));
+	Serial.print(F("Reason: "));
+	Serial.println(info.wifi_sta_disconnected.reason);
+	Serial.println(F("Trying to Reconnect"));
+	WiFi.reconnect();
+	if(wifiStarted){// Loop until we're reconnected
+		Timer_WIFIreconnect.previousMillis = millis();
+		wifiStarted = false;
+		
+	}
+	
+		vTaskDelay(500 / portTICK_RATE_MS);
+			if (Timer_WIFIreconnect.Timer_run()) {
+				Serial.println(F("WiFi connection timeout"));
+				//WiFi.disconnect();
+				//ESP.restart();
+				return;
+			}
+  }
+
 void initWiFi_STA(){
 	WiFi.mode(WIFI_STA);
-	// Configures static IP address
-#ifdef define CUSTOM_NETWORK_CONFIG
+	WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+	WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+	WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+	#ifdef define CUSTOM_NETWORK_CONFIG
 	if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
 		Serial.println(F("STA Failed to configure"));
 	}
@@ -90,13 +130,11 @@ void initWiFi_STA(){
 		WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
 		Serial.println(systemConfig.wifipass);
 #endif
-	Serial.printf("Trying to connect [%s] ", systemConfig.wifissid_sta);
-	/*while (WiFi.status() != WL_CONNECTED) {
-		Serial.print(".");
-		delay(500);
-	}*/
-	Serial.printf(" %s\n", WiFi.localIP().toString().c_str());
+	Serial.printf_P(PSTR("Trying to connect [%s] "), systemConfig.wifissid_sta);
+	Serial.printf(" %s\n", WiFi.localIP().toString().c_str()); 
 }
+
+
 
 void initWiFi_AP() {
 	

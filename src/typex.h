@@ -170,8 +170,12 @@ typedef struct Events{
 /* structure that hold data*/
 typedef struct{
 	char char_buffer_rx[15];
-	int counter;
 }DataBuffer;
+
+
+typedef struct SensorStatePacket {
+    uint8_t zoneStates[6];  // 48 sensors = 6 bytes
+}ByteBuffer;
 
 enum GSM_stateMachineStates {GSM_CALL, GSM_INIT,GSM_SMS_SUSPENDING, GSM_LISTIN,GSM_CALL_TASK_DELETEING};
 

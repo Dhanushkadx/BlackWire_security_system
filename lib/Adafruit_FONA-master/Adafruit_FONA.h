@@ -108,6 +108,7 @@ class Adafruit_FONA : public FONAStreamType {
 public:
   Adafruit_FONA(int8_t r);
   bool begin(FONAStreamType &port);
+  bool setSMSTextModeAndStorage(const char *storageLocation);
   uint8_t type();
 
   // Stream
@@ -142,6 +143,7 @@ public:
   uint8_t getSIMCCID(char *ccid);
   uint8_t getNetworkStatus(void);
   uint8_t getRSSI(void);
+  bool isSIMInserted();
 
   // IMEI
   uint8_t getIMEI(char *imei);

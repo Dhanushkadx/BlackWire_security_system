@@ -3,8 +3,10 @@
 
 TimerSW Timer_siren;
 TimerSW Timer_buzzer;
+TimerSW Timer_gsmled;
 EventGroupHandle_t EventRTOS_buzzer;
 EventGroupHandle_t EventRTOS_siren;
+EventGroupHandle_t EventRTOS_gsmled;
 
 void relayTask() {
 
@@ -240,7 +242,152 @@ void alarm_bell_time_out(){
 	char buffer2[50];
 	sprintf(buffer2,"ALARM Muted in %d seconds!",systemConfig.bell_time_out);
 	
-	creatSMS(buffer2,1,0);	
+	creatSMS(buffer2,1,"0");	
 
 }
+
+
+void setup_siren()// setup siren event group
+{
+	EventRTOS_siren = xEventGroupCreate();
+	if (EventRTOS_siren == NULL) {
+		Serial.println(F("Failed to create EventRTOS_siren"));
+	} else {
+		Serial.println(F("EventRTOS_siren created successfully"));
+	}
+	digitalWrite(RELAY_ALARM,LOW);
+}
+
+
+void setup_buzzer()// setup buzzer event group
+{
+	EventRTOS_buzzer = xEventGroupCreate();
+	if (EventRTOS_buzzer == NULL) {
+		Serial.println(F("Failed to create EventRTOS_buzzer"));
+	} else {
+		Serial.println(F("EventRTOS_buzzer created successfully"));
+	}
+	digitalWrite(BuzzerPin,LOW);
+}
+
+
+void setup_gsmled()// setup gsm event group
+{
+	EventRTOS_gsmled = xEventGroupCreate();
+	if (EventRTOS_gsmled == NULL) {
+		Serial.println(F("Failed to create EventRTOS_gsmled"));
+	} else {
+		Serial.println(F("EventRTOS_gsmled created successfully"));
+	}
+}
+
+
+void gsm_led_update()
+{
 	
+		static int state = 0;
+		const TickType_t xTicksToWait = pdMS_TO_TICKS( 1);
+		EventBits_t uxBits;
+		uxBits = xEventGroupWaitBits(
+		EventRTOS_gsmled,   /* The event group being tested. */
+		ALL_SYNC_BITS, /* The bits within the event group to wait for. */
+		pdTRUE,        /* BITS should be cleared before returning. */
+		pdFALSE,       /* Don't wait for all bits, either bit will do. */
+		xTicksToWait );/* Wait a maximum of 100ms for either bit to be set. */
+		
+		  if(  ( uxBits & TASK_1_BIT ) != 0  )// Buzzer off
+		  {
+			  state = 0;
+#ifdef _DEBUG
+			  Serial.println(F("EVENT GSM_LED_NO_SIM"));			 
+#endif
+			  digitalWrite(PIN_GSM_BUSY_LED, LOW); // turn off the led			  
+		  }
+		  if(  ( uxBits & TASK_2_BIT ) != 0  )// no sim
+		  {
+#ifdef _DEBUG			  
+			   Serial.println(F("EVENT GSM_SEARCHING_NETWORK"));
+#endif
+			   state = 1;
+		  }
+		   if(  ( uxBits & TASK_3_BIT ) != 0  )// 
+		   {
+#ifdef _DEBUG			   
+			   Serial.println(F("EVENT GSM_NETWORK_DENIED"));
+#endif
+			   state = 2;
+			   
+		   }
+		    if(  ( uxBits & TASK_4_BIT ) != 0  )// 
+		    {			    
+			    state = 3;
+#ifdef _DEBUG
+			 	Serial.println(F("EVENT GSM_LOW_SIGNAL"));
+#endif
+		    }
+			if(  ( uxBits & TASK_5_BIT ) != 0  )// 
+			{
+#ifdef _DEBUG
+				Serial.println(F("EVENT GSM_INIT"));
+#endif
+				state = 4;
+			}
+			if(  ( uxBits & TASK_6_BIT ) != 0  )// Disarm
+			{
+#ifdef _DEBUG				
+				Serial.println(F("EVENT GSM_NOMAL"));
+#endif
+				state = 5;
+			}
+	
+	switch (state)
+	{
+	case 0:// NO SIM
+		//turn off the led
+		digitalWrite(PIN_GSM_BUSY_LED, LOW);
+		break;
+	case 1:// two fast blink and 5s interval	SEARCHING FOR NETWORK
+		gsm_led_blink(1,50, 50, 1000); // blink red
+		break;
+	case 2:// two fast blink and 1 second interval NETWORK DENIED
+		gsm_led_blink(1,1000, 100, 1000); // blink red		
+		break;
+	case 3:// 1s on and 1s off and 1s interval LOW SIGNAL
+		gsm_led_blink(3,100, 100, 3000); //
+		break;
+	case 4:// 1s on and 1s off and 1s interval INIT
+		gsm_led_blink(1,100, 100, 100); //
+		break;		
+	case 5:// 1s on and 1s off and 1s interval INIT
+		gsm_led_blink(1,1000, 1000, 1000); //
+		break;
+	default:
+		break;
+	}
+}
+
+
+void gsm_led_blink(uint8_t count, uint16_t onTime, uint16_t offTime, uint32_t interval)// just single led blink function class
+{
+	static unsigned long previousMillis = 0;
+
+	unsigned long currentMillis = millis();
+
+	if (currentMillis - previousMillis >= interval) {
+
+		for(uint8_t i = 0; i < count; i++) { // Blink twice
+			digitalWrite(PIN_GSM_BUSY_LED, HIGH);
+			delay(onTime);
+			digitalWrite(PIN_GSM_BUSY_LED, LOW);
+			delay(offTime);
+			
+		}
+		digitalWrite(PIN_GSM_BUSY_LED, LOW); // Ensure LED is off after blinking		
+		previousMillis = currentMillis; // Reset the timer
+
+		
+	}
+}
+	// This function will blink the GSM LED with specified on and off times at a given interval.
+	// It uses a static variable to keep track of the previous time the LED state was changed.
+	// The LED will toggle its state every 'interval' milliseconds, turning on for 'onTime' milliseconds and off for 'offTime' milliseconds.

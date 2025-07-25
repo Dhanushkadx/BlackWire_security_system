@@ -102,7 +102,6 @@ extern eMain_state ePrev_state;
 
 #define MAC_ADDR_SIZE 6
 //POWER
-#define FONA_RST 5
 
 /*char lcd_buffer0[17];
 char lcd_buffer1[17];

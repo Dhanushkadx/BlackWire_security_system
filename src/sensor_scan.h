@@ -9,7 +9,7 @@
 #include "typex.h"
 #include "TimerSW.h"
 #include "Wire.h"
-
+extern xQueueHandle sensorEventQueue;
 extern bool on_boot_A;
 extern bool on_boot_B;
 extern bool on_boot_C;
@@ -32,7 +32,7 @@ void transfer_sensor_scan_data(const char* sensor_data);
 void pooling_i2c_a();
 void pooling_i2c_b();
 void pooling_i2c_c();
-void sensor_update_LL(uint8_t scan_index , bool state);
+void sensor_update_LL(uint8_t scan_index , bool state, bool force_update);
 void GPIO_sens_scan();
 
 bool getSensor(uint8_t index);

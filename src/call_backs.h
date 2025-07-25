@@ -12,11 +12,12 @@
 #include <SPIFFS.h>
 #include "rf_methods.h"
 #include "mqtt_broker.h"
+#include "msgRingBuffer.h"
 
 //#include "message_buffer.h"
 #define SMS_STRCUT_MAX_MGS 10
 
-extern NEW_SMS SMS_to_be_sent_FIXDMEM[];
+//extern NEW_SMS SMS_to_be_sent_FIXDMEM[];
 uint8_t call_back_alarm_Calling();
 
 bool call_back_creat_alarm_sms(const char* buffer_sms, int x);

@@ -703,200 +703,7 @@ int8_t ALARM :: get_absolute_zone_number(eInvoking_source card_id, uint8_t relat
 		}
 	}
 	
-// No arg to pass all variables are class members
 	
-void ALARM :: alarm_process_wired(){
-
-
-	for(uint8_t scanning_index=0; scanning_index<TOTAL_DEVICES; scanning_index++){
-		//#ifdef _DEBUG		
-			Serial.printf_P(PSTR("Pro ID>>%d "),scanning_index);				
-//#endif
-		// zone is bypassed currntly
-		if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_BYPASSED))){
-			Serial.println(F("BYPASSED"));
-			 continue; // Skip the rest of the code and continue with the next iteration
-			 }
-
-		if((pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_RF))){
-			Serial.print(F("RF_ZONE."));
-		}
-		// zone is not available 
-		else if(!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_AVAILABLE))){ 
-			Serial.println(F("UNAVAILABLE."));
-			continue; // Skip the rest of the code and continue with the next iteration
-			}
-		
-		
-		bool alarm_enable = false;
-
-
-			if (pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_LAST_STATE))// the sensor is opened
-			{	
-				Serial.print(F(">>OPEND"));
-
-			if(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENABLE))
-			{
-				
-				Serial.print(F(">>>Enable/"));
-				
-				//the sensor is NOT an entry delay or exit delay 
-				if((!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENTRY_DELAY)))&&(!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_EXIT_DELAY))))
-				{
-					Serial.print(F("ENTRY-NO/EXIT-NO"));
-					//No previous alarm
-					if((!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ALARM)))&&((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENABLE))))
-					{
-						pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-						Serial.print(F(">ALARM ENABLED"));
-						alarm_enable = true;						
-					}
-					else{
-						Serial.println(F(">ALREADY ALARM OR DISABLE"));
-					}
-				}	
-				//the sensor is both  entry and exit delay 
-				else if((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENTRY_DELAY))&&(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_EXIT_DELAY))){
-					Serial.print(F("ENTRY-YES/EXIT-YES"));
-					
-					if (!_exit_delay_timer_en)// if exit delay timer is NOT running
-					{
-						//No previous alarm //the sensor is an entry delay so activate the timer
-						if (!_entry_delay_timer_en)
-						{
-							Serial.print(F("ENTRY-YES"));
-							// do not go to alarm sate just enable the timer
-							pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-							_entry_delay_timer_en=true;
-							fn_entry_delay_timer_start();
-							Timer_entry_delay.previousMillis = millis();
-						}
-						else{
-							Serial.println(F(">ALREADY ALARM OR DISABLE"));
-						}
-					}
-					else{// if exit delay timer is running
-							Serial.print(F("EXIT-TIMER RINNING"));
-					}
-					
-				}
-				//the sensor is ONLY entry delay 
-				else if ((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENTRY_DELAY))&&(!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_EXIT_DELAY))))
-				{
-					Serial.print(F("ENTRY-YES/EXIT-NO"));
-					//No previous alarm //the sensor is an entry delay so activate the timer
-					if((!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ALARM)))&&((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENABLE))))
-					{
-						if (!_entry_delay_timer_en)
-						{
-							Serial.println(F("ENTRY TIMER ENABLED"));
-							pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-							_entry_delay_timer_en=true;
-							Timer_entry_delay.previousMillis = millis();
-						}
-						
-						if (_exit_delay_timer_en)
-						{
-							Serial.println(F("entry delay only zone trigger when exit delay timer running"));
-							pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-							alarm_enable=true;
-						}
-					}
-					else{
-						Serial.println(F("ALREADY ALARM OR DISABLED"));
-					}
-				}
-				// the sensor is ONLY exit delay
-				else if ((!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENTRY_DELAY)))&&((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_EXIT_DELAY))))
-				{
-					Serial.print(F("ENTRY-NO/EXIT-YES"));
-					//No previous alarm //the sensor is an entry delay so activate the timer
-					if((!(pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ALARM)))&&((pAny_sensor_array[scanning_index].device_state&(1<<BIT_MASK_ENABLE))))
-					{
-						if (!_exit_delay_timer_en)
-						{
-							Serial.println(F("exit delay only zone trigger when exit delay timer running is NOT running"));
-							pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-							alarm_enable=true;
-						}
-					}
-					else{
-						
-					}
-				}
-			}//enable check
-			else{Serial.println(F(">>>DISABLED/"));}
-			}//sensor is open
-			
-			else{// sensor is just closed
-				// check arm mode
-				Serial.print(F(">>CLOSED"));
-				Serial.println(F(">>>enable is if the syetem is AS IT IS"));
-				if (eArm_mode==AS_ITIS_NO_BYPASS)
-				{
-					pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ENABLE);
-					//Serial.println(F("sensor is enabled"));
-					if (is_system_ready_to_arm()!=-1)// system is not ready
-					{
-						//run system is not ready call beck
-						fn_system_is_not_ready();
-					}
-					else{						
-						// run system is ready call back
-						fn_system_is_ready();
-					}
-				}				
-				
-			}	
-		
-			/*if (millis()-pAny_sensor_array[last_update_sensor_index].last_updated_time_stamp<500)
-			{
-				Serial.println(F("too short"));
-				return;
-			}*/
-			
-			if (alarm_enable)
-			{
-				alarm_enable=false;
-			
-			pAny_sensor_array[scanning_index].last_updated_time_stamp=millis();			
-			// check perimeter only
-			if (perimeter_only)
-			{
-				if (pAny_sensor_array[scanning_index].device_type&(1<<BIT_MASK_PERIMETER))
-				{
-					_eCurrunt_state =ALARM_CALLING;
-					Timer_alarm_relay.previousMillis=millis();
-					_Timer_alarm_relay_time_out=false;
-					pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-					fn_alarm_notify(scanning_index);
-					Timer_alarm_clear_delay.interval = 60000;
-					Timer_alarm_clear_delay.previousMillis = millis();
-					Timer_alarm_clear_delay_en = true;
-					Serial.print(F("alarm detected perimeter only>> "));
-				}
-				else{
-					Serial.print(F("not a perimeter zone alarm canceled "));
-				}
-				
-			}
-			else{
-				_eCurrunt_state =ALARM_CALLING;
-				pAny_sensor_array[scanning_index].device_state|=(1<<BIT_MASK_ALARM);
-			    fn_alarm_notify(scanning_index);
-				Timer_alarm_relay.previousMillis=millis();
-				_Timer_alarm_relay_time_out=false;
-				Serial.print(F("alarm detected all arm>> "));
-				Timer_alarm_clear_delay.interval = 60000;
-				Timer_alarm_clear_delay.previousMillis = millis();
-				Timer_alarm_clear_delay_en = true;
-			}
-			}
-		
-	}
-	
-}
-		
 	
 void ALARM :: enable_only_closed_sensors_as_it_is(){
 
@@ -1119,4 +926,157 @@ void ALARM :: chime_sound(){
 			}
 			else{				
 			}
+}
+
+
+// ========== Core Function ==========
+void ALARM::alarm_process_wired() {
+    for (uint8_t i = 0; i < TOTAL_DEVICES; ++i) {
+        LOG_LOGF_P(PSTR("ID>>%d "), i);
+
+        if (is_sensor_skipped(i)) continue;
+
+        bool alarm_enable = false;
+
+        if (pAny_sensor_array[i].device_state & (1 << BIT_MASK_LAST_STATE)) {// Sensor is open
+            process_open_sensor(i, alarm_enable);
+        } else {// Sensor is closed
+            process_closed_sensor(i);
+        }
+
+        if (alarm_enable) {
+            handle_alarm_trigger(i);
+        }
+    }
+}
+
+// ========== Helper Functions ==========
+
+bool ALARM::is_sensor_skipped(uint8_t index) {
+    auto &sensor = pAny_sensor_array[index];
+
+    if (sensor.device_state & (1 << BIT_MASK_BYPASSED)) {
+        LOG_PRINTLN(F("BYPASSED"));
+        return true;
+    }
+
+    if (sensor.device_type & (1 << BIT_MASK_RF)) {
+        LOG_PRINT(F("RF_ZONE."));
+    } else if (!(sensor.device_state & (1 << BIT_MASK_AVAILABLE))) {
+        LOG_PRINTLN(F("N/A."));
+        return true;
+    }
+
+    return false;
+}
+
+void ALARM::process_open_sensor(uint8_t index, bool &alarm_enable) {
+    auto &sensor = pAny_sensor_array[index];
+
+    LOG_PRINT(F(">>OPEND"));
+
+    bool is_enabled = sensor.device_state & (1 << BIT_MASK_ENABLE);
+    bool is_alarm   = sensor.device_state & (1 << BIT_MASK_ALARM);
+    bool is_entry   = sensor.device_state & (1 << BIT_MASK_ENTRY_DELAY);
+    bool is_exit    = sensor.device_state & (1 << BIT_MASK_EXIT_DELAY);
+
+    if (!is_enabled) {
+        LOG_PRINTLN(F(">>>DISABLED/"));
+        return;
+    }
+
+    LOG_PRINT(F(">>>Enable/"));
+
+    if (!is_entry && !is_exit) {
+        LOG_PRINT(F("ENTRY-NO/EXIT-NO"));
+        if (!is_alarm) {
+            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            LOG_PRINT(F(">NO PREV ALARM - ALARM ENABLED"));
+            alarm_enable = true;
+        } else {
+            LOG_PRINTLN(F(">ALREADY ALARM OR DISABLE"));
+        }
+    } else if (is_entry && is_exit) {
+        LOG_PRINT(F("ENTRY-YES/EXIT-YES"));
+        if (!_exit_delay_timer_en && !_entry_delay_timer_en) {
+            LOG_PRINTLN(F("ENTRY_TIMER_ACTIVATED"));
+            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            _entry_delay_timer_en = true;
+            fn_entry_delay_timer_start();
+            Timer_entry_delay.previousMillis = millis();
+        } else {
+            LOG_PRINTLN(F(">MAY BE ALREADY_ALARM/DISABLE/ EXIT_TIMER_RUNNING/ ENTRY_TIMER_RUNNING"));
+        }
+    } else if (is_entry && !is_exit) {
+        LOG_PRINT(F("ENTRY-YES/EXIT-NO"));
+        if (!is_alarm) {
+            if (!_entry_delay_timer_en) {
+                LOG_PRINTLN(F("ENTRY_TIMER_ACTIVATED"));
+                sensor.device_state |= (1 << BIT_MASK_ALARM);
+                _entry_delay_timer_en = true;
+                Timer_entry_delay.previousMillis = millis();
+            }
+            if (_exit_delay_timer_en) {
+                LOG_PRINTLN(F("entry delay only zone trigger when exit delay timer running"));
+                sensor.device_state |= (1 << BIT_MASK_ALARM);
+                alarm_enable = true;
+            }
+        } else {
+            LOG_PRINTLN(F("ALREADY ALARM OR DISABLED"));
+        }
+    } else if (!is_entry && is_exit) {
+        LOG_PRINT(F("ENTRY-NO/EXIT-YES"));
+        if (!is_alarm && !_exit_delay_timer_en) {
+            LOG_PRINTLN(F("exit delay only zone triggered (no timer running)"));
+            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            alarm_enable = true;
+        }
+    }
+}
+
+void ALARM::process_closed_sensor(uint8_t index) {
+    auto &sensor = pAny_sensor_array[index];
+
+    LOG_PRINT(F(">>CLOSED"));
+    LOG_PRINTLN(F(">>>will be enabled if arm mode is AS_ITIS_NO_BYPASS"));
+
+    if (eArm_mode == AS_ITIS_NO_BYPASS) {
+        sensor.device_state |= (1 << BIT_MASK_ENABLE);
+        LOG_PRINTLN(F("ENABLED"));
+
+        if (is_system_ready_to_arm() != -1) {
+            fn_system_is_not_ready();
+        } else {
+            fn_system_is_ready();
+        }
+    }
+}
+
+void ALARM::handle_alarm_trigger(uint8_t index) {
+    auto &sensor = pAny_sensor_array[index];
+
+    sensor.last_updated_time_stamp = millis();
+
+    _eCurrunt_state = ALARM_CALLING;
+    _Timer_alarm_relay_time_out = false;
+    Timer_alarm_relay.previousMillis = millis();
+
+    sensor.device_state |= (1 << BIT_MASK_ALARM);
+    fn_alarm_notify(index);
+
+    if (perimeter_only) {
+        if (sensor.device_type & (1 << BIT_MASK_PERIMETER)) {
+            LOG_PRINT(F("alarm detected perimeter only>> "));
+            Timer_alarm_clear_delay.interval = 10000;
+        } else {
+            LOG_PRINT(F("not a perimeter zone alarm canceled "));
+            return;
+        }
+    } else {
+        LOG_PRINTLN(F("alarm detected all arm>> "));
+        Timer_alarm_clear_delay.interval = 10000;
+    }
+
+    Timer_alarm_clear_delay.previousMillis = millis();
+    Timer_alarm_clear_delay_en = true;
 }

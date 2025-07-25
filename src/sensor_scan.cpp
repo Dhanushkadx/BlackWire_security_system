@@ -1,6 +1,6 @@
 
 #include "sensor_scan.h"
-
+xQueueHandle sensorEventQueue;
 const uint8_t sensor_pin_count = 4;
 const uint8_t sensor_count = 48;
 
@@ -55,6 +55,7 @@ void setup_sensor_settings(){
 		sensroTimerArray[index].interval = systemConfig.sensor_debounce_time;
 		sensroTimerArray[index].previousMillis = millis();
 		any_sensor_array[index].device_state |= (1 << BIT_MASK_AVAILABLE);
+	
 	}
 	
 	// defaultly all cards are disable
@@ -107,10 +108,28 @@ void setup_sensor_settings(){
 
 // Sacan GPIO connected sensors only
 void GPIO_sens_scan(){
+ByteBuffer packet = {0};
+static bool first_run = true;
+	if(first_run){	
+		Serial.println(F("sensor update start"));
+		first_run = false;
+		// set all sensors to low
+		for(uint8_t scan_index=0; scan_index<sensor_pin_count; scan_index++){
+			bool state = digitalRead(GPIO_array[scan_index].GPIOpin);
+			//sensor_update_LL(scan_index, state, true);
+			Serial.printf("sensor %d state:%d",scan_index,state);
+			if (state) {
+                packet.zoneStates[scan_index / 8] |= (1 << (scan_index % 8));
+            } else {
+                packet.zoneStates[scan_index / 8] &= ~(1 << (scan_index % 8));
+            }
+		}
+		xQueueSend(sensorEventQueue, &packet, 0);  // Send to queue
+	}
 	//Serial.println("pin change");
 	for(uint8_t scan_index=0; scan_index<sensor_pin_count; scan_index++){
 		bool state = digitalRead(GPIO_array[scan_index].GPIOpin);
-		sensor_update_LL(scan_index, state);
+		sensor_update_LL(scan_index, state, false);
 	}
 }
 
@@ -128,7 +147,7 @@ if(systemConfig.card_A_en==false){return;}// if not enabled dont scan i2c sensor
 
       for (int i = 0; i < CARD_A_CHANNELS; i++) {
        bool state = (receivedData >> i) & 0x01 ? true : false;
-	   sensor_update_LL(i+CARD_A_START_INDEX , state);
+	   sensor_update_LL(i+CARD_A_START_INDEX , state, false);
       }        
     
   }else{
@@ -150,7 +169,7 @@ if(systemConfig.card_B_en==false){return;}// if not enabled dont scan i2c sensor
     int16_t receivedData = (highByte << 8) | lowByte;  
       for (int i = 0; i < CARD_B_CHANNELS; i++) {
        bool state = (receivedData >> i) & 0x01 ? true : false;
-	   sensor_update_LL(i+CARD_B_START_INDEX , state);
+	   sensor_update_LL(i+CARD_B_START_INDEX , state, false);
       }        
     
   }else{
@@ -170,7 +189,7 @@ if(systemConfig.card_C_en==false){return;}// if not enabled dont scan i2c sensor
     int16_t receivedData = (highByte << 8) | lowByte;    
       for (int i = 0; i < CARD_C_CHANNELS; i++) {
        bool state = (receivedData >> i) & 0x01 ? true : false;
-	   sensor_update_LL(i+CARD_C_START_INDEX , state);
+	   sensor_update_LL(i+CARD_C_START_INDEX , state, false);
       }        
     
   }else{
@@ -189,15 +208,13 @@ void transfer_sensor_scan_data(const char* sensor_data){
 	/* sender 1 has id is 1 */
 	memset(data.char_buffer_rx,'\0',15);
 	strcpy(data.char_buffer_rx,sensor_data);
-	data.counter = 1;
+
 	
 	Serial.println(F("sensor data Q is sending data"));
 	/* send data to front of the queue */
 	xStatus = xQueueSendToFront( xQueue_sensor_state, &data, xTicksToWait );
 	/* check whether sending is ok or not */
 	if( xStatus == pdPASS ) {
-		/* increase counter of sender 1 */
-		data.counter = data.counter + 1;
 		Serial.println(F("send OK"));
 	}
 	/* we delay here so that receiveTask has chance to receive data */
@@ -205,12 +222,13 @@ void transfer_sensor_scan_data(const char* sensor_data){
 }
 
 
-void sensor_update_LL(uint8_t scan_index , bool state){		
+void sensor_update_LL(uint8_t scan_index , bool state, bool force_update){		
 	bool send_data_ready = false;
 	char buffer[20] = {0};
 	if (xSemaphoreTake(sensorMutex, portMAX_DELAY) == pdTRUE) {	 
 		SENS_array[scan_index].nowState = state;
-		if(SENS_array[scan_index].prevState!=SENS_array[scan_index].nowState){// there is a change
+		if(force_update || (SENS_array[scan_index].prevState!=SENS_array[scan_index].nowState)){// there is a change
+			
 			long now = millis(); // get time 
 			int duration = now-SENS_array[scan_index].last_changed_time;// diffrence of time with last change
 			SENS_array[scan_index].last_changed_time = now;

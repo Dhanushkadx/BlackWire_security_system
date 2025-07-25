@@ -5,6 +5,7 @@
 #include "typex.h"
 #include "TimerSW.h"
 #include "Arduino.h"
+#include "logger.h"
 
 extern "C" {
 	typedef void (*_callbackFunction)(uint8_t,const char*,eInvoking_source);
@@ -176,6 +177,13 @@ class ALARM{
 			eARM_Mode get_arm_mode();
 			void set_fn_save_event_info(_callbackFunctionType9 pFn);
 			void chime_sound();
+
+	// ==================== FUNCTION PROTOTYPES ====================
+bool is_sensor_skipped(uint8_t index);
+void process_open_sensor(uint8_t index, bool &alarm_enable);
+void process_closed_sensor(uint8_t index);
+void handle_alarm_trigger(uint8_t index);
+
 	private:
 	eARM_Mode eArm_mode;
 	MY_SENS *pAny_sensor_array;

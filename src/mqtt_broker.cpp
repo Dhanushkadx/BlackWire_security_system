@@ -182,14 +182,14 @@ void publish_system_state(const char* state, const char* subtopic, bool retaind_
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/%s"),device_id_macStr,subtopic);
     if(!mqtt_enable){
-      //#ifdef _DEBUG
+      #ifdef _DEBUG
             Serial.println(F("MQTT DISABLED")); 
-      //#endif
+      #endif
             return;
           }
-      //#ifdef _DEBUG
+      #ifdef _DEBUG
           Serial.printf_P(PSTR("MQTT - Update - topic>%s \n"), topic);
-      //#endif
+      #endif
         client.publish(topic, state,retaind_flag);
 }
 
@@ -354,7 +354,7 @@ void transfer_mqtt_data(const char* msg){
 	/* sender 1 has id is 1 */
 	memset(data.char_buffer_rx,'\0',15);
 	strcpy(data.char_buffer_rx,msg);
-	data.counter = 1;
+
 	
 		Serial.println(F("sendQueu_mqtt_data"));
 		/* send data to front of the queue */
@@ -362,7 +362,7 @@ void transfer_mqtt_data(const char* msg){
 		/* check whether sending is ok or not */
 		if( xStatus == pdPASS ) {
 			/* increase counter of sender 1 */
-			data.counter = data.counter + 1;
+			;
 			Serial.println(F("sendQueu_mqtt_data sending data"));
 		}
 		/* we delay here so that receiveTask has chance to receive data */

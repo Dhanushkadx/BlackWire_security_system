@@ -125,7 +125,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	if (strncmp("Status?",smsbuffer,7)==0)
 	{
 		ret_value = 1;
-		char msg[159] = {0};
+		char msg[200] = {0};
 		String ipAddress = WiFi.localIP().toString();
   		String macAddress = WiFi.macAddress();
   		int32_t rssi = WiFi.RSSI();
@@ -133,8 +133,29 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		String wifiStatus;
 		(!WiFi.isConnected())?wifiStatus = "offline": wifiStatus = "online";
   		sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nWiFi RSSI:%d dBm\nGSM SIG:%d\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress.c_str(), macAddress.c_str(), rssi,gsmrssi);
-		//sms_broad_cast_request = true;
-		SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].type = 1;
+		//get time from esp32
+			struct tm timeinfo = rtc.getTimeStruct();
+
+			const char* daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+			const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+									"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+			char buffer[40];
+			memset(buffer, 0, sizeof(buffer));
+			snprintf(buffer, sizeof(buffer), "%02d(%s)-%s-%04d %02d:%02d:%02d",
+					timeinfo.tm_mday,
+					daysOfWeek[timeinfo.tm_wday],
+					months[timeinfo.tm_mon],
+					timeinfo.tm_year + 1900,
+					timeinfo.tm_hour,
+					timeinfo.tm_min,
+					timeinfo.tm_sec);
+
+			Serial.println(buffer);
+		
+		strcat(msg,"Time: ");
+		strcat(msg, buffer);
+		strcat(msg,"\n");
 		if (myAlarm_pannel.get_system_state()!=DEACTIVE)
 		{
 			strcat_P(msg,PSTR("Mode: ARMED"));

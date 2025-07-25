@@ -1,11 +1,12 @@
 #include <Arduino.h>
 #include "Wire.h"
+#include "logger.h"
 /*
     Name:       ESP32_gsm_alarm.ino
     Created:	10/30/2022 8:48:33 AM
     Author:     DARKLOAD\dhanu
 */
-#define _DEBUG
+//#define _DEBUG
 #define ARDUINOJSON_ENABLE_STD_STREAM 1
 SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include <freertos/message_buffer.h>
@@ -34,6 +35,8 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "siren.h"
 #include "universalEventx.h"
 #include "msg_store.h"
+#include "msgRingBuffer.h"
+#include "pixel_blink_module.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
@@ -58,6 +61,7 @@ xQueueHandle xQueue;
 /* this variable hold queue handle */
 xQueueHandle xQueue_sensor_state;
 xQueueHandle xQueue_mqtt_Qhdlr;
+
 /* create event group */
 EventGroupHandle_t EventRTOS_lcd;
 EventGroupHandle_t EventRTOS_lcdkeyPad;
@@ -172,7 +176,12 @@ int Lii         = 0;
 int Ri          = -1;
 int Rii         = -1;
 */
+// Define pin and LED count
+#define LED_PIN     23      // Change to your actual data pin
+#define LED_COUNT   1      // Number of NeoPixels (usually 1 for indicators)
 
+// Create PixelBlink object
+PixelBlink pixel(LED_PIN, LED_COUNT);
 
 void Task1code( void * parameter ){
 	/*Serial.print("Task1 is running on core ");
@@ -183,7 +192,7 @@ void Task1code( void * parameter ){
     const TickType_t xFrequency =  pdMS_TO_TICKS(1);;
 	BaseType_t xStatus_queu_sensorTsk, xStatus_queu_mqttTsk;
 	/* time to block the task until data is available */
-	const TickType_t xTicksToWait = pdMS_TO_TICKS(10);
+	const TickType_t xTicksToWait = pdMS_TO_TICKS(50);
 	DataBuffer data_buff_sensTsk, data_buff_mqttTsk;
 	for(;;){
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );		
@@ -206,6 +215,16 @@ void Task1code( void * parameter ){
 			universal_event_hadler(data_buff_mqttTsk.char_buffer_rx,WEB,0);
 		}
 #endif		
+ByteBuffer packet = {0};
+		// Check if sensorEventQueue has data
+		if (xQueueReceive(sensorEventQueue, &packet, xTicksToWait)) {
+			// Process all sensor states
+			for (int i = 0; i < 48; i++) {
+				bool state = (packet.zoneStates[i / 8] >> (i % 8)) & 0x01;
+				myAlarm_pannel.Universal_zone_state_update(i, state);
+			}
+		}
+
 		myAlarm_pannel.watcher();
 		
 		if (stringComplete_at_serial0)
@@ -307,7 +326,6 @@ void Task6code(void * parameter){
 			
 			Serial.print(F("rfid = "));
 			Serial.print(data.char_buffer_rx);
-			Serial.println(data.counter);
 			DynamicJsonDocument json(250);
 			json["respHeader"]= "data";
 			json["scan_rfid"] = data.char_buffer_rx+5;
@@ -324,9 +342,11 @@ void Task6code(void * parameter){
 void Task7code( void * parameter ){
 	/*Serial.print("Task7 is running on core ");
 	Serial.println(xPortGetCoreID());*/
-	
+	TickType_t xLastWakeTime;
+	const TickType_t xFrequency = pdMS_TO_TICKS(10);
 	for(;;){
-		delay(1);
+		vTaskDelayUntil( &xLastWakeTime, xFrequency );
+		gsm_led_update();
 		//loop_keyPad();
 	}
 }
@@ -351,7 +371,7 @@ switch (system_mode) {
             Timer_mqtt_breath.previousMillis = millis();
         }
 #endif
-        reconnect();
+        //reconnect();
         
     } break;
 
@@ -379,6 +399,8 @@ void Task9code( void * parameter ){
 		delay(1);
 		buzzer();
 		relayTask();
+		// Must be called continuously to handle blinking
+  		pixel.update();
 	}
 }
 
@@ -392,14 +414,16 @@ void Task10code( void * parameter ){
 	for(;;){
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );
 		GPIO_sens_scan();
-		pooling_i2c_a();
-		pooling_i2c_b();
-		pooling_i2c_c();
+		// pooling_i2c_a();
+		// pooling_i2c_b();
+		// pooling_i2c_c();
 		Power_detect_loop();
 		if (Timer_battery_charge.Timer_run())
 		{
 			Serial.println(F("BAT CHAR OFF"));
+#ifdef PULSEX_IOT_BOARD
 			digitalWrite(PIN_BATTERY,LOW);
+#endif
 		}
 	}
 }
@@ -417,16 +441,20 @@ void init_timersSW(){
 void setup()
 {
 	pinMode(PIN_AC_DETECT,INPUT_PULLUP);
+#ifndef GSM_PULSEX_IOT_BOARD
 	pinMode(PROGRAM_PIN,INPUT_PULLUP);
+#endif
 	pinMode(BuzzerPin,OUTPUT);
 	pinMode(PIN_RF_LED,OUTPUT);
 	pinMode(PIN_GSM_BUSY_LED,OUTPUT);
-	pinMode(GSM_LED,OUTPUT);
 	digitalWrite(BuzzerPin,LOW);
 	pinMode(RELAY_ALARM , OUTPUT);
 	pinMode(PIN_ARM , OUTPUT);
 	pinMode(PIN_DISARM, OUTPUT);
+#ifdef PULSEX_IOT_BOARD
 	pinMode(PIN_BATTERY, OUTPUT);
+#endif
+	digitalWrite(PIN_GSM_BUSY_LED, HIGH);
 	//pinMode(PIN_VOICE_EN,OUTPUT);
 #ifdef GSM_MINI_BOARD_V3
 	pinMode(RELAY_OUT_A,OUTPUT);
@@ -435,12 +463,15 @@ void setup()
 	digitalWrite(RELAY_OUT_B,HIGH);
 #endif
 
+	pixel.begin();
+
   // Capture the main task handle
   mainTaskHandle = xTaskGetCurrentTaskHandle();  // Get handle for the main task
 	
-	Wire.begin();
+	//Wire.begin();
 	uint8_t dx;
 	init_timersSW();
+	LOG_INIT();
 	Serial.begin(115200);
 	Serial.print(F("Smart Security Alarm System Rev 2.0"));
 	//lcd.init();
@@ -454,7 +485,7 @@ void setup()
    
 	// Initialize SPIFFS
 	if(!SPIFFS.begin(true)){
-		Serial.println("An Error has occurred while mounting SPIFFS");
+		Serial.println("Error mounting SPIFFS");
 		return;
 	}
 	//eeprom_reset();
@@ -491,7 +522,7 @@ void setup()
 #endif
   myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
   myAlarm_pannel.set_system_state(DEACTIVE,SYSTEM_ITSELF,0);
-  mySwitch.enableReceive(digitalPinToInterrupt(15));  // Receiver on interrupt 0 => that is pin #2*/
+  mySwitch.enableReceive(digitalPinToInterrupt(PIN_RF433MH));  // Receiver on interrupt 0 => that is pin #2*/
   /* initialize binary semaphore */
   xBinarySemaphore = xSemaphoreCreateBinary();
   xMutex_GSM = xSemaphoreCreateMutex(); 
@@ -503,18 +534,26 @@ void setup()
         Serial.println(F("Failed to create mutex xMutex_spiff"));
         return;
     }
+  // Initialize the mutex before using any file operation
+  setup_siren();
+  setup_buzzer();	
+  setup_gsmled();
   sensorMutex = xSemaphoreCreateMutex();
   EventRTOS_lcd = xEventGroupCreate();
-  EventRTOS_buzzer = xEventGroupCreate();
+
+//   EventRTOS_buzzer = xEventGroupCreate();
+//   EventRTOS_siren = xEventGroupCreate();
   EventRTOS_lcdkeyPad = xEventGroupCreate();
   EventRTOS_gsm = xEventGroupCreate();
-  EventRTOS_siren = xEventGroupCreate();
+ 
 
  initMsgQueue();
+ initSMSQueuex();
  /* create the queue which size can contains 5 elements of Data */
  xQueue = xQueueCreate(1, sizeof(DataBuffer));
- xQueue_sensor_state = xQueueCreate(1, sizeof(DataBuffer));
+ xQueue_sensor_state = xQueueCreate(8, sizeof(DataBuffer));
  xQueue_mqtt_Qhdlr = xQueueCreate(3, sizeof(DataBuffer));
+ sensorEventQueue = xQueueCreate(1, sizeof(ByteBuffer));
  if (!xQueue || !xQueue_sensor_state || !xQueue_mqtt_Qhdlr) {
     // Code inside this block will execute if any of the queue creations failed
 	Serial.println(F("ini queu faild system can't start"));
@@ -605,7 +644,6 @@ void transfer_rf_scan_data(char* rfid){
 	/* sender 1 has id is 1 */
 	memset(data.char_buffer_rx,'\0',15);
 	strcpy(data.char_buffer_rx,rfid);
-	data.counter = 1;
 	
 		Serial.println(F("sendTask RFscan is sending data"));
 		/* send data to front of the queue */
@@ -613,7 +651,6 @@ void transfer_rf_scan_data(char* rfid){
 		/* check whether sending is ok or not */
 		if( xStatus == pdPASS ) {
 			/* increase counter of sender 1 */
-			data.counter = data.counter + 1;
 			Serial.println(F("sendTask1 is sending data"));
 		}
 		/* we delay here so that receiveTask has chance to receive data */
@@ -808,6 +845,9 @@ if (strncmp("RID",rf_id_msg,3)==0)// rf id received  RFD=254266
 					char buffer[10];
 					get_eInvoker_type_to_char(RF,buffer);
 					creat_panic_sms(buffer);
+					//activate siren					
+					if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+					if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 					char zone_char[25];
 					memset(zone_char,'\0',25);
 					sprintf(zone_char,"Panic %s",buffer);

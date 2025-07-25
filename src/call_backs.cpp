@@ -3,15 +3,15 @@
 #include "call_backs.h"
 
 
-NEW_SMS SMS_to_be_sent_FIXDMEM[SMS_STRCUT_MAX_MGS];
+//NEW_SMS SMS_to_be_sent_FIXDMEM[SMS_STRCUT_MAX_MGS];
 USER_REMOTE_INFO STRUCT_user_remote_infor;
 GSM_CONTACTS_INFO STRUCT_GSM_contact_infor;
 SENS_INFO STRUCT_sens_infor;
 
 uint8_t call_back_alarm_Calling(){
 	uint8_t ret_val = 1;	
-	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
-	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
+	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+	//if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 #ifdef GSM_OK	
 		// check if calling enable flag
 		if(systemConfig.call_en==true){
@@ -84,7 +84,9 @@ void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_inv
 	//time update from GSM
 	//Event log update;
 	Timer_battery_charge.previousMillis = millis();
+#ifdef PULSEX_IOT_BOARD
 	digitalWrite(PIN_BATTERY,HIGH);
+#endif
 	//save_event_info(0,user,time_buffer,"DISARM");
 	digitalWrite(PIN_ARM,LOW);
 	digitalWrite(PIN_DISARM,HIGH);
@@ -344,8 +346,8 @@ void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
 	publish_system_state("TRIGGERD","info/mode",true);	
 	//**we do not activate buzzer here as it will not trigger when remote panic
-	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
-	//if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
+	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 	char buffer_sms[160] = {0};
 	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
 	Serial.print(F("SMS creat>"));
@@ -366,7 +368,7 @@ void call_back_alarm_notify(uint8_t alarm_zone){
 
 				if( xBytesSent != strlen( zone_char ) )
 				{
-					Serial.println(F("The string could not be added to the message buffer because there was not enough free space in the buffer"));
+					Serial.println(F("not enough free space in the q buffer"));
 					/* . */
 				}
 
