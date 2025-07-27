@@ -225,6 +225,21 @@ String processor(const String &var) {
 void onGetRequest_info(AsyncWebServerRequest *request) {}
  // Send a GET request to <ESP_IP>/get?inputString=<inputMessage>
 void onGetRequest(AsyncWebServerRequest *request) {
+	// Print the URL and method
+  Serial.println("URL: " + request->url());
+  Serial.print("Method: ");
+  Serial.println((request->method() == HTTP_GET) ? "GET" : "OTHER");
+
+  // Print all query parameters
+  int params = request->params();
+  for (int i = 0; i < params; i++) {
+    AsyncWebParameter* p = request->getParam(i);
+    Serial.print("Param name: ");
+    Serial.print(p->name());
+    Serial.print(" | value: ");
+    Serial.println(p->value());
+  }
+
 	String inputMessage;
 	
 	if (request->hasParam("z0")) {// I need to know the source web page of the GET request if this para available it s mean page is zone page
@@ -353,17 +368,17 @@ if (request->hasParam("tp1")) {
 		sprintf(buffer3,"CALL%d",index);
 		if (request->hasParam(buffer))
 		{
-			docry[buffer2]["sms"]= "1";
+			docry[buffer2]["sms"]= true;
 		}
 		else{
-			docry[buffer2]["sms"]= "0";
+			docry[buffer2]["sms"]= false;
 		}
 		if (request->hasParam(buffer3))
 		{
-			docry[buffer2]["call"]= "1";
+			docry[buffer2]["call"]= true;
 		}
 		else{
-			docry[buffer2]["call"]= "0";
+			docry[buffer2]["call"]= false;
 		}
 	}
 	File fileToWritey = SPIFFS.open("/personx.json", FILE_WRITE);

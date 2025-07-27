@@ -349,7 +349,7 @@ void call_back_alarm_notify(uint8_t alarm_zone){
 	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
 	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 	char buffer_sms[160] = {0};
-	sprintf(buffer_sms,"Alarm zone %s",get_device_name(alarm_zone));
+	sprintf(buffer_sms,"Alarm: %s",get_device_name(alarm_zone));
 	Serial.print(F("SMS creat>"));
 	Serial.println(buffer_sms);
 	addTimeStamp(buffer_sms);

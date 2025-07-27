@@ -170,7 +170,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 			system_mode = NOMAL_MODE_NO_WIFI;
 		}
 	}
-	 
+	 system_mode = CONFIG_MODE;
 	 memset(systemConfig.last_sms_sender,'\0',15);	 
 	 strcpy(systemConfig.last_sms_sender, doc["sysconf"]["last_sms_sender"]);	
 	 const char* last_sys_state = doc["sysconf"]["last_system_state"];

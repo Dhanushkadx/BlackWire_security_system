@@ -738,7 +738,7 @@ void creat_arm_sms(char* str_invorker){
 	
 	char sms_buffer[160];
 	memset(sms_buffer,'\0',160);
-	strcat_P(sms_buffer,PSTR("Home arm by"));
+	strcat_P(sms_buffer,PSTR("Feeding Started:"));
 	strcat(sms_buffer,str_invorker);
 	bool open_zone_yes=false;
 	char msg_line_number_char[5]="";
@@ -767,9 +767,9 @@ void creat_arm_sms(char* str_invorker){
 		
 	}
 	if(open_zone_yes){
-		strcat(sms_buffer,"\n");
-		strcat_P(sms_buffer,PSTR("OPEN ZONES"));
-		strcat(sms_buffer,"\n");
+		//strcat(sms_buffer,"\n");
+		strcat_P(sms_buffer,PSTR("\n Alarm:\n"));
+		//strcat(sms_buffer,"\n");
 	}
 	uint8_t msg_length = strlen(open_zone_msg);
 	if (msg_length<160)
@@ -789,7 +789,7 @@ void creat_arm_sms(char* str_invorker){
 void creat_disarm_sms(char* str){
 	char buff[100];
 	memset(buff,'\0',100);
-	strcpy_P(buff,PSTR("Disarm by "));
+	strcpy_P(buff,PSTR("Feeding Completed by "));
 	strcat(buff,str);// where i left the code*********************************************code stuck here
 	//add time stamp
 	addTimeStamp(buff);
