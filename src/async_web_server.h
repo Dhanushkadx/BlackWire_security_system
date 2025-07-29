@@ -14,6 +14,7 @@
 #include "TimerSW.h"
 #include "socket_function.h"
 #include <AsyncElegantOTA.h>
+#include "pixel_blink_module.h"
 
 // wifi
 // the Wifi radio's status
@@ -26,9 +27,9 @@ extern TimerSW Timer_WIFIreconnect;
 
 void setup_web_server_with_AP();
 void setup_web_server_with_STA();
+void setup_web_server_with_STA_info();
 void cleanClients();
 void initWebSocket();
-void reconnect();
 void initSPIFFS();
 void initWiFi_AP();
 void initWiFi_STA();
@@ -37,6 +38,11 @@ String processor(const String &var);
 void onRootRequest(AsyncWebServerRequest *request);
 void onGetRequest(AsyncWebServerRequest *request);
 void initWebServer();
+
+void onRootRequest_info(AsyncWebServerRequest *request);
+
+void initWebServer_info();
+
 
 
 

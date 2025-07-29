@@ -5,7 +5,7 @@
 */
 #include "async_web_server.h"
 
-#define TOTAL_DEVICES 24
+#define TOTAL_DEVICES 8
 String hostname = "Digital Security";
 TimerSW Timer_WIFIreconnect;
 const char* http_username = "admin";
@@ -55,8 +55,14 @@ void setup_web_server_with_STA()
 	initWiFi_STA();	
 	initWebSocket();
 	initWebServer();
-	
+}
 
+void setup_web_server_with_STA_info()
+{
+	Serial.println(F("setting WiFi-STA Info"));
+	initWiFi_STA();	
+	initWebSocket();
+	initWebServer_info();
 }
 
 void cleanClients(){
@@ -70,10 +76,54 @@ void initWebSocket() {
 	server.addHandler(&ws);
 }
 
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.println(F("Connected to AP successfully!"));
+
+  }
+  
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.printf_P(PSTR("\nConnected to %s\n"), systemConfig.wifissid_sta);
+		delay(3000);
+		char IP[] = "xxx.xxx.xxx.xxx";          // buffer
+		IPAddress ip = WiFi.localIP();
+		String my_ip = ip.toString();
+		Serial.print(F("IP: "));
+		Serial.println(my_ip.c_str());
+		//initRTC();
+		wifiStarted = true;
+		uint32_t colour = Adafruit_NeoPixel::Color(0, 0, 255);
+  		pixel.startBlink(colour, 100, 1000, 255);
+  }
+  
+  void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+	Serial.println(F("Disconnected from WiFi access point"));
+	Serial.print(F("Reason: "));
+	Serial.println(info.wifi_sta_disconnected.reason);
+	Serial.println(F("Trying to Reconnect"));
+	WiFi.reconnect();
+	if(wifiStarted){// Loop until we're reconnected
+		Timer_WIFIreconnect.previousMillis = millis();
+		wifiStarted = false;
+		uint32_t red = Adafruit_NeoPixel::Color(0, 0, 255);
+  		pixel.startBlink(red, 300, 300, 180);
+		
+	}
+	
+		vTaskDelay(500 / portTICK_RATE_MS);
+			if (Timer_WIFIreconnect.Timer_run()) {
+				Serial.println(F("WiFi connection timeout"));
+				//WiFi.disconnect();
+				//ESP.restart();
+				return;
+			}
+  }
+
 void initWiFi_STA(){
 	WiFi.mode(WIFI_STA);
-	// Configures static IP address
-#ifdef define CUSTOM_NETWORK_CONFIG
+	WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+	WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+	WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+	#ifdef define CUSTOM_NETWORK_CONFIG
 	if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
 		Serial.println(F("STA Failed to configure"));
 	}
@@ -84,13 +134,12 @@ void initWiFi_STA(){
 		WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
 		Serial.println(systemConfig.wifipass);
 #endif
-	Serial.printf("Trying to connect [%s] ", systemConfig.wifissid_sta);
-	/*while (WiFi.status() != WL_CONNECTED) {
-		Serial.print(".");
-		delay(500);
-	}*/
-	Serial.printf(" %s\n", WiFi.localIP().toString().c_str());
+	Serial.printf_P(PSTR("Trying to connect [%s] "), systemConfig.wifissid_sta);
+	uint32_t red = Adafruit_NeoPixel::Color(0, 0, 255);
+  	pixel.startBlink(red, 300, 300, 180);
 }
+
+
 
 void initWiFi_AP() {
 	
@@ -119,43 +168,13 @@ void initWiFi_AP() {
 	IPAddress IP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(IP);
+	uint32_t red = Adafruit_NeoPixel::Color(255, 255, 0);
+  	pixel.startBlink(red, 1000, 1000, 255);
 	
 }
 
 
 
-void reconnect() {
-	
-	// Loop until we're reconnected
-	Timer_WIFIreconnect.previousMillis = millis();
-	status = WiFi.status();
-	if ( status != WL_CONNECTED) {
-#ifdef CUSTOM_NETWORK_CONFIG
-		WiFi.setHostname(hostname.c_str()); //define hostname
-		if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
-			Serial.println(F("STA Failed to configure"));
-		}
-#endif
-		WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
-		Serial.println(F("password>"));
-		Serial.println(systemConfig.wifipass);
-		while (WiFi.status() != WL_CONNECTED) {
-			Serial.println(F("Connecting WiFi..."));
-			vTaskDelay(1000 / portTICK_RATE_MS);
-			Serial.print(".");
-			if (Timer_WIFIreconnect.Timer_run()) {
-				WiFi.disconnect();
-				//ESP.restart();
-				break;
-			}
-		}
-		Serial.println(F("Connected to AP"));
-		Serial.printf(" %s\n", WiFi.localIP().toString().c_str());
-		Serial.println();
-		Timer_WIFIreconnect.previousMillis = millis();
-		wifiStarted = true;
-	}
-}
 
 void initSPIFFS() {
 	Serial.println(F("init SPIFF"));
@@ -178,13 +197,14 @@ String processor(const String &var) {
 }
 
 
+
  // Send a GET request to <ESP_IP>/get?inputString=<inputMessage>
 void onGetRequest(AsyncWebServerRequest *request) {
 	String inputMessage;
 	
 	if (request->hasParam("z0")) {// I need to know the source web page of the GET request if this para available it s mean page is zone page
 		File fileToReadx = SPIFFS.open("/zone_data_8.json") ;
-		DynamicJsonDocument docrx(JSON_DOC_SIZE_DEVICE_DATA);
+		DynamicJsonDocument docrx(JSON_DOC_SIZE_ZONE_DATA);
 		deserializeJson(docrx,  fileToReadx);
 		fileToReadx.close();
 		for (int index=0; index<TOTAL_DEVICES; index++)
@@ -193,15 +213,15 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			char buffer[20]; char buffer2[20];
 			sprintf(buffer,"z%d",index);
 			if (index < 10) {
-				sprintf(buffer2, "zone0%d", index);
+				sprintf(buffer2, "z0%d", index);
 			}
 			else {
-				sprintf(buffer2, "zone%d", index);
+				sprintf(buffer2, "z%d", index);
 			}
 			
 			if (request->hasParam(buffer)) {
 				inputMessage = request->getParam(buffer)->value();
-				docrx[buffer2]["name"]= inputMessage;
+				docrx[buffer2]["n"]= inputMessage;
 			}
 			
 			char buffer_cbb[10];
@@ -209,10 +229,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cbb,buff_cb);
 			strcat(buffer_cbb,buff_cbb);
 			if (request->hasParam(buffer_cbb)) {
-				docrx[buffer2]["bypass"]= true;
+				docrx[buffer2]["by"]= true;
 			}
 			else{
-				docrx[buffer2]["bypass"]= false;
+				docrx[buffer2]["by"]= false;
 			}
 			
 			char buffer_cben[10];
@@ -221,10 +241,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cben,buff_cben);
 			if (request->hasParam(buffer_cben)) {
 				
-				docrx[buffer2]["entry_delay"]= true;
+				docrx[buffer2]["ed"]= true;
 			}
 			else{
-				docrx[buffer2]["entry_delay"]= false;
+				docrx[buffer2]["ed"]= false;
 			}
 			
 			char buffer_cbxt[10];
@@ -234,10 +254,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			if (request->hasParam(buffer_cbxt)) {
 				
 				
-				docrx[buffer2]["exit_delay"]= true;
+				docrx[buffer2]["xd"]= true;
 			}
 			else{
-				docrx[buffer2]["exit_delay"]= false;
+				docrx[buffer2]["xd"]= false;
 			}
 			
 			char buffer_cb24[10];
@@ -248,10 +268,10 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			if (request->hasParam(buffer_cb24)) {
 				
 				
-				docrx[buffer2]["x24h"]= true;
+				docrx[buffer2]["x24"]= true;
 			}
 			else{
-				docrx[buffer2]["x24h"]= false;
+				docrx[buffer2]["x24"]= false;
 			}
 			
 			char buffer_cbrf[10];
@@ -270,16 +290,17 @@ void onGetRequest(AsyncWebServerRequest *request) {
 			strcat(buffer_cbch,buff_cbch);
 			if (request->hasParam(buffer_cbch)) {
 				
-				docrx[buffer2]["silent"]= true;
+				docrx[buffer2]["sl"]= true;
 			}
 			else{
-				docrx[buffer2]["silent"]= false;
+				docrx[buffer2]["sl"]= false;
 			}
 		}
-		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);
-		
+		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);		
 		serializeJson(docrx,  fileToWritex);
+		serializeJsonPretty(docrx, Serial); 
 		fileToWritex.close();
+		request->send(200, "text/text", "OK");
 	}
 	
 if (request->hasParam("tp1")) {
@@ -323,14 +344,17 @@ if (request->hasParam("tp1")) {
 	File fileToWritey = SPIFFS.open("/personx.json", FILE_WRITE);
 	
 	serializeJson(docry,  fileToWritey);
+	serializeJsonPretty(docry, Serial);
 	fileToReady.close();
+	request->send(200, "text/text", "OK");
+	 
 }	
 	
 	
 	
 if (request->hasParam("txt0")) {
 	File fileToReadz = SPIFFS.open("/config.json");
-	DynamicJsonDocument docrz(JSON_DOC_SIZE_CONFIG_DATA);
+	DynamicJsonDocument docrz(2048);
 	deserializeJson(docrz,  fileToReadz);
 	fileToReadz.close();
 	
@@ -376,12 +400,35 @@ if (request->hasParam("txt0")) {
 		docrz["sysconf"]["xt_beep"]= false;
 	}
 	
-	/*"siren duration"*/
+	/*"beep duration"*/
 	if (request->hasParam("txt2")) {
 		inputMessage = request->getParam("txt2")->value();
+		docrz["sysconf"]["beep_time_out"]= inputMessage;
+		
+	} 
+	/*"siren duration"*/
+	if (request->hasParam("txt8")) {
+		inputMessage = request->getParam("txt8")->value();
 		docrz["sysconf"]["bell_time_out"]= inputMessage;
 		
-	}    // calling attempts
+	}     
+
+	/*"beep_en"*/
+	if (request->hasParam("cb8")) {
+		docrz["sysconf"]["siren_en"]= true;
+	}
+	else{
+		docrz["sysconf"]["siren_en"]= false;
+	}
+
+	/*"siren_en"*/
+	if (request->hasParam("cb4")) {
+		docrz["sysconf"]["beep_en"]= true;
+	}
+	else{
+		docrz["sysconf"]["beep_en"]= false;
+	}	
+	 // calling attempts
 	 if (request->hasParam("list0")) {
             inputMessage = request->getParam("list0")->value();
             Serial.printf("Selected call attempt value:%s",inputMessage.c_str());
@@ -472,12 +519,20 @@ if (request->hasParam("txt0")) {
 	fileToReadz.close();
 }	
 // reload config
-     eeprom_load();
+     eeprom_load(2);
 	 request->send(200, "text/text", "OK");
  }
 
  
-
+ void onRootRequest_info(AsyncWebServerRequest *request) {
+	if(!request->authenticate(http_username, systemConfig.installer_pass))
+	return request->requestAuthentication();	 
+	String path = request->url();
+	if(path == "/") {
+		path = "/info.html";
+	}
+	request->send(SPIFFS, path, "text/html", false, processor);
+}
 
 void onRootRequest(AsyncWebServerRequest *request) {
 	 if(!request->authenticate(http_username, systemConfig.installer_pass))
@@ -501,6 +556,23 @@ void initWebServer() {
 	.serveStatic("/", SPIFFS, "/www/")
 	.setDefaultFile("default.html")
 	.setAuthentication("user", "pass");*/
+}
+
+void initWebServer_info() {
+	
+	//server.on("/", onRootRequest_info);
+	//server.on("/get", onGetRequest_info);
+	//server.serveStatic("/", SPIFFS, "/");
+	//AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+	//server.begin();
+	/*server*/
+	 // send a file when /index is requested
+	 server.on("/", HTTP_ANY, [](AsyncWebServerRequest *request){
+		request->send(SPIFFS, "/info.html");
+	  });
+	  server.begin();
+	//server.setDefaultFile("info.html");
+	//server.setAuthentication("user", "pass");
 }
 
 

@@ -135,6 +135,8 @@ void reconnectMQTT() {
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         setup_subscriptions();
+        uint32_t colour = Adafruit_NeoPixel::Color(200, 0, 255);
+  		  pixel.startBlink(colour, 100, 1000, 255);
         fn_onMQTT_connection();
     } else {
         Serial.print(F("Failed to reconnect to MQTT broker, rc="));

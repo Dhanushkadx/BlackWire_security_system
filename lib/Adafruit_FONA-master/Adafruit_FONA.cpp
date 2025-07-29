@@ -161,30 +161,53 @@ bool Adafruit_FONA::begin(Stream &port) {
       _type = FONA800H;
     }
   }
-  delay(15000);
-flushInput();
-
-sendCheckReply(F("AT+CMGF=1"), ok_reply);
-  
-#if defined(FONA_PREF_SMS_STORAGE)
-  sendCheckReply(F("AT+CPMS=" FONA_PREF_SMS_STORAGE "," FONA_PREF_SMS_STORAGE
-                   "," FONA_PREF_SMS_STORAGE),
-                 ok_reply);
-#endif
 
  // Disable messages about new SMS from the GSM module
 
-delay(100);
-//sendCheckReply(F("AT+CNMI=0,0,0,0,0"),ok_reply);
-sendCheckReply(F("AT+CNMI=2,0"),ok_reply);
-sendCheckReply(F("AT+MORING=1"),ok_reply);
- //AT+CMGDA="DEL ALL"
+  delay(100);
+  //sendCheckReply(F("AT+CNMI=0,0,0,0,0"),ok_reply);
+  sendCheckReply(F("AT+CNMI=2,0"),ok_reply);
+  sendCheckReply(F("AT+MORING=1"),ok_reply);
+
  // Enable NTP time synchronization with a custom NTP server
  
-    sendCheckReply(F("AT+CLTS=1"),ok_reply);
+  sendCheckReply(F("AT+CLTS=1"),ok_reply);
+  sendCheckReply(F("AT+DDET=1"),ok_reply);
 	sendCheckReply(F("AT&W"),ok_reply);
    return true;
 }
+
+/**
+ * @brief Sets SMS mode to text and configures SMS storage.
+ *
+ * @param storageLocation SMS storage: "SM" (SIM), "ME" (device), or "MT" (combined)
+ * @return true: success, false: failure
+ */
+bool Adafruit_FONA::setSMSTextModeAndStorage(const char *storageLocation) {
+  // Set SMS to Text Mode
+  if (!sendCheckReply(F("AT+CMGF=1"), ok_reply, 1000)) {
+    DEBUG_PRINTLN(F("Failed to set SMS Text Mode"));
+    return false;
+  }
+  // Set storage (e.g., "SM" for SIM, "ME" for internal memory, or "MT" for both)
+ // bool result = fona.sendCheckReply(F("AT+CPMS=\"ME\",\"ME\",\"ME\""), F("OK"));
+
+  uint16_t phoneStatus;
+
+  
+
+  #if defined(FONA_PREF_SMS_STORAGE)
+ bool rsp =  sendParseReply(F("AT+CPMS=" FONA_PREF_SMS_STORAGE "," FONA_PREF_SMS_STORAGE
+                   "," FONA_PREF_SMS_STORAGE),
+                 F("+CPMS:"),&phoneStatus,',',1);
+  if (!rsp) {
+    DEBUG_PRINTLN(F("Failed to set SMS storage"));
+    return false;
+  }
+#endif
+  return true;
+}
+
 
 /********* Serial port ********************************************/
 
@@ -319,6 +342,22 @@ uint8_t Adafruit_FONA::unlockSIM(char *pin) {
 
   return sendCheckReply(sendbuff, ok_reply);
 }
+
+bool Adafruit_FONA::isSIMInserted() {
+
+    getReply(F("AT+CPIN?"));
+
+    // Example expected reply: "+CPIN: READY"
+    if (strstr(replybuffer, "READY")) {
+        readline(); // consume 'OK'
+        return true;
+    }
+
+    readline(); // consume 'OK' or whatever's next
+    return false;
+}
+
+
 
 /**
  * @brief Get the SIM CCID
@@ -679,6 +718,26 @@ uint8_t Adafruit_FONA :: waitCallResp(uint8_t timeout){
 
 	 return 0;
 }
+
+bool Adafruit_FONA :: waitForDTMF(char *tone, uint16_t timeout) {
+unsigned long start = millis();
+uint16_t result = readline(timeout);
+DEBUG_PRINT(F("\t<--- "));
+	  DEBUG_PRINT(replybuffer);
+ 
+    if (result > 0) {
+      if (parseReply(F("+DTMF: "), tone, ' ', 0)) {
+        return true;
+      }
+    
+    
+  }
+
+  return false; // Timeout
+
+
+}
+
 /**
  * @brief Get the current call status
  *

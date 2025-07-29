@@ -12,7 +12,8 @@ bool request_from_sim800 = false;
 bool thisIs_Restart = true;
 bool gsm_init_done = false;
 bool gsm_available = false;
-
+bool timesync_need = true;
+uint8_t gsmsignal_rssi;
 // Use this for FONA 800 and 808s
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
@@ -21,20 +22,17 @@ bool sms_hdrl_suspend=false;
 
 uint8_t Current_caller_state = 0;
 
-bool gsm_init(){
+uint8_t gsm_init(){
 	
-
-	 Serial.println(F("FONA basic test"));
-	 Serial.println(F("Initializing....(May take 3 seconds)"));
-
-	 fonaSerial->begin(9600, SERIAL_8N1, 16, 17);
+	 Serial.println(F("SIM800 Initializing....)"));
+	 fonaSerial->begin(9600, SERIAL_8N1, ESP_RXD, ESP_TXD);
 	 if (! fona.begin(*fonaSerial)) {
 		 Serial.println(F("Couldn't find FONA"));
 		 //while (1);
-		 return false;
+		 return NO_RESP;
 	 }
 #ifdef _DEBUG
-	 type = fona.type();
+	 uint8_t type = fona.type();
 	 Serial.println(F("FONA is OK"));
 	 Serial.print(F("Found "));
 	 switch (type) {
@@ -62,11 +60,13 @@ bool gsm_init(){
 	 }
 
 	 fona.deleteAllSMS();
-	 char networkTime[30];
-	 char localTime[20];
-	 if (fona.getTime(networkTime, sizeof(networkTime))) {
-		 setESP32_rtc(networkTime);
-	 }
+	 // Check SIM card presence
+    if (!fona.isSIMInserted()) {
+        Serial.println(F("NO SIM!"));
+        return NO_SIM;
+    }
+    Serial.println(F("SIM READY."));	 
+	 
 #ifdef GSM_MODULE_AUTH
 	 if (thisIs_Restart==true)
 	 {
@@ -78,14 +78,31 @@ bool gsm_init(){
 			Serial.println(F(" Auth Fail"));
 			delay(500);
 			ESP.restart();
-			
+			return AUTH_FAILD;
 		}		
 		
 	 }	 
 	 thisIs_Restart = false;
 #endif	 
-		return true;
+		return SIM800_OK;
 	 
+}
+
+
+uint8_t getSignal_strength(){
+
+	return  gsmsignal_rssi;
+}
+
+bool setTime_from_gsm(){
+	char networkTime[100];
+	// char localTime[20];
+	if (fona.getTime(networkTime, 100)) {
+		 setESP32_rtc(networkTime);
+		 return true;
+	 }
+	Serial.println(F("Failed to get time from GSM module"));
+	return false;
 }
 
 void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SMS
@@ -96,294 +113,169 @@ void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SM
 		Serial.println(F("msg is beyond the size of sms. so Split it"));
 		strlcpy(sms_159,buffer,155);
 		//creatSMS_LL(sms_159,type,0),number;
-		creatSMS_LL(sms_159,type,number);
-		creatSMS_LL(buffer+155,type,number);
+		addSMS(sms_159,type,number);
+		addSMS(buffer+155,type,number);
 		
 	}
 	else{
-		creatSMS_LL(buffer,type, number);
+		addSMS(buffer,type, number);
 	}
+	DynamicJsonDocument doc(2048);
+	doc["msgTyp"] = type;
+  	doc["msg"] = buffer;
+	saveMessageToSPIFFSV3(doc);
 	
 }
 
-void creatSMS_LL(const char* buffer,uint8_t type,const char* number){
+// void creatSMS_LL(const char* buffer,uint8_t type,const char* number){
 	
-	if (sms_buffer_msg_count>=SMS_STRCUT_MAX_MGS)
-	{
-		sms_buffer_msg_count =0;
-		Serial.println(F("no memory!!!!!!!!!!"));
-		return;
-	}
+// 	Serial.print(F("creating SMS>"));
+// 	// Serial.println(buffer);
+// 	// sms_buffer_msg_count = sms_buffer_msg_count + 1;
+// 	// delay(1);
 	
-	SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].type = type;	
-	SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].msg_content = buffer;
-	SMS_to_be_sent_FIXDMEM[sms_buffer_msg_count].number = number;
+
+//     addSMS(buffer,type,number);  // Pass safe, independent buffer to addSMS
+
+// 	sms_broadcast_request = true;	
+// }
 
 
-	Serial.print(F("creating SMS>"));
-	Serial.println(buffer);
-	sms_buffer_msg_count = sms_buffer_msg_count + 1;
-	delay(1);
-	sms_broadcast_request = true;	
-}
+void ultimate_sms_hadlr() {
 
+    static SMS_t sms;                // Holds the current SMS message being processed
+    static int state = 0;            // Tracks current state of the SMS state machine
+    static int contact_index = 1;    // Keeps track of which contact to send next (for broadcasts)
+    static char num[20];             // Temporary buffer to hold target phone numbers
 
+    switch (state) {
 
+        case 0: {  // IDLE State - Check for pending SMS in queue or suspend conditions
 
+            bool should_I_be_suspend = false; // Flag to decide if task should suspend
+            bool is_suspend_request = check_SMS_TASK_suspend_request();  // Check for external suspend signal
 
-void ultimate_sms_hadlr(){
-	
-	static int Current_smsHdlr_state = 0, Prev_smsHdlr_state = -1;
-	static int now_sending_index = 0 ;
-	static int sms_send_try_time=0;
-	static boolean invalid_phone_number=true;
-	static char num[13];
-	
-	switch (Current_smsHdlr_state)
-	{
-		case 0:{
-		if (Prev_smsHdlr_state!= Current_smsHdlr_state)
-		{
-			Prev_smsHdlr_state = Current_smsHdlr_state;
-			Serial.println(F("SMS TASK 1st Stage"));
-			
-		}
-		
-		bool should_I_be_suspend = false; // NO
-		bool is_suspend_request =  check_SMS_TASK_suspend_request();
-		if (is_suspend_request)
-		{
-			 Serial.println(F("AS REQUESTED SMS TASK SUSPENDING..."));
-			 should_I_be_suspend = true;
-		}
-		
-		 if (!sms_sending_queu_complete)
-		 {
-				 Serial.println(F("SMS TASK SUSPENDED IT SELF AS NO NUMBER"));
-				 should_I_be_suspend = true;
-				 sms_sending_queu_complete = true;//**********************************
-				
-		  }
-		  
-		  if (should_I_be_suspend)
-		  {
-			   xEventGroupSetBits(EventRTOS_gsm,    TASK_4_BIT );// sms task suspend
-			   vTaskSuspend(NULL);
-			   should_I_be_suspend = false;
-		  }
-			
-		     
-			 Current_smsHdlr_state = 1;
-			 
-			
-			
-		}break;
-		case 1:{
-				if (Prev_smsHdlr_state!= Current_smsHdlr_state)
-				{
-					Prev_smsHdlr_state = Current_smsHdlr_state;
-					Serial.println(F("SMS TASK 2st Stage"));
-					memset(num,'\0',13);
-					//send a sms to a contact that is no the contact list
-					if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==4)
-					{
-						Serial.println(F("Only send to mqtt request contact id!"));
-						strcpy(num,SMS_to_be_sent_FIXDMEM[now_sending_index].number.c_str());//+94714427691
-						//num[12]='\0';
-						if (!phone_number_validat(num))// validating number
-						{
-							Serial.println(F("Only for mqtt request num but its an invalid number"));
-							//Current_smsHdlr_state=0;
-							//sms_broad_cast_request=false;
-							Current_smsHdlr_state=2;					
-						}
-						else{// we can go to TX stage
-							Current_smsHdlr_state = 4;
-						}
-					}
-					// check sms type if type is 3 only send to last sender			
-					else if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==3)
-					{
-						Serial.println(F("Only send to last sender!"));
-						strcpy(num,systemConfig.last_sms_sender);//+94714427691
-						if (!phone_number_validat(num))// validating number
-						{
-							Serial.println(F("Only for last num but its a an invalid number"));
-							//Current_smsHdlr_state=0;
-							//sms_broad_cast_request=false;
-							Current_smsHdlr_state=2;					
-						}
-						else{// we can go to TX stage
-							Current_smsHdlr_state = 4;
-						}
-					}
-		
-					else{
-				
-					//check number
-					strcpy(num,get_GSM_number(sms_broadcast_index));//+94714427691
-					char* ch = strstr("N",num);// validating number
-					if (ch!=NULL)
-					{				
-						Serial.println(F("all complete for the given number"));
-						Current_smsHdlr_state=2;
-					}							
-					else if (!phone_number_validat(num))// validating number
-					{
-						Serial.println(F("Validating phone number Error! go to next number"));
-						sms_broadcast_index++;
-						Current_smsHdlr_state=0;	
-					}						
-					else if (!get_is_GSM_number_sms(sms_broadcast_index))
-					{
-						Serial.println(F("not a sms number"));
-						sms_broadcast_index++;
-						Current_smsHdlr_state=0;	
-					}
-					else{
-						Current_smsHdlr_state=4;
-					}
-					}			
-				}
-					
-			
-		}break;
-		case 2:{
-				if (Prev_smsHdlr_state!= Current_smsHdlr_state)
-				{
-					Prev_smsHdlr_state = Current_smsHdlr_state;
-					Serial.print(F("CHECK NEXT SMS INDEX: "));
-					now_sending_index++;
-					
-					if (now_sending_index>=sms_buffer_msg_count)
-					{
-						Current_smsHdlr_state=0;
-						now_sending_index = 0;
-						sms_sending_queu_complete=false;
-						sms_buffer_msg_count=0;
-						sms_broadcast_index=1;
-						Serial.println(F("NO SMS"));
-					}
-					else{
-						sms_broadcast_index=1;// new msg should always be started from 1 st number
-						//Current_smsHdlr_state=4;// go to tx stage
-						Current_smsHdlr_state=1;// start tx from the begining og num list
-						Serial.println(now_sending_index);
-						
-					}
-				}
-		}
-		break;
-		
-		case 3:{
-				if (Prev_smsHdlr_state!=Current_smsHdlr_state)
-				{
-					Prev_smsHdlr_state=Current_smsHdlr_state;					
-				}											
-						Current_smsHdlr_state=0;					
-						sms_send_try_time=0;						
-						if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==2)// only send to programmer so take the next sms
-						{
-							Serial.println(F("This sms is only for programmer"));
-							Current_smsHdlr_state=2;
-							sms_broadcast_index = 1;						
-						}
-						else if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==3)// only send to last sender so take the next sms
-						{
-							Serial.println(F("This sms is only for last sender"));
-							Current_smsHdlr_state=2;
-							sms_broadcast_index = 1;							
-						}
-						else if (SMS_to_be_sent_FIXDMEM[now_sending_index].type==4)// This sms is only for contact id
-						{
-							Serial.println(F("This sms is only for contact id"));
-							Current_smsHdlr_state=2;
-							sms_broadcast_index = 1;							
-						}
-						else{
-							//get next number
-							if (sms_broadcast_index<3)
-							{
-								Serial.println(F("GET NEXT NUMBER"));
-								sms_broadcast_index++;
-								Current_smsHdlr_state=0;
-							}
-							else{
-								Current_smsHdlr_state=2;// go to next sms
-								
-							}
-						}			
-					
-			}break;
-			
-			case 4:{
-					if (Prev_smsHdlr_state!=Current_smsHdlr_state)
-					{
-						Prev_smsHdlr_state=Current_smsHdlr_state;
-						Timer_sms_send_delay.previousMillis = millis();
-					}
-					/*char num[13]="";
-					strlcpy(num,systemConfig.last_sms_sender,13);//+94714427691
-					num[12]='\0';*/
-					
-					Serial.print(F("Transmitting SMS to>"));
-					Serial.print(num);
-					Serial.print(F("sms>"));
-					Serial.println(SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str());
-					// To send an SMS, call modem.sendSMS(SMS_TARGET, smsMessage)
-					String smsMessage = SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str();
-					// send an SMS!
-					char sendto[21], message[141];
-					strcpy(message,SMS_to_be_sent_FIXDMEM[now_sending_index].msg_content.c_str());		
-					waitForMutex_GSM();	
-					if (!fona.sendSMS(num, message)) {
-							
-						Serial.println(F("Failed"));
-						// wait some time
-						delay(5000);
-						Current_smsHdlr_state=4;
-					} 
-					else {
-						Serial.println(F("Sent!"));
-						Current_smsHdlr_state=3;				 
-						}
-					
-					if (Timer_sms_send_delay.Timer_run())
-					{
-						Serial.println(F("GSM re Init"));
-						 if (! fona.begin(*fonaSerial)) {
-							 Serial.println(F("Couldn't find FONA"));							
-						 }
-					}
-					releaseMutex_GSM();
+            // Check if any SMS messages are pending in the queue
+            if (uxQueueMessagesWaiting(smsQueue) > 0) {
+                if (getNextSMS(&sms)) {  // Fetch next SMS from queue
+                    state = 1;  // Move to next state to determine where to send
+                }
+            }
+			else{
+				Serial.println(F("SMS TASK SUSPENDED IT SELF AS NO NUMBER"));
+                should_I_be_suspend = true;
+                sms_sending_queu_complete = true;  // Reset your own flag
+
 			}
-			break;
-			
-			case 5:{
-						if (Prev_smsHdlr_state!=Current_smsHdlr_state)
-						{
-							Prev_smsHdlr_state=Current_smsHdlr_state;
-							Serial.println(F("SMS SEND RETRY"));
-							
-						}
-							if(fona.getNetworkStatus()==1){
-								digitalWrite(GSM_LED,HIGH);
-								// Serial.println(F("Network ok"));
-								Current_smsHdlr_state = 4;
-							
-							}
-							else{
-								//  Serial.println(F("Not Reg"));
-								digitalWrite(GSM_LED,LOW);
-								// Write time out
-							}
-							//check network state;
-						
+
+            // If external suspend requested, prepare to suspend task
+            if (is_suspend_request) {
+                Serial.println(F("AS REQUESTED SMS TASK SUSPENDING..."));
+                should_I_be_suspend = true;
+            }
+
+            // If suspension is required, signal and suspend this task
+            if (should_I_be_suspend) {
+                xEventGroupSetBits(EventRTOS_gsm, TASK_4_BIT);  // Notify system task is suspending
+                vTaskSuspend(NULL);  // Suspend the current task until resumed externally
+            }
+
+        }
+        break;
+
+        case 1: {  // Determine where to send the SMS based on its type
+
+            if (sms.type == 4) {
+                // Type 4: Send to a specific number provided in the SMS struct
+                strncpy(num, sms.number, sizeof(num) - 1);
+                num[sizeof(num) - 1] = '\0';  // Null-terminate to avoid memory issues
+
+                if (phone_number_validat(num)) {
+                    state = 2;  // Valid number, move to sending stage
+                } else {
+                    state = 0;  // Invalid number, discard and return to idle
+                }
+
+            } else if (sms.type == 3) {
+                // Type 3: Send to the last known SMS sender (stored globally)
+                strncpy(num, systemConfig.last_sms_sender, sizeof(num) - 1);
+                num[sizeof(num) - 1] = '\0';
+
+                if (phone_number_validat(num)) {
+                    state = 2;  // Valid, move to sending stage
+                } else {
+                    state = 0;  // Invalid, discard and go idle
+                }
+
+            } else {
+                // Type 1 or other: Broadcast to the predefined contact list
+                contact_index = 1;  // Start with first contact
+                state = 3;  // Move to broadcast state
+            }
+
+        }
+        break;
+
+        case 2: {  // Send SMS to a single specific number (Type 3 or 4)
+
+            waitForMutex_GSM();  // Lock GSM module to ensure safe communication
+
+            if (!fona.sendSMS(num, sms.message)) {
+                // Sending failed, release GSM and retry same number next cycle
+                releaseMutex_GSM();
+                state = 2;
+            } else {
+                // SMS sent successfully, release GSM and return to idle
+                releaseMutex_GSM();
+                state = 0;
+            }
+
+        }
+        break;
+
+        case 3: {  // Broadcast SMS to multiple numbers in the contact list
+
+            // Get the next contact number from your contact list
+            strncpy(num, get_GSM_number(contact_index), sizeof(num) - 1);
+            num[sizeof(num) - 1] = '\0';
+			if( strstr(num, "N") != NULL) {
+				// If the number is flagged as 'N', skip to next contact
+				state = 0;  // All contacts done, return to idle
 			}
-				break;
-		
-	}
+
+            // Validate the number, skip if invalid or flagged as 'N' (not a valid contact)
+            if (!phone_number_validat(num) || !get_is_GSM_number_sms(contact_index)) {
+                contact_index++;  // Skip to next contact
+				Serial.print(F("Skipping invalid or non-SMS contact: "));
+				Serial.println(num);
+
+                if (contact_index >= 8) {
+                    state = 0;  // End of contact list reached, go idle
+                }
+            } else {
+                waitForMutex_GSM();  // Lock GSM module for safe sending
+
+                if (!fona.sendSMS(num, sms.message)) {
+                    // Failed to send, release GSM and retry this number next time
+                    releaseMutex_GSM();
+                } else {
+                    // Successfully sent, release GSM and move to next contact
+                    releaseMutex_GSM();
+                    contact_index++;
+
+                    if( (contact_index >= 8) || strstr(num, "N"))  {
+                        state = 0;  // All contacts done, return to idle
+                    }
+                }
+            }
+
+        }
+        break;
+    }
 }
+
+
+
 
 bool check_SMS_TASK_suspend_request(){
 	bool ret= false;
@@ -409,21 +301,7 @@ bool check_SMS_TASK_suspend_request(){
 	return ret;
 }
 			
-			/*		
-			if (!phone_number_validat(num))// validating number
-			{
-				Serial.println(F("Validating phone number Error! go to next number"));
-				sms_broadcast_index++;
-				Current_smsHdlr_state=0;
-				return;				
-			}						
-			if (!get_is_GSM_number_sms(sms_broadcast_index))
-			{
-				Serial.println(F("not a sms number"));
-				sms_broadcast_index++;
-				Current_smsHdlr_state=0;
-				return;				
-			}*/
+
 boolean phone_number_validat(const char* num_char){
 	
 	if (num_char[0] == '+') {
@@ -486,22 +364,15 @@ void flushSerial() {
 
 bool ultimate_gsm_listiner(){
 	uint8_t  position ;
-	 waitForMutex_GSM();
-	 if(fona.getNetworkStatus()==1){
-		 digitalWrite(GSM_LED,HIGH);
-		 Serial.println(F("Network ok"));	
-	 }	 
-	 else{
-		  Serial.println(F("Not Reg"));
-		  digitalWrite(GSM_LED,LOW);
-		  releaseMutex_GSM();
-		  return false;
-	 }
-	 /* if (fona.getCallStatus()==3)
+	 waitForMutex_GSM();	
+	
+	  if (fona.getCallStatus()==3)
 	  {
 		  Serial.println(F("there is incoming call I discarded it"));
+		  delay(1000);
 		  fona.hangUp();
-	  }	*/
+		  
+	  }	
 	  delay(100);  
 	    uint16_t smslen;
 		char n[20]="";		
@@ -516,10 +387,10 @@ bool ultimate_gsm_listiner(){
 			  fona.GetSMSx(position, n, 20,local_smsbuffer,SMS_BUFFER_LENGTH,&smslen);
 			  // now we have phone number string in phone_num
 			  // and SMS text in sms_text
-//#ifdef _DEBUG
+#ifdef _DEBUG
 			  Serial.println(n);
 			  Serial.printf_P(PSTR("SMS>%s"),local_smsbuffer);
-//#endif	  
+#endif	  
 			  fona.deleteSMS(position);
 			  releaseMutex_GSM();
 			  incoming_sms_process(local_smsbuffer, n);
@@ -534,9 +405,17 @@ bool ultimate_gsm_listiner(){
 		  return true;
 }
 
-
+// Check network registration
+// 0: Not registered, MT is not currently searching a new operator to
+//  register to
+// 1: Registered, home network
+// 2: Not registered, but MT is currently searching a newoperator to register
+//  to
+// 3: Registration denied
+// 4: Unknown
+// 5: Registered, roaming
 void gsm_manager(){
-	
+	//static uint8_t old_network_status = 0;
 	const TickType_t xTicksToWait = 100 / portTICK_PERIOD_MS;
 	EventBits_t uxBits;
 	uxBits = xEventGroupWaitBits(
@@ -553,13 +432,39 @@ void gsm_manager(){
 			{
 				ePrevGSM_state = eCurruntGSM_state;
 				Serial.println(F("GSM_INIT"));
-				digitalWrite(PIN_GSM_BUSY_LED,LOW);
+				//set gsmled to off event
+				xEventGroupSetBits(EventRTOS_gsmled,    TASK_5_BIT );// gsm led init				
+  				//uint32_t red = Adafruit_NeoPixel::Color(255, 0, 0);
+  				//pixel.startBlink(red, 300, 300, 180);
 			}
-			if(gsm_init()){
+			waitForMutex_GSM();
+			uint8_t gsm_init_status = gsm_init();
+			releaseMutex_GSM();
+			if(gsm_init_status==SIM800_OK){
 
 				eCurruntGSM_state = GSM_LISTIN;
 				Serial.println(F("GSM initializing OK"));
+				xEventGroupSetBits(EventRTOS_gsmled,    TASK_5_BIT );// gsm led init
 			}
+			else if(gsm_init_status==NO_SIM){
+				Serial.println(F("GSM NO SIM"));
+				eCurruntGSM_state = GSM_INIT;
+				xEventGroupSetBits(EventRTOS_gsmled,    TASK_1_BIT );// gsm no sim led off
+				return; // Wait for network to be ready
+			}
+			else if(gsm_init_status == NO_RESP){
+				Serial.println(F("GSM NO RESP"));
+				eCurruntGSM_state = GSM_INIT;
+				xEventGroupSetBits(EventRTOS_gsmled,    TASK_1_BIT );// gsm no resp led off
+				return; // Wait for network to be ready
+			}
+			else if(gsm_init_status == AUTH_FAILD){
+				Serial.println(F("GSM AUTH FAILD"));
+				eCurruntGSM_state = GSM_INIT;
+				xEventGroupSetBits(EventRTOS_gsmled,    TASK_1_BIT );// gsm no auth led off
+				return; // Wait for network to be ready
+			}
+			
 
 		} break;
 		case GSM_LISTIN:{
@@ -567,20 +472,110 @@ void gsm_manager(){
 			{
 				ePrevGSM_state = eCurruntGSM_state;
 				Serial.println(F("GSM_LISTIN"));
-				digitalWrite(PIN_GSM_BUSY_LED,LOW);
 			}
-			digitalWrite(PIN_GSM_BUSY_LED,HIGH);
-			//Serial.println(digitalRead(PROGRAM_PIN));
+			// Check network registration
+				waitForMutex_GSM();
+				uint8_t network_status = fona.getNetworkStatus();
+				releaseMutex_GSM();
+				if (network_status == 0) {
+					Serial.println(F("Network Status: Not registered"));
+					
+				} else if (network_status == 2) {
+					Serial.println(F("Network Status: Searching for network"));
+					xEventGroupSetBits(EventRTOS_gsmled,    TASK_2_BIT );// gsm no network
+			 		return; // Wait for network to be ready
+					
+				} else if (network_status == 3) {
+					Serial.println(F("Network Status: Registration denied"));
+					eCurruntGSM_state = GSM_INIT;
+					xEventGroupSetBits(EventRTOS_gsmled,    TASK_3_BIT );// gsm no network
+					return; // Wait for network to be ready
+					
+				} else if (network_status == 4) {
+					Serial.println(F("Network Status: Unknown"));
+					eCurruntGSM_state = GSM_INIT;
+					xEventGroupSetBits(EventRTOS_gsmled,    TASK_3_BIT );// gsm no network
+					return; // Wait for network to be ready
+					
+				} else if( network_status == 5) {
+					Serial.println(F("Network Status: Roming Network"));
+					eCurruntGSM_state = GSM_INIT;
+			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_6_BIT );// gsm no network
+					
+				}else if (network_status == 1) {
+					Serial.println(F("Network Status: Registered, home network"));
+					// Print network status
+				Serial.print(F("Network Status: ")); Serial.println(network_status);
+				if(gsm_init_done == false){
+					// Set SMS text mode and storage
+					waitForMutex_GSM();
+					if(!fona.setSMSTextModeAndStorage("ME")) {
+						Serial.println(F("Failed to set SMS text mode and storage"));
+					} else {
+						Serial.println(F("SMS text mode and storage set to ME"));
+						gsm_init_done = true;
+					}					
+					releaseMutex_GSM();					
+				}
+				if(timesync_need){
+					releaseMutex_GSM();
+					if(setTime_from_gsm()){
+						Serial.println(F("Time set from GSM"));
+						timesync_need = false;
+
+					}else{
+						Serial.println(F("Failed to set time from GSM"));
+					}
+					releaseMutex_GSM();
+				}
+					
+
+				// Check signal strength
+				waitForMutex_GSM();
+				gsmsignal_rssi = fona.getRSSI();
+				releaseMutex_GSM();
+				Serial.print(F("Signal strength: ")); Serial.print(gsmsignal_rssi); Serial.println(F(" dBm"));
+				if(gsmsignal_rssi < 10){
+					Serial.println(F("GSM Signal Low"));
+			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_4_BIT );// gsm no network
+				}
+				else{
+					Serial.println(F("GSM Network OK"));
+			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_6_BIT );// gsm network ok
+
+				}
+				}
+			// Check if there is an incoming SMS
+			
 			bool gsm_state =  ultimate_gsm_listiner();
 			if(!gsm_state){ }// network erro count to reset gsm module
-			digitalWrite(PIN_GSM_BUSY_LED,LOW);
 
-			 if(sms_broadcast_request == true){
+			// Declare a variable to hold the number of messages waiting in the queue
+			UBaseType_t queueLength = uxQueueMessagesWaiting(smsQueue);
+
+			// Check if there is at least one message in the queue
+			if (queueLength > 0) {
+				// There is at least one message in the queue
+#ifdef _DEBUG
+				printf("There are %d sms in the queue.\n", queueLength);
 				Serial.println(F("sms task invoike"));
-				sms_broadcast_request = false;
+#endif
+				//sms_broadcast_request = false;
 				sms_sending_queu_complete = true;
 				EventBits_t uxBits;
 				uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_5_BIT );// SMS task invoking request
+			} else {
+				// The queue is empty
+#ifdef _DEBUG
+				printf("The queue is empty.\n");
+#endif
+			}
+			 if(sms_broadcast_request == true){
+				// Serial.println(F("sms task invoike"));
+				// sms_broadcast_request = false;
+				// sms_sending_queu_complete = true;
+				// EventBits_t uxBits;
+				// uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_5_BIT );// SMS task invoking request
 			 }
 			 if(  ( uxBits & TASK_1_BIT ) != 0  )// CALL TASK invoking request form alarm notify functions.
 			 {
@@ -590,9 +585,8 @@ void gsm_manager(){
 				 TASK_1_BIT);/* The bits being cleared. */
 				 //suspend req for SMS TASK
 				// EventBits_t uxBits;
-				 uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_3_BIT );// sms task suspend request
+				 uxBits = xEventGroupSetBits(EventRTOS_gsm,    TASK_3_BIT );// sms task suspend request sent
 				 eCurruntGSM_state = GSM_SMS_SUSPENDING;
-				 //creat call task
 			 }
 			 
 			else if(  ( uxBits & TASK_5_BIT ) != 0  )// SMS resume.
@@ -622,20 +616,12 @@ void gsm_manager(){
 			{
 				ePrevGSM_state = eCurruntGSM_state;
 				Serial.println(F("GSM_SMS_SUSPENDING..."));
-				digitalWrite(PIN_GSM_BUSY_LED,LOW);
-				 /*if(  ( uxBits & TASK_4_BIT ) != 0  )// CALL TASK invoking request.
-				 {
-					 eCurruntGSM_state = GSM_CALL;
-				 }*/
 			}
-			if(  ( uxBits & TASK_4_BIT ) != 0  )// SMS TASK suspended ACK.
+			if(  ( uxBits & TASK_4_BIT ) != 0  )// SMS TASK suspended ACK recevide.
 			{
-				Serial.println(F("GSM_SMS_TASK_SUSPENDED."));
+				Serial.println(F("GSM_SMS_TASK_SUSPENDED."));			
+				eCurruntGSM_state = GSM_CALL;				
 				
-			
-				eCurruntGSM_state = GSM_CALL;
-				
-				//create call task
 			}
 		}
 		break;
@@ -650,10 +636,9 @@ void gsm_manager(){
 				uxBits = xEventGroupClearBits(EventRTOS_gsm,TASK_7_BIT );// call task invoking request
 				delay(500);
 				xTaskCreatePinnedToCore(Task5code_call,"Task5",5000,NULL,3,&Task5,0);
-				digitalWrite(PIN_GSM_BUSY_LED,HIGH);
 			}
-			
-			if(  ( uxBits & TASK_2_BIT ) != 0  )// Disarm Event task delete
+			Serial.println(F("wait for call task resp"));
+			if(  ( uxBits & TASK_2_BIT ) != 0  )// This bit will be set by Disarm call back so request to delete call task
 			{
 				Serial.println(F("CALL TASK delete request rent"));
 				xEventGroupClearBits(EventRTOS_gsm,    TASK_2_BIT );// clear event
@@ -663,7 +648,7 @@ void gsm_manager(){
 				eCurruntGSM_state = GSM_CALL_TASK_DELETEING;	
 			}
 			
-			if(  ( uxBits & TASK_6_BIT ) != 0  )// Disarm Event task delete
+			if(  ( uxBits & TASK_6_BIT ) != 0  )// wait for call task complete 
 			{
 				
 			}
@@ -721,11 +706,12 @@ void incoming_sms_process(char* local_smsbuffer, char* n ){
 			 else{
 				  systemConfig.cli_access_level = get_GSM_number_security_level(user_id);
 			 }
+#ifndef GSM_PULSEX_IOT_BOARD
 			 if (!digitalRead(PROGRAM_PIN))// give full access if the program pin is low
 			 {
 				  systemConfig.cli_access_level = 3;
 			 }
-			 
+#endif			 
 			 
 			 byte cli_result = universal_event_hadler(local_smsbuffer,GSM_MODULE,user_id);// run CLI
 			 if (!cli_result)
@@ -798,12 +784,8 @@ void creat_arm_sms(char* str_invorker){
 	else{
 		//add time stamp
 		addTimeStamp(sms_buffer);
-		creatSMS("Too big msg",1,0);
-		
-	}
-	
-	
-	
+		creatSMS("Too big msg",1,0);		
+	}	
 }
 
 void creat_disarm_sms(char* str){
@@ -933,7 +915,7 @@ uint8_t ultimate_call_hadlr(){
 		{
 			Prev_caller_state=Current_caller_state;
 			Serial.println(F("DIALING>>>"));
-			//call.SetDTMF(true);			
+					
 		}		
 		//waitForMutex_GSM();		
 		if(FONA_CALL_READY==fona.getCallStatus()){
@@ -970,7 +952,7 @@ uint8_t ultimate_call_hadlr(){
 				Serial.print(F("Call initiating...TP index:"));
 				Serial.println(alarm_calling_index);
 				fona.callPhone(current_phone_number);
-				tell_lcd(current_phone_number);
+				//tell_lcd(current_phone_number);
 				//delay(500);
 				Current_caller_state=2;
 			}
@@ -1015,7 +997,7 @@ uint8_t ultimate_call_hadlr(){
 			{
 				Prev_caller_state=Current_caller_state;
 				Serial.println(F("waiting for fedback"));	
-				Timer_call_answer_delay.interval=40000;
+				Timer_call_answer_delay.interval=20000;
 				Timer_call_answer_delay.previousMillis=millis();							
 			}
 			/*const char msg_answer[15]="MO CONNECTED";
@@ -1086,9 +1068,42 @@ uint8_t ultimate_call_hadlr(){
 				{
 					Prev_caller_state=Current_caller_state;
 					Serial.println(F("Hang up call"));
-					fona.hangUp();
-					Current_caller_state=0;
+					//Current_caller_state=0;
 				}
+				char dtmf[10] = {};
+				// wait for dtmf
+				waitForMutex_GSM();
+				if (fona.waitForDTMF(dtmf, 500)) {
+					Serial.print(F("DTMF received: "));
+					Serial.println(dtmf);
+					if (strcmp(dtmf, "0") == 0) {
+						// DTMF '0' received, hang up
+						delay(1000);
+						fona.playDTMF('1');
+						delay(1000);
+						fona.playDTMF('2');
+						delay(1000);
+						fona.playDTMF('3');
+						myAlarm_pannel.set_system_state(DEACTIVE,GSM_MODULE,alarm_calling_index);
+						delay(1000);
+						Current_caller_state=0;
+						fona.hangUp();
+					} else if(strcmp(dtmf, "1") == 0) {
+						// Handle other DTMF inputs if needed
+						delay(1000);
+						fona.playDTMF('1');
+						delay(1000);
+						fona.playDTMF('2');
+						delay(1000);
+						fona.playDTMF('3');
+						xEventGroupSetBits(EventRTOS_buzzer,    TASK_6_BIT );// disarm beep request
+						xEventGroupSetBits(EventRTOS_siren,    TASK_1_BIT );// stop siren request
+						delay(1000);
+						fona.hangUp();
+						Current_caller_state=0;
+					}
+				} 
+				releaseMutex_GSM();
 					
 			}break;			
 	}	
@@ -1098,10 +1113,9 @@ uint8_t ultimate_call_hadlr(){
 
 
 bool waitForMutex_GSM(){
-	Serial.println(F("Taking GSM Mutex"));
+	//Serial.println(F("Taking GSM Mutex"));
 	while (1)
 	{
-		delay(5);		
 		if (xSemaphoreTake( xMutex_GSM, portMAX_DELAY ))
 		{
 			break;
@@ -1111,7 +1125,7 @@ bool waitForMutex_GSM(){
 }
 
 void releaseMutex_GSM(){
-	Serial.println(F("Releasing GSM Mutex"));
+	//Serial.println(F("Releasing GSM Mutex"));
 	xSemaphoreGive(xMutex_GSM);
 }
 
@@ -1219,10 +1233,3 @@ void setESP32_rtc(char *timeChars){
 	 rtc.setTime(second, minute, hour, day, month, year);
 }
 
-
-/*
-switch ()
-{
-case :
-	break;
-}*/

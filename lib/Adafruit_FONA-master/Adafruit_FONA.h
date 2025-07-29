@@ -244,7 +244,7 @@ public:
   bool pickUp(void);
   bool callerIdNotification(bool enable, uint8_t interrupt = 0);
   bool incomingCallNumber(char *phonenum);
-
+  bool waitForDTMF(char *tone,uint16_t timeout = FONA_DEFAULT_TIMEOUT_MS);
   // Helper functions to verify responses.
   bool expectReply(FONAFlashStringPtr reply, uint16_t timeout = 10000);
   bool sendCheckReply(char *send, char *reply,
