@@ -14,6 +14,7 @@
 #include "TimerSW.h"
 #include "socket_function.h"
 #include <AsyncElegantOTA.h>
+#include "pixel_blink_module.h"
 
 // wifi
 // the Wifi radio's status
@@ -29,7 +30,6 @@ void setup_web_server_with_STA();
 void setup_web_server_with_STA_info();
 void cleanClients();
 void initWebSocket();
-void reconnect();
 void initSPIFFS();
 void initWiFi_AP();
 void initWiFi_STA();
@@ -40,7 +40,7 @@ void onGetRequest(AsyncWebServerRequest *request);
 void initWebServer();
 
 void onRootRequest_info(AsyncWebServerRequest *request);
-void onGetRequest_info(AsyncWebServerRequest *request);
+
 void initWebServer_info();
 
 

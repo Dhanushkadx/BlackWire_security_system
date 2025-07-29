@@ -91,6 +91,8 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
 		Serial.println(my_ip.c_str());
 		//initRTC();
 		wifiStarted = true;
+		uint32_t colour = Adafruit_NeoPixel::Color(0, 0, 255);
+  		pixel.startBlink(colour, 100, 1000, 255);
   }
   
   void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
@@ -102,6 +104,8 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
 	if(wifiStarted){// Loop until we're reconnected
 		Timer_WIFIreconnect.previousMillis = millis();
 		wifiStarted = false;
+		uint32_t red = Adafruit_NeoPixel::Color(0, 0, 255);
+  		pixel.startBlink(red, 300, 300, 180);
 		
 	}
 	
@@ -131,7 +135,8 @@ void initWiFi_STA(){
 		Serial.println(systemConfig.wifipass);
 #endif
 	Serial.printf_P(PSTR("Trying to connect [%s] "), systemConfig.wifissid_sta);
-	Serial.printf(" %s\n", WiFi.localIP().toString().c_str()); 
+	uint32_t red = Adafruit_NeoPixel::Color(0, 0, 255);
+  	pixel.startBlink(red, 300, 300, 180);
 }
 
 
@@ -163,43 +168,13 @@ void initWiFi_AP() {
 	IPAddress IP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(IP);
+	uint32_t red = Adafruit_NeoPixel::Color(255, 255, 0);
+  	pixel.startBlink(red, 1000, 1000, 255);
 	
 }
 
 
 
-void reconnect() {
-	
-	// Loop until we're reconnected
-	Timer_WIFIreconnect.previousMillis = millis();
-	status = WiFi.status();
-	if ( status != WL_CONNECTED) {
-#ifdef CUSTOM_NETWORK_CONFIG
-		WiFi.setHostname(hostname.c_str()); //define hostname
-		if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
-			Serial.println(F("STA Failed to configure"));
-		}
-#endif
-		WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
-		Serial.println(F("password>"));
-		Serial.println(systemConfig.wifipass);
-		while (WiFi.status() != WL_CONNECTED) {
-			Serial.println(F("Connecting WiFi..."));
-			vTaskDelay(1000 / portTICK_RATE_MS);
-			Serial.print(".");
-			if (Timer_WIFIreconnect.Timer_run()) {
-				WiFi.disconnect();
-				//ESP.restart();
-				break;
-			}
-		}
-		Serial.println(F("Connected to AP"));
-		Serial.printf(" %s\n", WiFi.localIP().toString().c_str());
-		Serial.println();
-		Timer_WIFIreconnect.previousMillis = millis();
-		wifiStarted = true;
-	}
-}
 
 void initSPIFFS() {
 	Serial.println(F("init SPIFF"));
@@ -222,7 +197,7 @@ String processor(const String &var) {
 }
 
 
-void onGetRequest_info(AsyncWebServerRequest *request) {}
+
  // Send a GET request to <ESP_IP>/get?inputString=<inputMessage>
 void onGetRequest(AsyncWebServerRequest *request) {
 	String inputMessage;
@@ -353,17 +328,17 @@ if (request->hasParam("tp1")) {
 		sprintf(buffer3,"CALL%d",index);
 		if (request->hasParam(buffer))
 		{
-			docry[buffer2]["sms"]= "1";
+			docry[buffer2]["sms"]= true;
 		}
 		else{
-			docry[buffer2]["sms"]= "0";
+			docry[buffer2]["sms"]= false;
 		}
 		if (request->hasParam(buffer3))
 		{
-			docry[buffer2]["call"]= "1";
+			docry[buffer2]["call"]= true;
 		}
 		else{
-			docry[buffer2]["call"]= "0";
+			docry[buffer2]["call"]= false;
 		}
 	}
 	File fileToWritey = SPIFFS.open("/personx.json", FILE_WRITE);

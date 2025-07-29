@@ -162,27 +162,17 @@ bool Adafruit_FONA::begin(Stream &port) {
     }
   }
 
-//delay(15000);
-//flushInput();
-
-//sendCheckReply(F("AT+CMGF=1"), ok_reply);
-  
-// #if defined(FONA_PREF_SMS_STORAGE)
-//   sendCheckReply(F("AT+CPMS=" FONA_PREF_SMS_STORAGE "," FONA_PREF_SMS_STORAGE
-//                    "," FONA_PREF_SMS_STORAGE),
-//                  ok_reply);
-// #endif
-
  // Disable messages about new SMS from the GSM module
 
-delay(100);
-//sendCheckReply(F("AT+CNMI=0,0,0,0,0"),ok_reply);
-sendCheckReply(F("AT+CNMI=2,0"),ok_reply);
-sendCheckReply(F("AT+MORING=1"),ok_reply);
- //AT+CMGDA="DEL ALL"
+  delay(100);
+  //sendCheckReply(F("AT+CNMI=0,0,0,0,0"),ok_reply);
+  sendCheckReply(F("AT+CNMI=2,0"),ok_reply);
+  sendCheckReply(F("AT+MORING=1"),ok_reply);
+
  // Enable NTP time synchronization with a custom NTP server
  
   sendCheckReply(F("AT+CLTS=1"),ok_reply);
+  sendCheckReply(F("AT+DDET=1"),ok_reply);
 	sendCheckReply(F("AT&W"),ok_reply);
    return true;
 }
@@ -728,6 +718,26 @@ uint8_t Adafruit_FONA :: waitCallResp(uint8_t timeout){
 
 	 return 0;
 }
+
+bool Adafruit_FONA :: waitForDTMF(char *tone, uint16_t timeout) {
+unsigned long start = millis();
+uint16_t result = readline(timeout);
+DEBUG_PRINT(F("\t<--- "));
+	  DEBUG_PRINT(replybuffer);
+ 
+    if (result > 0) {
+      if (parseReply(F("+DTMF: "), tone, ' ', 0)) {
+        return true;
+      }
+    
+    
+  }
+
+  return false; // Timeout
+
+
+}
+
 /**
  * @brief Get the current call status
  *
