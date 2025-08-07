@@ -149,7 +149,6 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 
 	if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
 	{	
-	//if(systemConfig.wifiap_en==true){	
 		 strcpy(systemConfig.installer_pass, "admin");	
 		 Serial.println(F("WiFi Password Default"));
 		 system_mode = CONFIG_MODE;
@@ -170,7 +169,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 			system_mode = NOMAL_MODE_NO_WIFI;
 		}
 	}
-	 system_mode = CONFIG_MODE;
+	 
 	 memset(systemConfig.last_sms_sender,'\0',15);	 
 	 strcpy(systemConfig.last_sms_sender, doc["sysconf"]["last_sms_sender"]);	
 	 const char* last_sys_state = doc["sysconf"]["last_system_state"];

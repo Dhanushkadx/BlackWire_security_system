@@ -369,7 +369,9 @@ bool ultimate_gsm_listiner(){
 	  if (fona.getCallStatus()==3)
 	  {
 		  Serial.println(F("there is incoming call I discarded it"));
+		  delay(1000);
 		  fona.hangUp();
+		  
 	  }	
 	  delay(100);  
 	    uint16_t smslen;
@@ -738,7 +740,7 @@ void creat_arm_sms(char* str_invorker){
 	
 	char sms_buffer[160];
 	memset(sms_buffer,'\0',160);
-	strcat_P(sms_buffer,PSTR("Feeding Started:"));
+	strcat_P(sms_buffer,PSTR("Home arm by"));
 	strcat(sms_buffer,str_invorker);
 	bool open_zone_yes=false;
 	char msg_line_number_char[5]="";
@@ -767,9 +769,9 @@ void creat_arm_sms(char* str_invorker){
 		
 	}
 	if(open_zone_yes){
-		//strcat(sms_buffer,"\n");
-		strcat_P(sms_buffer,PSTR("\n Alarm:\n"));
-		//strcat(sms_buffer,"\n");
+		strcat(sms_buffer,"\n");
+		strcat_P(sms_buffer,PSTR("OPEN ZONES"));
+		strcat(sms_buffer,"\n");
 	}
 	uint8_t msg_length = strlen(open_zone_msg);
 	if (msg_length<160)
@@ -789,7 +791,7 @@ void creat_arm_sms(char* str_invorker){
 void creat_disarm_sms(char* str){
 	char buff[100];
 	memset(buff,'\0',100);
-	strcpy_P(buff,PSTR("Feeding Completed by "));
+	strcpy_P(buff,PSTR("Disarm by "));
 	strcat(buff,str);// where i left the code*********************************************code stuck here
 	//add time stamp
 	addTimeStamp(buff);
@@ -913,7 +915,7 @@ uint8_t ultimate_call_hadlr(){
 		{
 			Prev_caller_state=Current_caller_state;
 			Serial.println(F("DIALING>>>"));
-			//call.SetDTMF(true);			
+					
 		}		
 		//waitForMutex_GSM();		
 		if(FONA_CALL_READY==fona.getCallStatus()){
@@ -953,7 +955,7 @@ uint8_t ultimate_call_hadlr(){
 				Serial.print(F("Call initiating...TP index:"));
 				Serial.println(alarm_calling_index);
 				fona.callPhone(current_phone_number);
-				tell_lcd(current_phone_number);
+				//tell_lcd(current_phone_number);
 				//delay(500);
 				Current_caller_state=2;
 			}
@@ -998,7 +1000,7 @@ uint8_t ultimate_call_hadlr(){
 			{
 				Prev_caller_state=Current_caller_state;
 				Serial.println(F("waiting for fedback"));	
-				Timer_call_answer_delay.interval=40000;
+				Timer_call_answer_delay.interval=20000;
 				Timer_call_answer_delay.previousMillis=millis();							
 			}
 			/*const char msg_answer[15]="MO CONNECTED";
@@ -1069,9 +1071,42 @@ uint8_t ultimate_call_hadlr(){
 				{
 					Prev_caller_state=Current_caller_state;
 					Serial.println(F("Hang up call"));
-					fona.hangUp();
-					Current_caller_state=0;
+					//Current_caller_state=0;
 				}
+				char dtmf[10] = {};
+				// wait for dtmf
+				waitForMutex_GSM();
+				if (fona.waitForDTMF(dtmf, 500)) {
+					Serial.print(F("DTMF received: "));
+					Serial.println(dtmf);
+					if (strcmp(dtmf, "0") == 0) {
+						// DTMF '0' received, hang up
+						delay(1000);
+						fona.playDTMF('1');
+						delay(1000);
+						fona.playDTMF('2');
+						delay(1000);
+						fona.playDTMF('3');
+						myAlarm_pannel.set_system_state(DEACTIVE,GSM_MODULE,alarm_calling_index);
+						delay(1000);
+						Current_caller_state=0;
+						fona.hangUp();
+					} else if(strcmp(dtmf, "1") == 0) {
+						// Handle other DTMF inputs if needed
+						delay(1000);
+						fona.playDTMF('1');
+						delay(1000);
+						fona.playDTMF('2');
+						delay(1000);
+						fona.playDTMF('3');
+						xEventGroupSetBits(EventRTOS_buzzer,    TASK_6_BIT );// disarm beep request
+						xEventGroupSetBits(EventRTOS_siren,    TASK_1_BIT );// stop siren request
+						delay(1000);
+						fona.hangUp();
+						Current_caller_state=0;
+					}
+				} 
+				releaseMutex_GSM();
 					
 			}break;			
 	}	

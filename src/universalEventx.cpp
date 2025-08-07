@@ -158,28 +158,18 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		strcat(msg,"\n");
 		if (myAlarm_pannel.get_system_state()!=DEACTIVE)
 		{
-			strcat_P(msg,PSTR("Mode: ARMED"));
+			strcat_P(msg,PSTR("Mode: ACT"));
 			creatSMS(msg,3,0);
 		}
 		else
 		{
-			strcat_P(msg,PSTR("Mode: DISARMED"));
+			strcat_P(msg,PSTR("Mode: DACT"));
 			creatSMS(msg,3,0);
 		}
 		Serial.println(msg);
 		
 	}
-	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
-	{
-		ret_value = 1;
-		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-		myAlarm_pannel.set_system_state(SYS1_IDEAL,Invoker,user_id);
-#ifdef MQTT_OK
-		publish_system_state("ARMED","info/mode",true);
-#endif       
-		
-	}
-	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
+	if (strncmp_P(smsbuffer,PSTR("Act"),3)==0)
 	{
 		ret_value = 1;
 		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
@@ -190,7 +180,8 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 	}
 	
-	else if(strncmp_P(smsbuffer,PSTR("Disarm"),6)==0){
+	
+	else if(strncmp_P(smsbuffer,PSTR("Dact"),4)==0){
 		ret_value = 1;	
 		eCurrent_state=DEACTIVE;
 		myAlarm_pannel.set_system_state(DEACTIVE,Invoker,user_id);
@@ -203,7 +194,14 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	else if(strncmp("Panic",smsbuffer,5)==0)
 	{
 		ret_value =1;
-		myAlarm_pannel.set_system_state(PANIC,Invoker,user_id);
+		Serial.println(F("SMS Panic"));
+		myAlarm_pannel.set_system_state(ALARM_CALLING,RF,user_id);
+		char buffer[10];
+		get_eInvoker_type_to_char(GSM_MODULE,buffer);
+		creat_panic_sms(buffer);
+		//activate siren					
+		if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
+		if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
 	}
 
 	else if(strncmp("Alarm_call",smsbuffer,10)==0)
