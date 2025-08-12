@@ -508,26 +508,27 @@ void gsm_manager(){
 				Serial.print(F("Network Status: ")); Serial.println(network_status);
 				if(gsm_init_done == false){
 					// Set SMS text mode and storage
-					waitForMutex_GSM();
+				waitForMutex_GSM();
 					if(!fona.setSMSTextModeAndStorage("ME")) {
-						Serial.println(F("Failed to set SMS text mode and storage"));
+					Serial.println(F("Failed to set SMS text mode and storage"));
 					} else {
 						Serial.println(F("SMS text mode and storage set to ME"));
 						gsm_init_done = true;
-					}					
-					releaseMutex_GSM();					
+					}	
+				releaseMutex_GSM();					
+										
 				}
-				if(timesync_need){
-					releaseMutex_GSM();
-					if(setTime_from_gsm()){
-						Serial.println(F("Time set from GSM"));
-						timesync_need = false;
+				if(!timesync_need){
+				waitForMutex_GSM();
+						if(setTime_from_gsm()){
+							Serial.println(F("Time set from GSM"));
+							timesync_need = true;
 
-					}else{
-						Serial.println(F("Failed to set time from GSM"));
+						}else{
+							Serial.println(F("Failed to set time from GSM"));
+						}
+				releaseMutex_GSM();		
 					}
-					releaseMutex_GSM();
-				}
 					
 
 				// Check signal strength
@@ -1070,13 +1071,23 @@ uint8_t ultimate_call_hadlr(){
 				if (Prev_caller_state!=Current_caller_state)
 				{
 					Prev_caller_state=Current_caller_state;
-					Serial.println(F("Hang up call"));
+					Serial.println(F("call in progress"));
+					Timer_call_answer_delay.interval=10000;
+					Timer_call_answer_delay.previousMillis=millis();	
 					//Current_caller_state=0;
 				}
 				char dtmf[10] = {};
 				// wait for dtmf
 				waitForMutex_GSM();
-				if (fona.waitForDTMF(dtmf, 500)) {
+				
+				int8_t call_res = fona.waitForDTMF(dtmf, 500);
+				if(call_res == -1) {
+					fona.hangUp();
+					Serial.println(F("Call is not active, hang up"));
+					Current_caller_state=0;
+					fona.hangUp();
+				} 
+				else if (call_res == 1) {
 					Serial.print(F("DTMF received: "));
 					Serial.println(dtmf);
 					if (strcmp(dtmf, "0") == 0) {
@@ -1107,6 +1118,15 @@ uint8_t ultimate_call_hadlr(){
 					}
 				} 
 				releaseMutex_GSM();
+
+				if (Timer_call_answer_delay.Timer_run())
+				{
+					Serial.println(F("no feedback from gsm, time out"));
+					Current_caller_state=0;
+					fona.hangUp();
+					releaseMutex_GSM();
+					/*return ret_val;*/
+				}
 					
 			}break;			
 	}	

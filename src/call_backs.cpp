@@ -84,7 +84,7 @@ void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_inv
 	//time update from GSM
 	//Event log update;
 	Timer_battery_charge.previousMillis = millis();
-#ifdef PULSEX_IOT_BOARD
+#ifndef PULSEX_IOT_BOARD
 	digitalWrite(PIN_BATTERY,HIGH);
 #endif
 	//save_event_info(0,user,time_buffer,"DISARM");

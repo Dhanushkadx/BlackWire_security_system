@@ -451,7 +451,7 @@ void setup()
 	pinMode(RELAY_ALARM , OUTPUT);
 	pinMode(PIN_ARM , OUTPUT);
 	pinMode(PIN_DISARM, OUTPUT);
-#ifdef PULSEX_IOT_BOARD
+#ifndef PULSEX_IOT_BOARD
 	pinMode(PIN_BATTERY, OUTPUT);
 #endif
 	digitalWrite(PIN_GSM_BUSY_LED, HIGH);

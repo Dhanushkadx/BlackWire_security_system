@@ -189,14 +189,10 @@ bool Adafruit_FONA::setSMSTextModeAndStorage(const char *storageLocation) {
     DEBUG_PRINTLN(F("Failed to set SMS Text Mode"));
     return false;
   }
-  // Set storage (e.g., "SM" for SIM, "ME" for internal memory, or "MT" for both)
- // bool result = fona.sendCheckReply(F("AT+CPMS=\"ME\",\"ME\",\"ME\""), F("OK"));
 
-  uint16_t phoneStatus;
+  uint16_t phoneStatus;  
 
-  
-
-  #if defined(FONA_PREF_SMS_STORAGE)
+#if defined(FONA_PREF_SMS_STORAGE)
  bool rsp =  sendParseReply(F("AT+CPMS=" FONA_PREF_SMS_STORAGE "," FONA_PREF_SMS_STORAGE
                    "," FONA_PREF_SMS_STORAGE),
                  F("+CPMS:"),&phoneStatus,',',1);
@@ -205,6 +201,17 @@ bool Adafruit_FONA::setSMSTextModeAndStorage(const char *storageLocation) {
     return false;
   }
 #endif
+// Set DTMF to enable
+  if (!sendCheckReply(F("AT+DDET=1"), ok_reply, 1000)) {
+    DEBUG_PRINTLN(F("Failed to set SMS Text Mode"));
+    return false;
+  }
+// Set new SMS alert enable
+  if (!sendCheckReply(F("AT+CNMI=2,0"),ok_reply)) {
+    DEBUG_PRINTLN(F("Failed to set SMS Text Mode"));
+    return false;
+  }
+    
   return true;
 }
 
@@ -719,21 +726,25 @@ uint8_t Adafruit_FONA :: waitCallResp(uint8_t timeout){
 	 return 0;
 }
 
-bool Adafruit_FONA :: waitForDTMF(char *tone, uint16_t timeout) {
+int8_t Adafruit_FONA :: waitForDTMF(char *tone, uint16_t timeout) {
 unsigned long start = millis();
 uint16_t result = readline(timeout);
 DEBUG_PRINT(F("\t<--- "));
 	  DEBUG_PRINT(replybuffer);
+  if (IsStringReceived(PSTR("NO CARRIER")))
+	 {
+		  return -1;
+	 }
  
     if (result > 0) {
       if (parseReply(F("+DTMF: "), tone, ' ', 0)) {
-        return true;
+        return 1;
       }
     
     
   }
 
-  return false; // Timeout
+  return 0; // Timeout
 
 
 }
