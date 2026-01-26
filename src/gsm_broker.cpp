@@ -518,11 +518,11 @@ void gsm_manager(){
 				releaseMutex_GSM();					
 										
 				}
-				if(!timesync_need){
+				if(timesync_need){
 				waitForMutex_GSM();
 						if(setTime_from_gsm()){
 							Serial.println(F("Time set from GSM"));
-							timesync_need = true;
+							timesync_need = false;
 
 						}else{
 							Serial.println(F("Failed to set time from GSM"));
@@ -1190,69 +1190,136 @@ void convertTime(char* input_string, char* output_string) {
  
 }
 
-void setESP32_rtc(char *timeChars){
-	// convert the time string to a C string
-	//char timeChars[timeString.length() + 1];
-	//strcpy(timeChars, timeString.c_str());
-	//<--- +CCLK: "23/04/22,12:29:49+22"
-	// split the time string into its individual components
+// void setESP32_rtc(char *timeChars){
+// 	// convert the time string to a C string
+// 	//char timeChars[timeString.length() + 1];
+// 	//strcpy(timeChars, timeString.c_str());
+// 	//<--- +CCLK: "23/04/22,12:29:49+22"
+// 	// split the time string into its individual components
 	
-	 int len = strlen(timeChars);
-	 char new_s[len-1];
-	 strncpy(new_s, timeChars+1, len-2);
-	 new_s[len-2] = '\0';
+// 	 int len = strlen(timeChars);
+// 	 char new_s[len-1];
+// 	 strncpy(new_s, timeChars+1, len-2);
+// 	 new_s[len-2] = '\0';
 	 
-	char *yearStr = strtok(new_s, "/");
-	char *monthStr = strtok(NULL, "/");
-	char *dayStr = strtok(NULL, ",");
-	char *hourStr = strtok(NULL, ":");
-	char *minuteStr = strtok(NULL, ":");
-	char *secondStr = strtok(NULL, "+");
-	char *tzOffsetStr = strtok(NULL, "");
+// 	char *yearStr = strtok(new_s, "/");
+// 	char *monthStr = strtok(NULL, "/");
+// 	char *dayStr = strtok(NULL, ",");
+// 	char *hourStr = strtok(NULL, ":");
+// 	char *minuteStr = strtok(NULL, ":");
+// 	char *secondStr = strtok(NULL, "+");
+// 	char *tzOffsetStr = strtok(NULL, "");
 
-	// convert the individual components to integers
-	int day = atoi(dayStr);
-	int month = atoi(monthStr);
-	int year = atoi(yearStr) + 2000;
-	int hour = atoi(hourStr);
-	int minute = atoi(minuteStr);
-	int second = atoi(secondStr);
-	int tzOffset = atoi(tzOffsetStr);
-#ifdef _DEBUG
-	Serial.print("Day: ");
-	Serial.println(day);
+// 	// convert the individual components to integers
+// 	int day = atoi(dayStr);
+// 	int month = atoi(monthStr);
+// 	int year = atoi(yearStr) + 2000;
+// 	int hour = atoi(hourStr);
+// 	int minute = atoi(minuteStr);
+// 	int second = atoi(secondStr);
+// 	int tzOffset = atoi(tzOffsetStr);
+// #ifdef _DEBUG
+// 	Serial.print("Day: ");
+// 	Serial.println(day);
 
-	Serial.print("Month: ");
-	Serial.println(month);
+// 	Serial.print("Month: ");
+// 	Serial.println(month);
 
-	Serial.print("Year: ");
-	Serial.println(year);
+// 	Serial.print("Year: ");
+// 	Serial.println(year);
 
-	Serial.print("Hour: ");
-	Serial.println(hour);
+// 	Serial.print("Hour: ");
+// 	Serial.println(hour);
 
-	Serial.print("Minute: ");
-	Serial.println(minute);
+// 	Serial.print("Minute: ");
+// 	Serial.println(minute);
 
-	Serial.print("Second: ");
-	Serial.println(second);
+// 	Serial.print("Second: ");
+// 	Serial.println(second);
 
-	Serial.print("Time Zone Offset: ");
-	Serial.println(tzOffset);
-#endif
+// 	Serial.print("Time Zone Offset: ");
+// 	Serial.println(tzOffset);
+// #endif
 
-	// adjust the time components for the time zone offset
-	/*hour += tzOffset;
-	if (hour < 0) {
-		hour += 24;
-		day -= 1;
-		} else if (hour >= 24) {
-		hour -= 24;
-		day += 1;
-	}
-*/
+// 	// adjust the time components for the time zone offset
+// 	hour += tzOffset;
+// 	if (hour < 0) {
+// 		hour += 24;
+// 		day -= 1;
+// 		} else if (hour >= 24) {
+// 		hour -= 24;
+// 		day += 1;
+// 	}
 
-	// set the RTC using the adjusted time components
-	 rtc.setTime(second, minute, hour, day, month, year);
+
+// 	// set the RTC using the adjusted time components
+// 	 rtc.setTime(second, minute, hour, day, month, year);
+// }
+
+void setESP32_rtc(char *timeChars)
+{
+    // Extract inside quotes
+    const char *q1 = strchr(timeChars, '"');
+    const char *q2 = strrchr(timeChars, '"');
+    if (!q1 || !q2) return;
+
+    char buf[32];
+    int len = q2 - q1 - 1;
+    strncpy(buf, q1 + 1, len);
+    buf[len] = '\0';
+
+    // Parse fields
+    char temp[32];
+    strcpy(temp, buf);
+
+    char *yearStr   = strtok(temp, "/");
+    char *monthStr  = strtok(NULL, "/");
+    char *dayStr    = strtok(NULL, ",");
+    char *hourStr   = strtok(NULL, ":");
+    char *minuteStr = strtok(NULL, ":");
+    char *secTzStr  = strtok(NULL, "");
+
+    // Split seconds + timezone
+    char secStr[4]={0}, tzStr[4]={0};
+    int i = 0;
+    while (secTzStr[i] && secTzStr[i] != '+' && secTzStr[i] != '-') {
+        secStr[i] = secTzStr[i];
+        i++;
+    }
+
+    char tzSign = secTzStr[i];
+    strcpy(tzStr, secTzStr + i + 1);
+
+    // Convert numbers
+    int year   = atoi(yearStr) + 2000;
+    int month  = atoi(monthStr);
+    int day    = atoi(dayStr);
+    int hour   = atoi(hourStr);
+    int minute = atoi(minuteStr);
+    int second = atoi(secStr);
+    int tzQ    = atoi(tzStr);
+
+    int tzMinutes = tzQ * 15;
+    if (tzSign == '-') tzMinutes = -tzMinutes;
+
+    // Build struct tm
+    struct tm t = {0};
+    t.tm_year = year - 1900;
+    t.tm_mon  = month - 1;
+    t.tm_mday = day;
+    t.tm_hour = hour;
+    t.tm_min  = minute;
+    t.tm_sec  = second;
+
+    // Convert SIM800 local → epoch (local)
+    time_t epoch = mktime(&t);
+
+   
+	
+    rtc.setTime(epoch, 0);        // set directly
+
+    // Set ESP32 RTC
+    rtc.setTime(epoch, 0);
+	Serial.println(F("RTC set from GSM"));
+
 }
-

@@ -41,11 +41,11 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "mqtt_broker.h"
 #endif
 //ESP32Time rtc;
-ESP32Time rtc(-3600);  // offset in seconds GMT+1
+ESP32Time rtc(0);  // offset in seconds GMT+1
 
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 19800;
-const int   daylightOffset_sec = 3600;
+// const char* ntpServer = "pool.ntp.org";
+// const long  gmtOffset_sec = 19800;
+// const int   daylightOffset_sec = 0;
 
 SemaphoreHandle_t xBinarySemaphore;
 SemaphoreHandle_t xMutex_GSM = NULL;
@@ -479,8 +479,9 @@ void setup()
 	//lcd.backlight();
 	//lcd.print("INITILIZING...");
 	//init_keyPad();
-   // Init and get the time
-   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+   // Init and get the time if use WIFI to get time
+   //configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+   
    printLocalTime();
    
 	// Initialize SPIFFS

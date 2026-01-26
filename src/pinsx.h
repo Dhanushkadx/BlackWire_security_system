@@ -4,13 +4,14 @@
 
 //#define GSM_MINI_BOARD
 //#define GSM_PULSEX_IOT_BOARD
-#define GSM_MINI_BOARD_V3
+#define GSM_MINI_BOARD_V2
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18
 #define ANALOG_BAT A8
 #define ANALOG_PWR A7
 #define RELAY_ALARM 19
+#define PROGRAM_PIN 25
 #define PIN_RF_LED 27
 #define PIN_GSM_BUSY_LED 27
 #define PIN_ARM 12
@@ -26,7 +27,7 @@
 #define GSM_SERIAL Serial1
 #define GSM_TX 16
 #define GSM_RX 17
-#define FONA_RST 4
+#define FONA_RST 5//MAY be 4 for some boards
 #define PIN_RF433MH 15
 #endif
 
@@ -45,7 +46,7 @@
 #define SENS_3 32
 #define SENS_4 33
 #define PIN_AC_DETECT 4
-#define  BuzzerPin 2
+#define BuzzerPin 2
 #define GSM_LED 27
 #define RELAY_OUT_A 25
 #define RELAY_OUT_B 26
