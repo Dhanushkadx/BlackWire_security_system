@@ -37,6 +37,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "msg_store.h"
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
+#include "OTA.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
@@ -421,7 +422,7 @@ void Task10code( void * parameter ){
 		if (Timer_battery_charge.Timer_run())
 		{
 			Serial.println(F("BAT CHAR OFF"));
-#ifdef PULSEX_IOT_BOARD
+#ifndef GSM_PULSEX_IOT_BOARD
 			digitalWrite(PIN_BATTERY,LOW);
 #endif
 		}
@@ -451,7 +452,7 @@ void setup()
 	pinMode(RELAY_ALARM , OUTPUT);
 	pinMode(PIN_ARM , OUTPUT);
 	pinMode(PIN_DISARM, OUTPUT);
-#ifndef PULSEX_IOT_BOARD
+#ifndef GSM_PULSEX_IOT_BOARD
 	pinMode(PIN_BATTERY, OUTPUT);
 #endif
 	digitalWrite(PIN_GSM_BUSY_LED, HIGH);

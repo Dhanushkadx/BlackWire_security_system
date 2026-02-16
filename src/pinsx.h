@@ -1,10 +1,11 @@
 #ifndef _PINSX_H
 #define _PINSX_H
 
-
+//PULSEX_IOT_BOARD
 //#define GSM_MINI_BOARD
-//#define GSM_PULSEX_IOT_BOARD
-#define GSM_MINI_BOARD_V2
+#define GSM_PULSEX_IOT_BOARD
+//#define GSM_MINI_BOARD_V2
+//#define GSM_MINI_BOARD_V3
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18

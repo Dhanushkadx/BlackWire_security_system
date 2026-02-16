@@ -1,6 +1,6 @@
 #ifndef _MQTT_BROKER_H
 #define _MQTT_BROKER_H
-//#define MQTT_SECURE
+#define MQTT_SECURE
 //#define _DEBUG
 #include "Arduino.h"
 #include "typex.h"

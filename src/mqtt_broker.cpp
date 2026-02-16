@@ -342,6 +342,24 @@ void callback(char *topic, byte *payload, unsigned int length) {
             transfer_mqtt_data("Relay 2 off");
         }
     }
+
+    //OTA
+    //sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
+    memset(my_topic, '\0', sizeof(my_topic));
+    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
+
+    if (strcmp(topic, my_topic) == 0) {
+        // char payload_buffer[50];
+        // unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
+        // memcpy(payload_buffer, payload, copy_length);
+        // payload_buffer[copy_length] = '\0';
+
+        // if (strcmp(payload_buffer, "on") == 0) {
+        //     transfer_mqtt_data("Relay 2 on");
+        // } else if (strcmp(payload_buffer, "off") == 0) {
+        //     transfer_mqtt_data("Relay 2 off");
+        // }
+    }
 }
 
 
@@ -390,7 +408,11 @@ void setup_subscriptions(){
     client.subscribe(mqttTopic); // subscribe from the topic
   sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
     client.subscribe(mqttTopic); // subscribe from the topic
-    Serial.println(mqttTopic);
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
+    client.subscribe(mqttTopic); // subscribe from the topic
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/spiffs"), device_id_macStr);
+    client.subscribe(mqttTopic); // subscribe from the topic
+    Serial.println(mqttTopic);    
    }
 
 
