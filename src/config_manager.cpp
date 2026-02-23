@@ -91,12 +91,22 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	{
 	case 2:{
 		// load zone data 
-	load_zones("/zone_data_8.json",0,8);
-	load_zones("/zone_data_16.json",8,16);
-	load_zones("/zone_data_24.json",16,24);
-	load_zones("/zone_data_32.json",24,32);
-	load_zones("/zone_data_40.json",32,40);
-	load_zones("/zone_data_48.json",40,48);
+	// Try to load file
+    if (!ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+        Serial.println(F("Zone file not found or invalid — initializing example array"));
+
+        ZoneStorage::initExampleArray(any_sensor_array, ZONE_COUNT);  // fill with example bits
+        if (ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+            Serial.println(F("Example zones saved to SPIFFS"));
+        } else {
+            Serial.println(F("Failed to save example zones!"));
+        }
+    } else {
+        Serial.println(F("Zone file loaded successfully"));
+#ifdef _DEBUG
+ZoneStorage::printZones(any_sensor_array, ZONE_COUNT);
+#endif
+    }
 
 	File users_fileToRead = SPIFFS.open("/personx.json");
 	
@@ -113,7 +123,8 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 		break;
 	
 	case 0:{
-		Serial.println(F("reload config data...................."));
+
+	Serial.println(F("reload config data...................."));
 	 File fileToRead = SPIFFS.open("/config.json");
 	 if (!fileToRead)
 	 {
@@ -130,8 +141,6 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	 systemConfig.beep_time_out = doc["sysconf"]["beep_time_out"];
 	 systemConfig.siren_en = doc["sysconf"]["siren_en"];
 	 systemConfig.beep_en = doc["sysconf"]["beep_en"];
-
-
 	 systemConfig.cli_access_level = doc["sysconf"]["cli_access_level"];
 	 systemConfig.entry_delay_time = doc["sysconf"]["entry_delay_time"];
 	 systemConfig.exit_delay_time = doc["sysconf"]["exit_delay_time"];
@@ -146,8 +155,8 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 #else
 	 	bool reset_pin_state = digitalRead(PROGRAM_PIN);
 #endif
-
-	if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
+	 if (1==1)
+	//if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
 	{	
 	//if(systemConfig.wifiap_en==true){	
 		 strcpy(systemConfig.installer_pass, "admin");	
@@ -187,20 +196,30 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	 }
 	 systemConfig.last_system_state = SYS1_IDEAL;
 	 Serial.println(F("reload zone data...................."));
+	 // Try to load file
+    // Try to load file
+    if (!ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+        Serial.println(F("Zone file not found or invalid — initializing example array"));
+
+        ZoneStorage::initExampleArray(any_sensor_array, ZONE_COUNT);  // fill with example bits
+        if (ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+            Serial.println(F("Example zones saved to SPIFFS"));
+        } else {
+            Serial.println(F("Failed to save example zones!"));
+        }
+    } else {
+        Serial.println(F("Zone file loaded successfully"));
+#ifdef _DEBUG
+ZoneStorage::printZones(any_sensor_array, ZONE_COUNT);
+#endif
+		
+    }
 	 
 #ifdef _DEBUG
 	 // This code will only be included in the Debug configuration
 	serializeJsonPretty(doc, Serial);
 #endif	
-	fileToRead.close();
-
-	// load zone data 
-	load_zones("/zone_data_8.json",0,8);
-	load_zones("/zone_data_16.json",8,16);
-	load_zones("/zone_data_24.json",16,24);
-	load_zones("/zone_data_32.json",24,32);
-	load_zones("/zone_data_40.json",32,40);
-	load_zones("/zone_data_48.json",40,48);
+	fileToRead.close();	
 
 	File users_fileToRead = SPIFFS.open("/personx.json");
 	

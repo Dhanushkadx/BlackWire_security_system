@@ -39,6 +39,13 @@ const char* mqttServer = "j0117d13.ala.asia-southeast1.emqxsl.com";
 const int mqtt_port = 8883;
 const char *mqtt_username = "gsmesp32";
 const char *mqtt_password = "12345";
+
+// creat dead message
+uint8_t mac[6];
+char device_id_macStr[18];
+
+
+
 #else
 // init secure wifi client
 WiFiClient espClient;
@@ -57,6 +64,7 @@ bool mqtt_enable=false;
 PubSubClient client(espClient);
 
 _callbackFunctionType7 fn_onMQTT_connection;
+_callbackFunctionType7 fn_onMQTT_disconnection;
 
 void setup_mqtt(){
   
@@ -65,6 +73,10 @@ void setup_mqtt(){
   else{
     Serial.printf_P(PSTR("MQTT_SERVR:%s\nPORT:%d\nUSER:%s\nPASS:%s"),mqttServer,mqtt_port,mqtt_username,mqtt_password);
   }
+  //creta id
+  WiFi.macAddress(mac);  
+  // Format the MAC address without colons and with underscores
+  sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
       // set root ca cert
 #ifdef MQTT_SECURE
   espClient.setCACert(ca_cert);
@@ -90,7 +102,8 @@ void setup_mqtt(){
 }
 
 
-void set_onMQTT_connection(_callbackFunctionType7 pFn){fn_onMQTT_connection = pFn;}
+void callback_onMQTT_connection(_callbackFunctionType7 pFn){fn_onMQTT_connection = pFn;}
+void callback_onMQTT_disconnection(_callbackFunctionType7 pFn){fn_onMQTT_disconnection = pFn;}
 
 
 void reconnectMQTT() {
@@ -99,14 +112,9 @@ void reconnectMQTT() {
   if(state !=WL_CONNECTED)
   {
       Serial.println(F("No WiFi to Reconnect MQTT"));
+      if(fn_onMQTT_disconnection!=nullptr){fn_onMQTT_disconnection();}
       return;
   }
-  // creat dead message
-  uint8_t mac[6];
-  char device_id_macStr[18];
-  WiFi.macAddress(mac);	
-  // Format the MAC address without colons and with underscores
-  sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   String client_id = "blackwire-";
   client_id += String(device_id_macStr);
@@ -119,6 +127,7 @@ void reconnectMQTT() {
   while (!client.connected()) {
     vTaskDelay(5000/portTICK_PERIOD_MS);
     Serial.printf("Reconnecting to MQTT broker... at %s\n",mqttServer);
+     if(fn_onMQTT_disconnection!=nullptr){fn_onMQTT_disconnection();}
      // set root ca cert
 #ifdef MQTT_SECURE
   espClient.setCACert(ca_cert);
@@ -128,9 +137,8 @@ void reconnectMQTT() {
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         setup_subscriptions();
-        uint32_t colour = Adafruit_NeoPixel::Color(200, 0, 255);
-  		  pixel.startBlink(colour, 100, 1000, 255);
-        fn_onMQTT_connection();
+        if(fn_onMQTT_connection!=nullptr){fn_onMQTT_connection();}
+
     } else {
         Serial.print(F("Failed to reconnect to MQTT broker, rc="));
         Serial.print(client.state());
@@ -145,6 +153,8 @@ void reconnectMQTT() {
         }
   }
 }
+
+
 	
 void send_sensor_state_update_to_mqtt(uint8_t _zone,bool _state){
        
@@ -157,11 +167,6 @@ void send_sensor_state_update_to_mqtt(uint8_t _zone,bool _state){
 
 }
 
-void publish_network_info(){
-  //long rssi = WiFi.RSSI();
-  String rssi_value = String(WiFi.RSSI());
-  publish_system_state(rssi_value.c_str(),"info/rssi",false);
-}
 
 
 void send_rfid_state_update_to_mqtt(const char* rfid){
@@ -173,13 +178,6 @@ void send_rfid_state_update_to_mqtt(const char* rfid){
 
 void publish_system_state(const char* state, const char* subtopic, bool retaind_flag){
 
-    //creat topic
-    uint8_t mac[6];
-    char device_id_macStr[18];
-    WiFi.macAddress(mac);	
-// Format the MAC address without colons and with underscores
-   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-   
     char topic[50];
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/%s"),device_id_macStr,subtopic);
@@ -205,13 +203,7 @@ void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n ){
 }
 
 void publish_json_to_mqtt(const char* jsonStr){
-
-    uint8_t mac[6];
-    char device_id_macStr[18];
-    WiFi.macAddress(mac);	
-// Format the MAC address without colons and with underscores
-   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-   
+  
     char topic[50];
     memset(topic,'\0',50);
     sprintf_P(topic,PSTR("blackwire/%s/info/sensors"),device_id_macStr);
@@ -228,139 +220,245 @@ void publish_json_to_mqtt(const char* jsonStr){
 
 }
 
-void callback(char *topic, byte *payload, unsigned int length) {
+void callback(char *topic, byte *payload, unsigned int length)
+{
+    /* ============================================================
+       STEP 1: Validate topic belongs to this device
+    ============================================================ */
+    char baseTopic[100];
+    sprintf_P(baseTopic, PSTR("blackwire/%s/"), device_id_macStr);
+
 #ifdef _DEBUG
-    Serial.print(F("Message arrived in topic: "));
-    Serial.println(topic);
+    Serial.printf_P(PSTR("MQTT - Received topic: %s\n"), topic);
 #endif
 
-    char my_topic[100];
-    uint8_t mac[6];
-    char device_id_macStr[18];
-    WiFi.macAddress(mac);
-    sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
+    if (strstr_P(topic, PSTR("/cmd/")) == nullptr)
+    {
 #ifdef _DEBUG
-    String byteRead = "";
-    Serial.print(F("Message: "));
-    for (int i = 0; i < length; i++) {
-        byteRead += (char)payload[i];
+        Serial.println(F("Ignoring: topic does not contain /cmd/"));
+#endif
+        return;
     }
-    Serial.println(byteRead);
+
+    if (strncmp(topic, baseTopic, strlen(baseTopic)) != 0)
+    {
+#ifdef _DEBUG
+        Serial.println(F("Ignoring: topic not for this device"));
+#endif
+        return;
+    }
+
+    /* ============================================================
+       STEP 2: Copy payload safely
+    ============================================================ */
+    char payload_buffer[256];  // reduced stack usage
+    unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
+    memcpy(payload_buffer, payload, copy_length);
+    payload_buffer[copy_length] = '\0';
+
+#ifdef _DEBUG
+    Serial.print(F("Payload: "));
+    Serial.println(payload_buffer);
 #endif
 
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
+    /* ============================================================
+       STEP 3: Parse JSON if SYSTEM COMMAND
+    ============================================================ */
+    StaticJsonDocument<256> jsonDoc;
+    bool jsonParsed = false;
+    const char* cmd = nullptr;
+    uint32_t rpcId = 0;        // use uint32_t for RPC ID
+    bool success = false;
 
-    if (strcmp(topic, my_topic) == 0) {
-        DynamicJsonDocument jsonDoc(256);
-        DeserializationError err = deserializeJson(jsonDoc, payload, length);
-
-        if (err) {
+    if (strstr_P(topic, PSTR("/cmd/sys/set")))
+    {
 #ifdef _DEBUG
-            Serial.print(F("deserializeJson() failed: "));
+        Serial.println(F("Matched: SYS SET"));
+#endif
+        DeserializationError err = deserializeJson(jsonDoc, payload_buffer);
+        if (err)
+        {
+#ifdef _DEBUG
+            Serial.print(F("JSON Error: "));
             Serial.println(err.c_str());
 #endif
-            return;
         }
+        else
+        {
+            jsonParsed = true;
 
-        if (!jsonDoc.containsKey("cmd")) return;
+            if (jsonDoc.containsKey("cmd"))
+            {
+                cmd = jsonDoc["cmd"];
+                rpcId = jsonDoc["rpcId"] | 0;  // default 0 if not provided
 
-        const char* cmd = jsonDoc["cmd"];
-        if (jsonDoc.containsKey("data") && jsonDoc["data"].is<JsonObject>()) {
-            JsonObject data = jsonDoc["data"];
+                /* ---------------- ALARM ---------------- */
+                if (strcmp_P(cmd, PSTR("alarm")) == 0)
+                {
+#ifdef _DEBUG
+                    Serial.println(F("Matched: alarm"));
+#endif
+                    transfer_mqtt_data("Alarm_call");
+                    success = true;
+                }
 
-            if (strncmp(cmd, "mod", 3) == 0) {
-                if (data.containsKey("mod")) {
-                    const char* mod = data["mod"];
-                    if (strncmp(mod, "a", 1) == 0) {
+                /* ---------------- MODE ---------------- */
+                else if (strcmp_P(cmd, PSTR("mod")) == 0 &&
+                         jsonDoc["data"].containsKey("mod"))
+                {
+#ifdef _DEBUG
+                    Serial.println(F("Matched: mod"));
+#endif
+                    const char* mod = jsonDoc["data"]["mod"];
+                    if (strcmp_P(mod, PSTR("a")) == 0)
+                    {
+#ifdef _DEBUG
+                        Serial.println(F("Mode: ARM"));
+#endif
                         transfer_mqtt_data("Home arm");
                         publish_system_state("ARMED", "info/mode", true);
-                    } else if (strncmp(mod, "d", 1) == 0) {
+                        success = true;
+                    }
+                    else if (strcmp_P(mod, PSTR("d")) == 0)
+                    {
+#ifdef _DEBUG
+                        Serial.println(F("Mode: DISARM"));
+#endif
                         transfer_mqtt_data("Disarm");
                         publish_system_state("DISARMED", "info/mode", true);
+                        success = true;
                     }
                 }
-            }
 
-            if (strncmp(cmd, "sms", 3) == 0) {
-                if (data.containsKey("msg") && data.containsKey("tp")) {
-                    const char* data_msg = data["msg"];
-                    const char* data_number = data["tp"];
-                    uint8_t data_type = 4;
-                    creatSMS(data_msg, data_type, data_number);
+                /* ---------------- SIREN ---------------- */
+                else if (strcmp_P(cmd, PSTR("siren")) == 0)
+                {
+#ifdef _DEBUG
+                    Serial.println(F("Matched: siren"));
+#endif
+                    bool state = jsonDoc["data"]["ste"] | false;
+                    char cmdBuff[20];
+                    sprintf_P(cmdBuff, PSTR("siren=%d"), state);
+                    transfer_mqtt_data(cmdBuff);
+                    success = true;
+                }
+
+                /* ---------------- SMS ---------------- */
+                else if (strcmp_P(cmd, PSTR("sms")) == 0)
+                {
+#ifdef _DEBUG
+                    Serial.println(F("Matched: sms"));
+#endif
+                    const char* msg = jsonDoc["data"]["msg"];
+                    const char* number = jsonDoc["data"]["tp"];
+                    creatSMS(msg, 4, number);
+                    success = true;
                 }
             }
-
-            if (strncmp(cmd, "siren", 5) == 0) {
-                int data_duration = data.containsKey("tm") ? data["tm"] : 0;
-                bool data_state = data.containsKey("ste") ? data["ste"] : false;
-                char cmdBuff[20] = "";
-                sprintf_P(cmdBuff, PSTR("siren=%d"), data_state);
-                transfer_mqtt_data(cmdBuff);
-            }
-        }
-
-        if (strncmp(cmd, "alarm", 5) == 0) {
-            transfer_mqtt_data("Alarm_call");
-        } else if (strncmp(cmd, "chime1", 6) == 0) {
-            transfer_mqtt_data(cmd);
         }
     }
 
-    // Relay1
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        char payload_buffer[50];
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
-        memcpy(payload_buffer, payload, copy_length);
-        payload_buffer[copy_length] = '\0';
-
-        if (strcmp(payload_buffer, "on") == 0) {
+    /* ============================================================
+       STEP 4: RELAY COMMANDS
+    ============================================================ */
+    else if (strstr_P(topic, PSTR("/cmd/relay1/set")))
+    {
+#ifdef _DEBUG
+        Serial.println(F("Matched: relay1"));
+#endif
+        if (strcmp_P(payload_buffer, PSTR("on")) == 0)
+        {
+#ifdef _DEBUG
+            Serial.println(F("Relay1 ON"));
+#endif
             transfer_mqtt_data("Relay 1 on");
-        } else if (strcmp(payload_buffer, "off") == 0) {
+        }
+        else if (strcmp_P(payload_buffer, PSTR("off")) == 0)
+        {
+#ifdef _DEBUG
+            Serial.println(F("Relay1 OFF"));
+#endif
             transfer_mqtt_data("Relay 1 off");
         }
     }
 
-    // Relay2
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        char payload_buffer[50];
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
-        memcpy(payload_buffer, payload, copy_length);
-        payload_buffer[copy_length] = '\0';
-
-        if (strcmp(payload_buffer, "on") == 0) {
+    else if (strstr_P(topic, PSTR("/cmd/relay2/set")))
+    {
+#ifdef _DEBUG
+        Serial.println(F("Matched: relay2"));
+#endif
+        if (strcmp_P(payload_buffer, PSTR("on")) == 0)
+        {
+#ifdef _DEBUG
+            Serial.println(F("Relay2 ON"));
+#endif
             transfer_mqtt_data("Relay 2 on");
-        } else if (strcmp(payload_buffer, "off") == 0) {
+        }
+        else if (strcmp_P(payload_buffer, PSTR("off")) == 0)
+        {
+#ifdef _DEBUG
+            Serial.println(F("Relay2 OFF"));
+#endif
             transfer_mqtt_data("Relay 2 off");
         }
     }
 
-    //OTA
-    //sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
+    /* ============================================================
+       STEP 5: OTA UPDATES
+    ============================================================ */
+    else if (strstr_P(topic, PSTR("/cmd/sys/ota/firmware")))
+    {
+#ifdef _DEBUG
+        Serial.println(F("Matched: OTA firmware"));
+#endif
+        client.disconnect();
+        delay(1000);
+        downloadAndApplyFirmware(payload_buffer);
+    }
+    else if (strstr_P(topic, PSTR("/cmd/sys/ota/spiffs")))
+    {
+#ifdef _DEBUG
+        Serial.println(F("Matched: OTA spiffs"));
+#endif
+        downloadAndApplySPIFFS(payload_buffer);
+    }
 
-    if (strcmp(topic, my_topic) == 0) {
-        // char payload_buffer[50];
-        // unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
-        // memcpy(payload_buffer, payload, copy_length);
-        // payload_buffer[copy_length] = '\0';
+    /* ============================================================
+       STEP 6: SEND RPC RESPONSE AT THE END
+    ============================================================ */
+    if (jsonParsed && rpcId > 0)
+    {
+#ifdef _DEBUG
+        Serial.println(F("Sending RPC response"));
+#endif
+        char responseTopic[120];
+        sprintf_P(responseTopic,
+                  PSTR("blackwire/%s/rpc/response"),
+                  device_id_macStr);
 
-        // if (strcmp(payload_buffer, "on") == 0) {
-        //     transfer_mqtt_data("Relay 2 on");
-        // } else if (strcmp(payload_buffer, "off") == 0) {
-        //     transfer_mqtt_data("Relay 2 off");
-        // }
+        StaticJsonDocument<192> respDoc;
+        respDoc["rpcId"] = rpcId;
+        respDoc["cmd"] = cmd;
+        respDoc["success"] = success;
+        respDoc["ts"] = millis();
+
+        char respBuffer[192];
+        serializeJson(respDoc, respBuffer);
+
+        client.publish(responseTopic, respBuffer);
+#ifdef _DEBUG
+        Serial.printf_P(PSTR("RPC Response published to %s: %s\n"), responseTopic, respBuffer);
+#endif
+        
     }
 }
+
+
+
+
+
+
+
 
 
 
@@ -392,11 +490,7 @@ void transfer_mqtt_data(const char* msg){
 
 
 void setup_subscriptions(){
-  uint8_t mac[6];
-  char device_id_macStr[18];
-  WiFi.macAddress(mac);	
-// Format the MAC address without colons and with underscores
-  sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;}
   // Construct the MQTT topic
   char mqttTopic[100];  // Adjust the size as needed
   sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd"), device_id_macStr);

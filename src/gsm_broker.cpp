@@ -22,6 +22,26 @@ bool sms_hdrl_suspend=false;
 
 uint8_t Current_caller_state = 0;
 
+void getEMIE(char* buffer, uint8_t size) {
+	if (fona.getIMEI(buffer)) {
+		Serial.print(F("Module IMEI: ")); Serial.println(buffer);
+	} else {
+		Serial.println(F("Failed to get IMEI"));
+		buffer[0] = '\0'; // Ensure buffer is null-terminated even on failure
+	}
+}
+
+char* getGsmOperator(char* buffer, uint8_t size) {
+	if (fona.getNetworkOperator(buffer, size)) {
+		Serial.print(F("Network Operator: ")); Serial.println(buffer);
+		return buffer;
+	} else {
+		Serial.println(F("Failed to get network operator"));
+		buffer[0] = '\0'; // Ensure buffer is null-terminated even on failure
+		return nullptr;
+	}
+}
+
 uint8_t gsm_init(){
 	
 	 Serial.println(F("SIM800 Initializing....)"));

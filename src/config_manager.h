@@ -20,6 +20,7 @@
 #include "FS.h"
 #include <SPIFFS.h>
 #include "pinsx.h"
+#include "ZoneStorage.h"
 
 	 
 void configLoad(uint8_t mode);

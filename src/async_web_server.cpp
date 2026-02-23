@@ -5,11 +5,23 @@
 */
 #include "async_web_server.h"
 
+
+// ---------- Optional: keep these somewhere global ----------
+static bool wifiEventsRegistered = false;
+
 #define TOTAL_DEVICES 8
 String hostname = "Digital Security";
 TimerSW Timer_WIFIreconnect;
 const char* http_username = "admin";
 const char* http_password = "admin";
+
+
+#define KEY_BYPASS   "cbb"
+#define KEY_ENTRY    "cben"
+#define KEY_EXIT     "cbxt"
+#define KEY_RF       "cbrf"
+#define KEY_24H      "cb24"
+#define KEY_SILENT   "cbch"
 
 //#define CUSTOM_NETWORK_CONFIG
 // the IP address for the shield:
@@ -37,6 +49,18 @@ bool  setup_web_server_started = false;
 StaticJsonDocument<JSON_DOC_SIZE_DEVICE_DATA> docz;
 
 AsyncWebServer server(HTTP_PORT);
+
+// --------- helper: build keys safely ----------
+static inline void makeKey(char* out, size_t outSz, int idx, const char* suffix) {
+  // suffix examples: "" , "cbb", "cen", "cxt", "crf", "c24", "cch", "cpm"
+  snprintf(out, outSz, "z%d%s", idx, suffix);
+}
+
+// --------- helper: set/clear bit ----------
+static inline void setBit(uint8_t &v, uint8_t bit, bool en) {
+  if (en) v |=  (1U << bit);
+  else    v &= ~(1U << bit);
+}
 
 
 void setup_web_server_with_AP()
@@ -118,60 +142,114 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
 			}
   }
 
-void initWiFi_STA(){
-	WiFi.mode(WIFI_STA);
-	WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
-	WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
-	WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
-	#ifdef define CUSTOM_NETWORK_CONFIG
-	if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
-		Serial.println(F("STA Failed to configure"));
-	}
+
+
+// ----------------------------------------------------------
+// Register WiFi events ONCE (no duplicates)
+static void registerWiFiEventsOnce() {
+  if (wifiEventsRegistered) return;
+
+  WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+  WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  wifiEventsRegistered = true;
+}
+
+// ----------------------------------------------------------
+// Cleanly stop previous WiFi state before switching modes
+static void wifiStopAll() {
+  WiFi.disconnect(true, true); // erase old STA connection + stop
+  WiFi.softAPdisconnect(true); // stop AP
+  delay(50);
+}
+
+// ----------------------------------------------------------
+// STA init
+void initWiFi_STA()
+{
+  registerWiFiEventsOnce();
+  wifiStopAll();
+
+  WiFi.mode(WIFI_STA);
+
+  // Optional: STA hostname (helps router list)
+  // WiFi.setHostname("PrimeHive-Panel");
+
+  // Optional: reduce reconnection delay behavior
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);  // don't write creds to flash automatically
+
+#ifdef CUSTOM_NETWORK_CONFIG   // ✅ correct usage
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println(F("STA failed to configure static IP"));
+  }
 #endif
+
 #ifdef FORCE_BSSID
-		WiFi.begin(structSysConfig.wifipass_sta, structSysConfig.wifipass_sta,6,bssid);
+  // NOTE: WiFi.begin(ssid, pass, channel, bssid, connect)
+  WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass, 6, bssid, true);
 #else
-		WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
-		Serial.println(systemConfig.wifipass);
+  WiFi.begin(systemConfig.wifissid_sta, systemConfig.wifipass);
 #endif
-	Serial.printf_P(PSTR("Trying to connect [%s] "), systemConfig.wifissid_sta);
-	uint32_t red = Adafruit_NeoPixel::Color(0, 0, 255);
-  	pixel.startBlink(red, 300, 300, 180);
+
+  Serial.printf_P(PSTR("Trying STA connect [%s]\n"), systemConfig.wifissid_sta);
+
+  uint32_t blue = Adafruit_NeoPixel::Color(0, 0, 255);
+  pixel.startBlink(blue, 300, 300, 180);
 }
 
 
 
-void initWiFi_AP() {
-	
-	
-	// Connect to Wi-Fi network with SSID and password
-	Serial.println("Setting AP (Access Point)");
-	// get the ESP32's MAC address
-	uint8_t mac[6];
-	WiFi.macAddress(mac);
+void initWiFi_AP()
+{
+  wifiStopAll();
 
-	// convert the MAC address to a char string
-	char macStr[18];  // buffer to hold the MAC address string
-	sprintf(macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  Serial.println(F("Setting AP (Access Point)"));
+  WiFi.mode(WIFI_AP);
 
-	// set the WiFi AP name to "BLACK_WIRE_" followed by the MAC address string
-	char apName[30];  // buffer to hold the WiFi AP name
-	sprintf(apName, "BLACK_WIRE_%s", macStr);
-	WiFi.softAP(apName);
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
 
-	// print the WiFi AP name
-	Serial.print("WiFi AP name: ");
-	Serial.println(apName);
-	//WiFi.softAP(wifi_ap_name, systemConfig.wifipass, 10, 0, 2);
+  char apName[32];
+  // Example: BLACK_WIRE_A1B2C3D4E5F6
+  snprintf(apName, sizeof(apName),
+           "BLACK_WIRE_%02X%02X%02X%02X%02X%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
+  // If you want open AP (no password): pass nullptr
+  // Better: use password (8+ chars required)
+  const char* apPass = systemConfig.wifipass;  // or fixed "12345678" during setup
+  const int   channel = 6;
+  const bool  hidden = false;
+  const int   maxConn = 2;
 
-	IPAddress IP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(IP);
-	uint32_t red = Adafruit_NeoPixel::Color(255, 255, 0);
-  	pixel.startBlink(red, 1000, 1000, 255);
-	
+  bool ok;
+  if (apPass && strlen(apPass) >= 8) {
+    ok = WiFi.softAP(apName, apPass, channel, hidden, maxConn);
+  } else {
+    // fallback open AP if password invalid
+    ok = WiFi.softAP(apName, nullptr, channel, hidden, maxConn);
+    Serial.println(F("AP password invalid (<8). Started OPEN AP."));
+  }
+
+  if (!ok) {
+    Serial.println(F("Failed to start AP"));
+    return;
+  }
+
+  Serial.print(F("WiFi AP name: "));
+  Serial.println(apName);
+
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print(F("AP IP address: "));
+  Serial.println(IP);
+
+  uint32_t yellow = Adafruit_NeoPixel::Color(255, 255, 0);
+  pixel.startBlink(yellow, 1000, 1000, 255);
 }
+
+
 
 
 
@@ -198,330 +276,220 @@ String processor(const String &var) {
 
 
 
- // Send a GET request to <ESP_IP>/get?inputString=<inputMessage>
-void onGetRequest(AsyncWebServerRequest *request) {
-	String inputMessage;
-	
-	if (request->hasParam("z0")) {// I need to know the source web page of the GET request if this para available it s mean page is zone page
-		File fileToReadx = SPIFFS.open("/zone_data_8.json") ;
-		DynamicJsonDocument docrx(JSON_DOC_SIZE_ZONE_DATA);
-		deserializeJson(docrx,  fileToReadx);
-		fileToReadx.close();
-		for (int index=0; index<TOTAL_DEVICES; index++)
-		{
-			char buff_cb[5]="cb";	char buff_cbb[5]="b";	char buff_cben[5]="en";	char buff_cbxt[5]="xt";	char buff_cbrf[5]="rf";	char buff_cb24[5]="24";	char buff_cbch[5]="ch";
-			char buffer[20]; char buffer2[20];
-			sprintf(buffer,"z%d",index);
-			if (index < 10) {
-				sprintf(buffer2, "z0%d", index);
-			}
-			else {
-				sprintf(buffer2, "z%d", index);
-			}
-			
-			if (request->hasParam(buffer)) {
-				inputMessage = request->getParam(buffer)->value();
-				docrx[buffer2]["n"]= inputMessage;
-			}
-			
-			char buffer_cbb[10];
-			strcpy(buffer_cbb,buffer);
-			strcat(buffer_cbb,buff_cb);
-			strcat(buffer_cbb,buff_cbb);
-			if (request->hasParam(buffer_cbb)) {
-				docrx[buffer2]["by"]= true;
-			}
-			else{
-				docrx[buffer2]["by"]= false;
-			}
-			
-			char buffer_cben[10];
-			strcpy(buffer_cben,buffer);
-			strcat(buffer_cben,buff_cb);
-			strcat(buffer_cben,buff_cben);
-			if (request->hasParam(buffer_cben)) {
-				
-				docrx[buffer2]["ed"]= true;
-			}
-			else{
-				docrx[buffer2]["ed"]= false;
-			}
-			
-			char buffer_cbxt[10];
-			strcpy(buffer_cbxt,buffer);
-			strcat(buffer_cbxt,buff_cb);
-			strcat(buffer_cbxt,buff_cbxt);
-			if (request->hasParam(buffer_cbxt)) {
-				
-				
-				docrx[buffer2]["xd"]= true;
-			}
-			else{
-				docrx[buffer2]["xd"]= false;
-			}
-			
-			char buffer_cb24[10];
-			strcpy(buffer_cb24,buffer);
-			strcat(buffer_cb24,buff_cb);
-			strcat(buffer_cb24,buff_cb24);
-			Serial.println(buff_cb24);
-			if (request->hasParam(buffer_cb24)) {
-				
-				
-				docrx[buffer2]["x24"]= true;
-			}
-			else{
-				docrx[buffer2]["x24"]= false;
-			}
-			
-			char buffer_cbrf[10];
-			strcpy(buffer_cbrf,buffer);
-			strcat(buffer_cbrf,buff_cb);
-			strcat(buffer_cbrf,buff_cbrf);
-			if (request->hasParam(buffer_cbrf)) {				
-				docrx[buffer2]["rf"]= true;				
-			}
-			else{
-				docrx[buffer2]["rf"]= false;				
-			}			
-			char buffer_cbch[10];
-			strcpy(buffer_cbch,buffer);
-			strcat(buffer_cbch,buff_cb);
-			strcat(buffer_cbch,buff_cbch);
-			if (request->hasParam(buffer_cbch)) {
-				
-				docrx[buffer2]["sl"]= true;
-			}
-			else{
-				docrx[buffer2]["sl"]= false;
-			}
-		}
-		File fileToWritex = SPIFFS.open("/zone_data_8.json", FILE_WRITE);		
-		serializeJson(docrx,  fileToWritex);
-		serializeJsonPretty(docrx, Serial); 
-		fileToWritex.close();
-		request->send(200, "text/text", "OK");
-	}
-	
-if (request->hasParam("tp1")) {
-	File fileToReady = SPIFFS.open("/personx.json");
-	DynamicJsonDocument docry(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(docry,  fileToReady);
-	fileToReady.close();
-	for (int index=1; index<=TOTAL_PHONE_NUMBER_COUNT; index++)
-	{
-		char buffer[10]; char buffer2[10]; char buffer3[10];
-		
-		sprintf(buffer,"tp%d",index);		
-		if (request->hasParam(buffer)) {
-			inputMessage = request->getParam(buffer)->value();
-			Serial.println(buffer);
-			Serial.println(inputMessage);
-			
-			sprintf(buffer2, "P%d", index);
-			
-			docry[buffer2]["number"]= inputMessage;
-		}
-		memset(buffer,'\0',10);
-		memset(buffer3,'\0',10);
-		sprintf(buffer,"SMS%d",index);
-		sprintf(buffer3,"CALL%d",index);
-		if (request->hasParam(buffer))
-		{
-			docry[buffer2]["sms"]= true;
-		}
-		else{
-			docry[buffer2]["sms"]= false;
-		}
-		if (request->hasParam(buffer3))
-		{
-			docry[buffer2]["call"]= true;
-		}
-		else{
-			docry[buffer2]["call"]= false;
-		}
-	}
-	File fileToWritey = SPIFFS.open("/personx.json", FILE_WRITE);
-	
-	serializeJson(docry,  fileToWritey);
-	serializeJsonPretty(docry, Serial);
-	fileToReady.close();
-	request->send(200, "text/text", "OK");
-	 
-}	
-	
-	
-	
-if (request->hasParam("txt0")) {
-	File fileToReadz = SPIFFS.open("/config.json");
-	DynamicJsonDocument docrz(2048);
-	deserializeJson(docrz,  fileToReadz);
-	fileToReadz.close();
-	
-	/* "entry_delay_time"*/
-	
-	if (request->hasParam("txt0")) {
-		inputMessage = request->getParam("txt0")->value();
-		docrz["sysconf"]["entry_delay_time"]= inputMessage;
-		
-	}
-	/*"et_en"*/
-	if (request->hasParam("cb0")) {
-		docrz["sysconf"]["et_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["et_en"]= false;
-	}
-	/*"et_beep"*/
-	if (request->hasParam("cb1")) {
-		docrz["sysconf"]["et_beep"]= true;
-	}
-	else{
-		docrz["sysconf"]["et_beep"]= false;
-	}
-	/*"exit_delay_time"*/
-	if (request->hasParam("txt1")) {
-		inputMessage = request->getParam("txt1")->value();
-		docrz["sysconf"]["exit_delay_time"]= inputMessage;
-		
-	}
-	/*"xt_en"*/
-	if (request->hasParam("cb2")) {
-		docrz["sysconf"]["xt_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["xt_en"]= false;
-	}
-	/*"xt_beep"*/
-	if (request->hasParam("cb3")) {
-		docrz["sysconf"]["xt_beep"]= true;
-	}
-	else{
-		docrz["sysconf"]["xt_beep"]= false;
-	}
-	
-	/*"beep duration"*/
-	if (request->hasParam("txt2")) {
-		inputMessage = request->getParam("txt2")->value();
-		docrz["sysconf"]["beep_time_out"]= inputMessage;
-		
-	} 
-	/*"siren duration"*/
-	if (request->hasParam("txt8")) {
-		inputMessage = request->getParam("txt8")->value();
-		docrz["sysconf"]["bell_time_out"]= inputMessage;
-		
-	}     
+// =====================================================
+// ZONES submit handler
+// marker param: "z0"
+// expects checkbox keys: z<idx>cbb, z<idx>cen, z<idx>cxt, z<idx>crf, z<idx>c24, z<idx>cch
+// =====================================================
+static bool handleZonesSubmit(AsyncWebServerRequest *request)
+{
+  if (!request->hasParam("z0")) return false;
 
-	/*"beep_en"*/
-	if (request->hasParam("cb8")) {
-		docrz["sysconf"]["siren_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["siren_en"]= false;
-	}
+  // (Optional) ensure current is loaded. If you always keep array in RAM, you can remove.
+  (void)ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, TOTAL_DEVICES);
 
-	/*"siren_en"*/
-	if (request->hasParam("cb4")) {
-		docrz["sysconf"]["beep_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["beep_en"]= false;
-	}	
-	 // calling attempts
-	 if (request->hasParam("list0")) {
-            inputMessage = request->getParam("list0")->value();
-            Serial.printf("Selected call attempt value:%s",inputMessage.c_str());
-			docrz["sysconf"]["call_attempts"] = inputMessage;
-     }
-	 /*"alrm call Enable"*/
-	if (request->hasParam("cb5")) {
-		docrz["sysconf"]["call_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["call_en"]= false;
-	}
-	
-	/*"wifissid_sta"*/
-	if (request->hasParam("txt3")) {
-		inputMessage = request->getParam("txt3")->value();
-		docrz["sysconf"]["wifissid_sta"]= inputMessage;
-		
-	}
-	/*"WiFi STA Enable"*/
-	if (request->hasParam("cb6")) {
-		docrz["sysconf"]["wifi_sta_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["wifi_sta_en"]= false;
-	}
-	/*"wifipass"*/
-	if (request->hasParam("psw0")) {
-		inputMessage = request->getParam("psw0")->value();
-		docrz["sysconf"]["wifipass"]= inputMessage;
-		
-	}
-	//MQTT_server
-	if (request->hasParam("txt5")) {
-		inputMessage = request->getParam("txt5")->value();
-		docrz["sysconf"]["mqtt_server"]= inputMessage;
-		
-	}
-	/*"MQTT Enable"*/
-	if (request->hasParam("cb7")) {
-		docrz["sysconf"]["mqtt_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["mqtt_en"]= false;
-	}
-	//MQTT_port
-	if (request->hasParam("txt6")) {
-		inputMessage = request->getParam("txt6")->value();
-		docrz["sysconf"]["mqtt_port"]= inputMessage;
-		
-	}
-	//MQTT_user
-	if (request->hasParam("txt7")) {
-		inputMessage = request->getParam("txt7")->value();
-		docrz["sysconf"]["mqtt_user"]= inputMessage;
-		
-	}
-	//MQTT_pass
-	if (request->hasParam("psw2")) {
-		inputMessage = request->getParam("psw2")->value();
-		docrz["sysconf"]["mqtt_pass"]= inputMessage;
-		
-	}
-	
-	/*"wifi_sta_en"*/
-	if (request->hasParam("cb6")) {	
-		docrz["sysconf"]["wifi_sta_en"]= true;
-	}
-	else{
-		docrz["sysconf"]["wifi_sta_en"]= false;
-	}
-	/*"installer_no"*/
-	if (request->hasParam("txt4")) {
-		inputMessage = request->getParam("txt4")->value();
-		docrz["sysconf"]["installer_no"]= inputMessage;
-		
-	}
-	
-	/*"installer_pass"*/
-	if (request->hasParam("psw1")) {
-		inputMessage = request->getParam("psw1")->value();
-		docrz["sysconf"]["installer_pass"]= inputMessage;
-		
-	}
-	
-	File fileToWritez = SPIFFS.open("/config.json", FILE_WRITE);	
-	serializeJson(docrz,  fileToWritez);
-	fileToReadz.close();
-}	
-// reload config
-     eeprom_load(2);
-	 request->send(200, "text/text", "OK");
- }
+  char key[16];
+
+  for (int idx = 0; idx < TOTAL_DEVICES; idx++) {
+    makeKey(key, sizeof(key), idx, KEY_BYPASS);
+    setBit(any_sensor_array[idx].device_state, BIT_MASK_BYPASSED, request->hasParam(key));
+
+    makeKey(key, sizeof(key), idx, KEY_ENTRY);
+    setBit(any_sensor_array[idx].device_state, BIT_MASK_ENTRY_DELAY, request->hasParam(key));
+
+    makeKey(key, sizeof(key), idx, KEY_EXIT);
+    setBit(any_sensor_array[idx].device_state, BIT_MASK_EXIT_DELAY, request->hasParam(key));
+
+    makeKey(key, sizeof(key), idx, KEY_RF);
+    setBit(any_sensor_array[idx].device_type, BIT_MASK_RF, request->hasParam(key));
+
+    makeKey(key, sizeof(key), idx, KEY_24H);
+    setBit(any_sensor_array[idx].device_type, BIT_MASK_24H, request->hasParam(key));
+
+    makeKey(key, sizeof(key), idx, KEY_SILENT);
+    setBit(any_sensor_array[idx].device_type, BIT_MASK_SILENT, request->hasParam(key));
+
+    // Optional timestamp update (enable if you want)
+    // any_sensor_array[idx].last_updated_time_stamp = millis();
+  }
+
+  if (!ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+    request->send(500, "text/plain", "FAIL: save zones.bin");
+    return true;
+  }
+
+  request->send(200, "text/plain", "OK");
+  return true;
+}
+
+// =====================================================
+// PHONE submit handler
+// marker param: "tp1"
+// updates /personx.json
+// =====================================================
+static bool handlePhonesSubmit(AsyncWebServerRequest *request)
+{
+  if (!request->hasParam("tp1")) return false;
+
+  File fileToRead = SPIFFS.open("/personx.json", FILE_READ);
+  if (!fileToRead) {
+    request->send(500, "text/plain", "FAIL: open /personx.json");
+    return true;
+  }
+
+  DynamicJsonDocument doc(JSON_DOC_SIZE_USER_DATA);
+  DeserializationError err = deserializeJson(doc, fileToRead);
+  fileToRead.close();
+
+  if (err) {
+    request->send(500, "text/plain", "FAIL: parse /personx.json");
+    return true;
+  }
+
+  for (int index = 1; index <= TOTAL_PHONE_NUMBER_COUNT; index++) {
+    char tpKey[10];   // "tp1"
+    char pKey[10];    // "P1"
+    char smsKey[10];  // "SMS1"
+    char callKey[10]; // "CALL1"
+
+    snprintf(tpKey, sizeof(tpKey), "tp%d", index);
+    snprintf(pKey,  sizeof(pKey),  "P%d",  index);
+    snprintf(smsKey,sizeof(smsKey),"SMS%d",index);
+    snprintf(callKey,sizeof(callKey),"CALL%d",index);
+
+    if (request->hasParam(tpKey)) {
+      String v = request->getParam(tpKey)->value();
+      doc[pKey]["number"] = v;
+    }
+
+    doc[pKey]["sms"]  = request->hasParam(smsKey);
+    doc[pKey]["call"] = request->hasParam(callKey);
+  }
+
+  File fileToWrite = SPIFFS.open("/personx.json", FILE_WRITE);
+  if (!fileToWrite) {
+    request->send(500, "text/plain", "FAIL: write /personx.json");
+    return true;
+  }
+
+  if (serializeJson(doc, fileToWrite) == 0) {
+    fileToWrite.close();
+    request->send(500, "text/plain", "FAIL: serialize /personx.json");
+    return true;
+  }
+  fileToWrite.close();
+
+#ifdef _DEBUG
+  serializeJsonPretty(doc, Serial);
+#endif
+
+  request->send(200, "text/plain", "OK");
+  return true;
+}
+
+// =====================================================
+// CONFIG submit handler
+// marker param: "txt0"
+// updates /config.json then reloads config (eeprom_load(2))
+// =====================================================
+static bool handleConfigSubmit(AsyncWebServerRequest *request)
+{
+  if (!request->hasParam("txt0")) return false;
+
+  File fileToRead = SPIFFS.open("/config.json", FILE_READ);
+  if (!fileToRead) {
+    request->send(500, "text/plain", "FAIL: open /config.json");
+    return true;
+  }
+
+  DynamicJsonDocument doc(2048);
+  DeserializationError err = deserializeJson(doc, fileToRead);
+  fileToRead.close();
+
+  if (err) {
+    request->send(500, "text/plain", "FAIL: parse /config.json");
+    return true;
+  }
+
+  auto sys = doc["sysconf"];
+
+  // ---------- entry delay time ----------
+  if (request->hasParam("txt0")) sys["entry_delay_time"] = request->getParam("txt0")->value();
+  sys["et_en"]   = request->hasParam("cb0");
+  sys["et_beep"] = request->hasParam("cb1");
+
+  // ---------- exit delay time ----------
+  if (request->hasParam("txt1")) sys["exit_delay_time"] = request->getParam("txt1")->value();
+  sys["xt_en"]   = request->hasParam("cb2");
+  sys["xt_beep"] = request->hasParam("cb3");
+
+  // ---------- durations ----------
+  if (request->hasParam("txt2")) sys["beep_time_out"] = request->getParam("txt2")->value();
+  if (request->hasParam("txt8")) sys["bell_time_out"] = request->getParam("txt8")->value();
+
+  // NOTE: your original code swapped these names. I keep your original mapping:
+  // cb8 -> siren_en, cb4 -> beep_en
+  sys["siren_en"] = request->hasParam("cb8");
+  sys["beep_en"]  = request->hasParam("cb4");
+
+  // ---------- call attempts ----------
+  if (request->hasParam("list0")) sys["call_attempts"] = request->getParam("list0")->value();
+
+  // ---------- call enable ----------
+  sys["call_en"] = request->hasParam("cb5");
+
+  // ---------- wifi creds ----------
+  if (request->hasParam("txt3")) sys["wifissid_sta"] = request->getParam("txt3")->value();
+  sys["wifi_sta_en"] = request->hasParam("cb6");
+  if (request->hasParam("psw0")) sys["wifipass"] = request->getParam("psw0")->value();
+
+  // ---------- mqtt ----------
+  if (request->hasParam("txt5")) sys["mqtt_server"] = request->getParam("txt5")->value();
+  sys["mqtt_en"] = request->hasParam("cb7");
+  if (request->hasParam("txt6")) sys["mqtt_port"] = request->getParam("txt6")->value();
+  if (request->hasParam("txt7")) sys["mqtt_user"] = request->getParam("txt7")->value();
+  if (request->hasParam("psw2")) sys["mqtt_pass"] = request->getParam("psw2")->value();
+
+  // ---------- installer ----------
+  if (request->hasParam("txt4")) sys["installer_no"] = request->getParam("txt4")->value();
+  if (request->hasParam("psw1")) sys["installer_pass"] = request->getParam("psw1")->value();
+
+  // Save config.json
+  File fileToWrite = SPIFFS.open("/config.json", FILE_WRITE);
+  if (!fileToWrite) {
+    request->send(500, "text/plain", "FAIL: write /config.json");
+    return true;
+  }
+
+  if (serializeJson(doc, fileToWrite) == 0) {
+    fileToWrite.close();
+    request->send(500, "text/plain", "FAIL: serialize /config.json");
+    return true;
+  }
+  fileToWrite.close();
+
+#ifdef _DEBUG
+  serializeJsonPretty(doc, Serial);
+#endif
+
+  // reload config (your original had eeprom_load(2) after saving)
+  eeprom_load(2);
+
+  request->send(200, "text/plain", "OK");
+  return true;
+}
+
+// =====================================================
+// MAIN dispatcher: exactly one response per request
+// =====================================================
+void onGetRequest(AsyncWebServerRequest *request)
+{
+  if (handleZonesSubmit(request))  return;
+  if (handlePhonesSubmit(request)) return;
+  if (handleConfigSubmit(request)) return;
+
+  request->send(400, "text/plain", "Unknown request");
+}
 
  
  void onRootRequest_info(AsyncWebServerRequest *request) {
@@ -535,14 +503,24 @@ if (request->hasParam("txt0")) {
 }
 
 void onRootRequest(AsyncWebServerRequest *request) {
-	 if(!request->authenticate(http_username, systemConfig.installer_pass))
-	 return request->requestAuthentication();	 
-	 String path = request->url();
-	 if(path == "/") {
-		 path = "/index.html";
-	 }
-	 request->send(SPIFFS, path, "text/html", false, processor);
+  if(!request->authenticate(http_username, systemConfig.installer_pass))
+    return request->requestAuthentication();
+
+  String path = request->url();
+  if (path == "/") path = "/index.html";   // your portal renamed as index.html
+
+  request->send(SPIFFS, path, "text/html"); // ✅ NO processor here
 }
+
+// void onRootRequest(AsyncWebServerRequest *request) {
+// 	 if(!request->authenticate(http_username, systemConfig.installer_pass))
+// 	 return request->requestAuthentication();	 
+// 	 String path = request->url();
+// 	 if(path == "/") {
+// 		 path = "/index.html";
+// 	 }
+// 	 request->send(SPIFFS, path, "text/html", false, processor);
+// }
 
 
 void initWebServer() {
@@ -556,6 +534,9 @@ void initWebServer() {
 	.serveStatic("/", SPIFFS, "/www/")
 	.setDefaultFile("default.html")
 	.setAuthentication("user", "pass");*/
+	server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
+  	request->send(204);
+});
 }
 
 void initWebServer_info() {

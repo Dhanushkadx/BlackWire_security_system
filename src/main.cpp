@@ -332,7 +332,7 @@ void Task6code(void * parameter){
 			json["scan_rfid"] = data.char_buffer_rx+5;
 			String data_str;
 			size_t len = serializeJson(json, data_str);
-			notifyClients_rfidRx(data_str.c_str(),len);
+			//notifyClients_rfidRx(data_str.c_str(),len);//**************************************************** */
 			break;
 		}
 	}
@@ -368,6 +368,7 @@ switch (system_mode) {
         mqtt_com_loop();
 		if (Timer_mqtt_breath.Timer_run()) {
             publish_network_info();
+			publish_health_info(12.5, 5);
             send_all_zone_states_mqtt();
             Timer_mqtt_breath.previousMillis = millis();
         }
@@ -587,7 +588,7 @@ void loop()
 	if(system_mode==NOMAL_MODE_WIFI){ 
 		if(Timer_websocket_update.Timer_run()){
 			Timer_websocket_update.previousMillis = millis(); 
-			notifyClients_pageInfo();
+			//notifyClients_pageInfo();//**************************************** */
 			//printStackUsage(mainTaskHandle);	
 			//printStackUsage(Task9);
 			Serial.printf_P(PSTR("Free Heap:%d \n"),ESP.getFreeHeap());
@@ -1063,6 +1064,7 @@ void send_all_zone_states_mqtt(){
 				if(myAlarm_pannel.is_sensor_available(i)){
 					bool state = getSensor(i);
                 	send_sensor_state_update_to_mqtt(i, state);
+					setZone(i,state);
 				}
 
 				if(myAlarm_pannel.is_sensor_RF(i)){
@@ -1070,8 +1072,10 @@ void send_all_zone_states_mqtt(){
                 	send_sensor_state_update_to_mqtt(i, state);
 				}
                 
-                
             }
+				char zone_name[15] = "";
+                zonesToHex(zone_name);
+                publish_system_state(zone_name, "zones", true);
            
 }
 

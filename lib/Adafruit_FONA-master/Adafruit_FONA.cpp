@@ -3398,3 +3398,24 @@ int8_t Adafruit_FONA::GetSMSx(uint8_t position, char *phone_number,byte max_phon
     
      return (ret_val);
 }
+
+
+bool Adafruit_FONA::getNetworkOperator(char *buffer, uint8_t size){
+    char *p_char;
+    char *p_char1;
+    if (!sendCheckReply(F("AT+COPS?"), ok_reply, 1000))
+      return false;
+    // response is +COPS: 0,0,"OperatorName",7
+    p_char = strchr(replybuffer, '"');
+    if (p_char == NULL) {
+      return false;
+    }
+    p_char1 = p_char + 1;
+    p_char = strchr(p_char1, '"');
+    if (p_char == NULL) {
+      return false;
+    }
+    *p_char = 0; // null terminate the operator name
+    strncpy(buffer, p_char1, strlen(p_char1));
+    buffer[strlen(p_char1)] = 0; // ensure null termination
+  }

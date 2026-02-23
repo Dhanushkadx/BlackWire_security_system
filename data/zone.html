@@ -1,462 +1,518 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>GSM Alarm System</title>
-<style type="text/css">
+  <title>GSM Alarm System - Zones</title>
+
+  <style>
+    :root{
+      --accent: tomato;
+      --border: #ddd;
+      --bg: #fafafa;
+      --card: #fff;
+      --btn: #FF8500;
+      --btnHover: #EA7B00;
+      --text: #222;
+      --muted: #666;
+    }
+
+    body { margin:0; font-family: Arial, Helvetica, sans-serif; color: var(--text); background: var(--bg); }
 
     .navsec {
-  font-family: Helvetica Neue, Helvetica, sans-serif;
-  background: tomato;
-  border: 1px solid black;
-  margin-top: 10px;
-  margin-bottom: 10px;
-  margin-right: 10px;
-  margin-left: 10px;
- padding: 20px 12px 10px 10px;
-}
-.fieldSET{
-    display: inline;
-    text-align: left;
-    padding: 10px 12px 10px 10px;
-    
-}
+      background: var(--accent);
+      border-bottom: 1px solid #000;
+      padding: 14px 10px;
+    }
 
-.submit{
-    text-align: center;
-       
-         padding: 10px 120px 10px 10px;
-    
-    
-}
+    .skew-menu { text-align:center; margin: 0; }
+    .skew-menu ul {
+      display:inline-block; margin:0; padding:0; list-style:none;
+      transform: skew(-25deg);
+    }
+    .skew-menu ul li {
+      background:#fff; float:left; border-right:1px solid #eee;
+      box-shadow:0 1px 1px rgba(0,0,0,.12);
+      text-transform:uppercase; color:#555; font-weight:700;
+      transition:.2s;
+    }
+    .skew-menu ul li:first-child { border-radius:7px 0 0 7px; }
+    .skew-menu ul li:last-child { border-right:none; border-radius:0 7px 7px 0; }
+    .skew-menu ul li:hover { background:#eee; color:var(--accent); }
+    .skew-menu ul li a {
+      display:block; padding: 0.9em 1.6em;
+      color:inherit; text-decoration:none;
+      transform: skew(25deg);
+    }
 
-.selSpan ui  {
-  display: inline;
- 
-}
-.skew-menu {
-  text-align: center;
-  margin-top: 9em;
-  margin-bottom: 20px;
-   margin-top: 60px;
-}
-.skew-menu ul {
-  display: inline-block;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  transform: skew(-25deg);
-}
-.skew-menu ul li {
-  background: #fff;
-  float: left;
-  border-right: 1px solid #eee;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
-  text-transform: uppercase;
-  color: #555;
-  font-weight: bolder;
-  transition: all 0.3s linear;
-}
-.skew-menu ul li:first-child {
-  border-radius: 7px 0 0 7px;
-}
-.skew-menu ul li:last-child {
-  border-right: none;
-  border-radius: 0 7px 7px 0;
-}
-.skew-menu ul li:hover {
-  background: #eee;
-  color: tomato;
-}
-.skew-menu ul li a {
-  display: block;
-  padding: 1em 2em;
-  color: inherit;
-  text-decoration: none;
-  transform: skew(25deg);
-}
-.input-field {
-   display:inline-block;
-}
-.form-style-2{
-	max-width: 750px;
-	padding: 20px 12px 10px 100px;
-	font: 13px Arial, Helvetica, sans-serif;
-}
-.form-style-2-heading{
-    text-align: left;
-	font-weight: bold;
-	font-style: italic;
-	border-bottom: 2px solid #ddd;
-	margin-bottom: 20px;
-	font-size: 15px;
-	padding-bottom: 3px;
-	padding-top: 10px;
-}
-.form-style-2 label{
-	display: inline;
-	margin: 0px 0px 15px 0px;
-}
-.form-style-2 label > span{
-	width: 100px;
-	font-weight: bold;
-	float: left;
-	padding-top: 8px;
-	padding-right: 5px;
-}
-.form-style-2 span.required{
-	color:red;
-}
-.form-style-2 .tel-number-field{
-	width: 40px;
-	text-align: center;
-}
-.form-style-2 input.input-field, .form-style-2 .select-field{
-	width: 48%;	
-}
-.form-style-2 input.input-field, 
-.form-style-2 .tel-number-field, 
-.form-style-2 .textarea-field, 
- .form-style-2 .select-field{
-	box-sizing: border-box;
-	-webkit-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	border: 1px solid #C2C2C2;
-	box-shadow: 1px 1px 4px #EBEBEB;
-	-moz-box-shadow: 1px 1px 4px #EBEBEB;
-	-webkit-box-shadow: 1px 1px 4px #EBEBEB;
-	border-radius: 3px;
-	-webkit-border-radius: 3px;
-	-moz-border-radius: 3px;
-	padding: 7px;
-	outline: none;
-}
-.form-style-2 .input-field:focus, 
-.form-style-2 .tel-number-field:focus, 
-.form-style-2 .textarea-field:focus,  
-.form-style-2 .select-field:focus{
-	border: 1px solid #0C0;
-}
-.form-style-2 .textarea-field{
-	height:100px;
-	width: 55%;
-}
-.form-style-2 input[type=submit],
-.form-style-2 input[type=button]{
-	border: none;
-	padding: 8px 15px 8px 15px;
-	background: #FF8500;
-	color: #fff;
-	box-shadow: 1px 1px 4px #DADADA;
-	-moz-box-shadow: 1px 1px 4px #DADADA;
-	-webkit-box-shadow: 1px 1px 4px #DADADA;
-	border-radius: 3px;
-	-webkit-border-radius: 3px;
-	-moz-border-radius: 3px;
-}
-.form-style-2 input[type=submit]:hover,
-.form-style-2 input[type=button]:hover{
-	background: #EA7B00;
-	color: #fff;
-}
-</style>
-<script type="text/javascript">
-var gateway = `ws://${window.location.hostname}/ws`;
-var websocket;
-window.addEventListener('load', onLoad);
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 14px 10px 30px; }
 
-function onLoad(event) {
-    initWebSocket();
-    initButtons();
-}
-function initWebSocket() {
-    console.log('Trying to open a WebSocket connection...');
-    websocket = new WebSocket(gateway);
-    websocket.onopen    = onOpen;
-    websocket.onclose   = onClose;
-    websocket.onmessage = onMessage;
-}
+    h2 { margin: 12px 0 4px; }
+    .hint { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
 
-function onOpen(event) {
-    console.log('Connection opened so get default values');
-  websocket.send(JSON.stringify({
-  action: "pint"}));
- 
-}
+    .toolbar{
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:center; justify-content:space-between;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin: 10px 0 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    }
 
-function onClose(event) {
-    console.log('Connection closed');
-    setTimeout(initWebSocket, 2000);
-}
+    .toolbar .left{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .toolbar input[type="text"]{
+      padding: 8px 10px; border:1px solid var(--border); border-radius: 8px;
+      width: 260px; outline:none;
+    }
+    .toolbar select{
+      padding: 8px 10px; border:1px solid var(--border); border-radius: 8px;
+      outline:none;
+    }
+    .toolbar button{
+      padding: 8px 12px; border:1px solid var(--border);
+      background:#fff; border-radius: 8px; cursor:pointer;
+    }
+    .toolbar button:hover{ background:#f1f1f1; }
 
-function onMessage(event) {
+    form { margin:0; }
 
-  const objectToRead = JSON.parse(event.data);
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;   /* one column only */
+      gap: 12px;
+    }
 
-if (objectToRead.respHeader === "pint") {
-    console.log(objectToRead.respHeader);
-document.getElementById('z0').value = objectToRead.z00.n;
-document.getElementById('z0cbb').checked = objectToRead.z00.by;
-document.getElementById('z0cbxt').checked = objectToRead.z00.xd;
-document.getElementById('z0cben').checked = objectToRead.z00.ed;
-document.getElementById('z0cbrf').checked = objectToRead.z00.rf;
-document.getElementById('z0cb24').checked = objectToRead.z00.x24;
-document.getElementById('z0cbch').checked = objectToRead.z00.sl;
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: 1fr; }
+      .toolbar input[type="text"]{ width: 100%; }
+    }
 
+    .group{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.06);
+      overflow:hidden;
+    }
+    .groupHeader{
+      padding: 10px 12px;
+      background:#fff7f4;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .groupHeader strong{ font-size: 14px; }
+    .groupHeader small{ color:var(--muted); }
 
+    .rows{ padding: 10px 12px 12px; }
 
+    .row{
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin: 10px 0;
+      background:#fff;
+    }
+    .rowTop{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
 
+    .rowTop label.title{
+      min-width: 70px;
+      font-weight: 700;
+    }
 
-document.getElementById('z1').value = objectToRead.z01.n;
-document.getElementById('z1cbb').checked = objectToRead.z01.by;
-document.getElementById('z1cben').checked = objectToRead.z01.ed;
-document.getElementById('z1cbxt').checked = objectToRead.z01.xd;
-document.getElementById('z1cbrf').checked = objectToRead.z01.rf;
-document.getElementById('z1cb24').checked = objectToRead.z01.x24;
-document.getElementById('z1cbch').checked = objectToRead.z01.sl;
+    .rowTop input.zoneName{
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline:none;
+      width: 240px;
+      max-width: 100%;
+    }
 
+    .flags{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px 14px;
+      align-items:center;
+      margin-top: 8px;
+      color:#333;
+    }
+    .flags label{
+      font-size: 13px;
+      user-select:none;
+      display:flex;
+      gap:6px;
+      align-items:center;
+      white-space: nowrap;
+    }
 
+    .submitBar{
+      position: sticky;
+      bottom: 0;
+      background: rgba(250,250,250,.92);
+      backdrop-filter: blur(6px);
+      border-top: 1px solid var(--border);
+      padding: 12px 10px;
+      margin-top: 14px;
+    }
 
-document.getElementById('z2').value = objectToRead.z02.n;
-document.getElementById('z2cbb').checked = objectToRead.z02.by;
-document.getElementById('z2cben').checked = objectToRead.z02.ed;
-document.getElementById('z2cbxt').checked = objectToRead.z02.xd;
-document.getElementById('z2cbrf').checked = objectToRead.z02.rf;
-document.getElementById('z2cb24').checked = objectToRead.z02.x24;
-document.getElementById('z2cbch').checked = objectToRead.z02.sl;
+    .submitWrap{
+      max-width: 1100px;
+      margin: 0 auto;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap: 10px;
+      flex-wrap:wrap;
+    }
 
+    .btnPrimary{
+      border:none;
+      padding: 10px 18px;
+      background: var(--btn);
+      color:#fff;
+      border-radius: 8px;
+      cursor:pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,.08);
+    }
+    .btnPrimary:hover{ background: var(--btnHover); }
 
+    .status{
+      color: var(--muted);
+      font-size: 13px;
+    }
 
-document.getElementById('z3').value = objectToRead.z03.n;
-document.getElementById('z3cbb').checked = objectToRead.z03.by;
-document.getElementById('z3cben').checked = objectToRead.z03.ed;
-document.getElementById('z3cbxt').checked = objectToRead.z03.xd;
-document.getElementById('z3cbrf').checked = objectToRead.z03.rf;
-document.getElementById('z3cb24').checked = objectToRead.z03.x24;
-document.getElementById('z3cbch').checked = objectToRead.z03.sl;
+    .section{
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.06);
+    }
 
+    .rfRow{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
 
+    .rfRow input[type="text"], .rfRow select{
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline:none;
+    }
+    .rfRow button{
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      background:#fff;
+      border-radius: 8px;
+      cursor:pointer;
+    }
+    .rfRow button:hover{ background:#f1f1f1; }
+  </style>
 
-document.getElementById('z4').value = objectToRead.z04.n;
-document.getElementById('z4cbb').checked = objectToRead.z04.by;
-document.getElementById('z4cben').checked = objectToRead.z04.ed;
-document.getElementById('z4cbxt').checked = objectToRead.z04.xd;
-document.getElementById('z4cbrf').checked = objectToRead.z04.rf;
-document.getElementById('z4cb24').checked = objectToRead.z04.x24;
-document.getElementById('z4cbch').checked = objectToRead.z04.sl;
+  <script>
+    // -------- CONFIG --------
+    const ZONE_COUNT = 48;      // show 48 zones
+    const GROUP_SIZE = 8;       // groups of 8 like alarm panels
+    const gateway = `ws://${window.location.hostname}/ws`;
 
+    let websocket;
 
+    window.addEventListener('load', () => {
+      buildZoneUI();
+      buildRFDropdown();
+      initWebSocket();
+      initToolbar();
+      initRFButtons();
+      setStatus("Ready. Connecting...");
+    });
 
-document.getElementById('z5').value = objectToRead.z05.n;
-document.getElementById('z5cbb').checked = objectToRead.z05.by;
-document.getElementById('z5cben').checked = objectToRead.z05.ed;
-document.getElementById('z5cbxt').checked = objectToRead.z05.xd;
-document.getElementById('z5cbrf').checked = objectToRead.z05.rf;
-document.getElementById('z5cb24').checked = objectToRead.z05.x24;
-document.getElementById('z5cbch').checked = objectToRead.z05.sl;
+    // -------- UI BUILDERS --------
+    function buildZoneUI() {
+      const grid = document.getElementById('zoneGrid');
+      grid.innerHTML = "";
 
+      const groupCount = Math.ceil(ZONE_COUNT / GROUP_SIZE);
+      for (let g = 0; g < groupCount; g++) {
+        const start = g * GROUP_SIZE;
+        const end = Math.min(start + GROUP_SIZE, ZONE_COUNT);
 
+        const group = document.createElement('div');
+        group.className = 'group';
+        group.innerHTML = `
+          <div class="groupHeader">
+            <strong>Zones ${start} - ${end - 1}</strong>
+            <small>${end - start} zones</small>
+          </div>
+          <div class="rows" id="groupRows${g}"></div>
+        `;
+        grid.appendChild(group);
 
-document.getElementById('z6').value = objectToRead.z06.n;
-document.getElementById('z6cbb').checked = objectToRead.z06.by;
-document.getElementById('z6cben').checked = objectToRead.z06.ed;
-document.getElementById('z6cbxt').checked = objectToRead.z06.xd;
-document.getElementById('z6cbrf').checked = objectToRead.z06.rf;
-document.getElementById('z6cb24').checked = objectToRead.z06.x24;
-document.getElementById('z6cbch').checked = objectToRead.z06.sl;
+        const rows = group.querySelector(`#groupRows${g}`);
+        for (let i = start; i < end; i++) {
+          rows.appendChild(makeZoneRow(i));
+        }
+      }
+    }
 
+    function makeZoneRow(i) {
+      const row = document.createElement('div');
+      row.className = "row";
+      row.dataset.zone = String(i);
 
+      row.innerHTML = `
+        <div class="rowTop">
+          <label class="title" for="z${i}">Zone ${i}:</label>
+          <input class="zoneName" type="text" id="z${i}" name="z${i}" placeholder="Name (optional)" />
+        </div>
 
-document.getElementById('z7').value = objectToRead.z07.n;
-document.getElementById('z7cbb').checked = objectToRead.z07.by;
-document.getElementById('z7cben').checked = objectToRead.z07.ed;
-document.getElementById('z7cbxt').checked = objectToRead.z07.xd;
-document.getElementById('z7cbrf').checked = objectToRead.z07.rf;
-document.getElementById('z7cb24').checked = objectToRead.z07.x24;
-document.getElementById('z7cbch').checked = objectToRead.z07.sl;
+        <div class="flags">
+          <label><input type="checkbox" id="z${i}cbb"  name="z${i}cbb"> Bypass</label>
+          <label><input type="checkbox" id="z${i}cben" name="z${i}cben"> Entry Delay</label>
+          <label><input type="checkbox" id="z${i}cbxt" name="z${i}cbxt"> Exit Delay</label>
+          <label><input type="checkbox" id="z${i}cbrf" name="z${i}cbrf"> RF</label>
+          <label><input type="checkbox" id="z${i}cb24" name="z${i}cb24"> 24H</label>
+          <label><input type="checkbox" id="z${i}cbch" name="z${i}cbch"> Chime</label>
+        </div>
+      `;
+      return row;
+    }
 
+    function buildRFDropdown() {
+      const sel = document.getElementById('rflist');
+      sel.innerHTML = "";
+      for (let i = 0; i < ZONE_COUNT; i++) {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = `Zone ${i}`;
+        sel.appendChild(opt);
+      }
+    }
 
+    // -------- TOOLBAR --------
+    function initToolbar() {
+      const search = document.getElementById('searchBox');
+      const groupSel = document.getElementById('groupSelect');
+
+      // groups list
+      groupSel.innerHTML = "";
+      const groupCount = Math.ceil(ZONE_COUNT / GROUP_SIZE);
+      const optAll = document.createElement('option');
+      optAll.value = "all";
+      optAll.textContent = "All zones";
+      groupSel.appendChild(optAll);
+
+      for (let g = 0; g < groupCount; g++) {
+        const start = g * GROUP_SIZE;
+        const end = Math.min(start + GROUP_SIZE, ZONE_COUNT);
+        const opt = document.createElement('option');
+        opt.value = String(g);
+        opt.textContent = `Zones ${start}-${end - 1}`;
+        groupSel.appendChild(opt);
+      }
+
+      search.addEventListener('input', applyFilters);
+      groupSel.addEventListener('change', applyFilters);
+
+      document.getElementById('btnAllBypass').addEventListener('click', () => bulkSetCheckbox("cbb", true));
+      document.getElementById('btnAllUnbypass').addEventListener('click', () => bulkSetCheckbox("cbb", false));
+      document.getElementById('btnAllRFOn').addEventListener('click', () => bulkSetCheckbox("cbrf", true));
+      document.getElementById('btnAllRFOff').addEventListener('click', () => bulkSetCheckbox("cbrf", false));
+    }
+
+    function applyFilters() {
+      const q = (document.getElementById('searchBox').value || "").toLowerCase();
+      const groupVal = document.getElementById('groupSelect').value;
+
+      const rows = document.querySelectorAll('.row');
+      rows.forEach(row => {
+        const idx = Number(row.dataset.zone);
+        const name = (document.getElementById(`z${idx}`).value || "").toLowerCase();
+
+        let passGroup = true;
+        if (groupVal !== "all") {
+          const g = Number(groupVal);
+          const start = g * GROUP_SIZE;
+          const end = Math.min(start + GROUP_SIZE, ZONE_COUNT);
+          passGroup = idx >= start && idx < end;
+        }
+
+        const passText = (q.length === 0) || String(idx).includes(q) || name.includes(q);
+
+        row.style.display = (passGroup && passText) ? "" : "none";
+      });
+    }
+
+    function bulkSetCheckbox(suffix, value) {
+      // Apply to visible rows only (nice UX)
+      const rows = document.querySelectorAll('.row');
+      rows.forEach(row => {
+        if (row.style.display === "none") return;
+        const idx = Number(row.dataset.zone);
+        const el = document.getElementById(`z${idx}${suffix}`);
+        if (el) el.checked = value;
+      });
+    }
+
+    // -------- WEBSOCKET --------
+    function initWebSocket() {
+      console.log('Trying to open a WebSocket connection...');
+      websocket = new WebSocket(gateway);
+
+      websocket.onopen = () => {
+        setStatus("Connected. Loading zone values...");
+        websocket.send(JSON.stringify({ action: "pint" }));
+      };
+
+      websocket.onclose = () => {
+        setStatus("Disconnected. Reconnecting...");
+        setTimeout(initWebSocket, 2000);
+      };
+
+      websocket.onmessage = onMessage;
+    }
+
+  function onMessage(event) {
+
+  let msg;
+
+  try {
+    msg = JSON.parse(event.data);
+  } catch (e) {
+    console.log("Non JSON message:", event.data);
+    return;
   }
-if (objectToRead.respHeader === "data") {
-    console.log(objectToRead.data);
- document.getElementById('rfid').value = objectToRead.scan_rfid ;
-}
+
+  // IMPORTANT safety check
+  if (!msg || typeof msg !== "object") return;
+
+  if (msg.respHeader === "pint" && Array.isArray(msg.zones)) {
+
+      setStatus("Loaded values");
+
+      const n = Math.min(msg.zones.length, ZONE_COUNT);
+
+      for (let i = 0; i < n; i++) {
+          const z = msg.zones[i] || {};
+
+          if (typeof z.n === "string")
+              document.getElementById(`z${i}`).value = z.n;
+
+          document.getElementById(`z${i}cbb`).checked = !!z.by;
+          document.getElementById(`z${i}cben`).checked = !!z.ed;
+          document.getElementById(`z${i}cbxt`).checked = !!z.xd;
+          document.getElementById(`z${i}cbrf`).checked = !!z.rf;
+          document.getElementById(`z${i}cb24`).checked = !!z.x24;
+          document.getElementById(`z${i}cbch`).checked = !!z.sl;
+      }
+  }
 
 }
 
-function initButtons() {
-    document.getElementById('bt2').addEventListener('click', callBack_bt2);
-    document.getElementById('bt0').addEventListener('click', callBack_bt0);
-    document.getElementById('bt1').addEventListener('click', callBack_bt1);
-}
+    // -------- RF BUTTONS --------
+    function initRFButtons() {
+      document.getElementById('bt0').addEventListener('click', () => {
+        if (!websocket || websocket.readyState !== 1) return;
+        websocket.send(JSON.stringify({
+          action: "cmd",
+          command: "bt0",
+          data0: document.getElementById('rflist').value
+        }));
+      });
 
+      document.getElementById('bt1').addEventListener('click', () => {
+        if (!websocket || websocket.readyState !== 1) return;
+        websocket.send(JSON.stringify({ action: "cmd", command: "bt1" }));
+      });
 
+      document.getElementById('bt2').addEventListener('click', () => {
+        if (!websocket || websocket.readyState !== 1) return;
+        websocket.send(JSON.stringify({
+          action: "cmd",
+          command: "bt2",
+          data0: document.getElementById('rfid').value,
+          data1: document.getElementById('rflist').value
+        }));
+      });
+    }
 
-function callBack_bt0(event) {  
-websocket.send(JSON.stringify({
-  action: "cmd",
-  command: "bt0",
-  data0: document.getElementById('rflist').value
-}));
-}
-function callBack_bt1(event) {  
-websocket.send(JSON.stringify({
-  action: "cmd",
-  command: "bt1"
-}));
-}
-
-function callBack_bt2(event) {  
-websocket.send(JSON.stringify({
-  action: "cmd",
-  command: "bt2",
-  data0: document.getElementById('rfid').value,
-  data1: document.getElementById('rflist').value
-}));
-}
-
-</script>
+    // -------- STATUS --------
+    function setStatus(t) {
+      document.getElementById('statusText').textContent = t;
+    }
+  </script>
 </head>
+
 <body>
-    <div class="navsec">
-    <!-- partial:index.partial.html -->
+  <div class="navsec">
     <nav class="skew-menu">
       <ul>
-       <li><a href="index.html">System</a></li>
+        <li><a href="index.html">System</a></li>
         <li><a href="zone.html">Zones</a></li>
         <li><a href="contact.html">contacts</a></li>
         <li><a href="log.html">log</a></li>
       </ul>
     </nav>
-    <!-- partial -->
-    </div>
-<div class="form-style-2">
-<h2>ZONE SETTINGS</h2>
-<div class="form-style-2-heading">Provide your information</div>
+  </div>
 
-<form action="/get" target="hidden-form">
-<div class="fieldSET">
- <div>
-  <label for="z0">Zone 0:</label>
-  <input type="text" id="z0" name="z0"/>
-  <input type = "checkbox" id = "z0cbb" name = "z0cbb"> Bypass
-  <input type = "checkbox" id = "z0cben"name = "z0cben"> Entry Delay
-  <input type = "checkbox" id = "z0cbxt" name = "z0cbxt"> Exit Delay
-  <input type = "checkbox" id = "z0cbrf" name = "z0cbrf"> RF
-  <input type = "checkbox" id = "z0cb24" name = "z0cb24"> 24H
-  <input type = "checkbox" id = "z0cbch" name = "z0cbch"> Chime
- </div>
- <br>
-<div>
-  <label for="z1">Zone 1:</label>
-  <input type="text" id="z1" name="z1" />
-  <input type = "checkbox" id = "z1cbb" name = "z1cbb"> Bypass
-  <input type = "checkbox" id = "z1cben" name = "z1cben"> Entry Delay
-  <input type = "checkbox" id = "z1cbxt" name = "z1cbxt"> Exit Delay
-  <input type = "checkbox" id = "z1cbrf" name = "z1cbrf"> RF
-  <input type = "checkbox" id = "z1cb24" name = "z1cb24"> 24H
-  <input type = "checkbox" id = "z1cbch" name = "z1cbch"> Chime
- </div>
- <br><div>
-  <label for="z2">Zone 2:</label>
-  <input type="text" id="z2" name="z2"/>
-  <input type = "checkbox" id = "z2cbb" name = "z2cbb"> Bypass
-  <input type = "checkbox" id = "z2cben" name = "z2cben"> Entry Delay
-  <input type = "checkbox" id = "z2cbxt" name = "z2cbxt"> Exit Delay
-  <input type = "checkbox" id = "z2cbrf" name = "z2cbrf"> RF
-  <input type = "checkbox" id = "z2cb24" name = "z2cb24"> 24H
-  <input type = "checkbox" id = "z2cbch" name = "z2cbch"> Chime
- </div>
- <br>
-<div>
-  <label for="z3">Zone 3:</label>
-  <input type="text" id="z3" name="z3"/>
-  <input type = "checkbox" id = "z3cbb"  name = "z3cbb"> Bypass
-  <input type = "checkbox" id = "z3cben" name = "z3cben"> Entry Delay
-  <input type = "checkbox" id = "z3cbxt" name = "z3cbxt"> Exit Delay
-  <input type = "checkbox" id = "z3cbrf" name = "z3cbrf"> RF
-  <input type = "checkbox" id = "z3cb24" name = "z3cb24"> 24H
-  <input type = "checkbox" id = "z3cbch" name = "z3cbch"> Chime
- </div>
- <br> 
-<div>
-  <label for="z4">Zone 4:</label>
-  <input type="text" id="z4" name="z4" />
-  <input type = "checkbox" id = "z4cbb"  name = "z4cbb"> Bypass
-  <input type = "checkbox" id = "z4cben" name = "z4cben"> Entry Delay
-  <input type = "checkbox" id = "z4cbxt" name = "z4cbxt"> Exit Delay
-  <input type = "checkbox" id = "z4cbrf" name = "z4cbrf"> RF
-  <input type = "checkbox" id = "z4cb24" name = "z4cb24"> 24H
-  <input type = "checkbox" id = "z4cbch" name = "z4cbch"> Chime
- </div>
- <br>
- <div>
-  <label for="z5">Zone 5:</label>
-  <input type="text" id="z5" name="z5"/>
-  <input type = "checkbox" id = "z5cbb"  name = "z5cbb"> Bypass
-  <input type = "checkbox" id = "z5cben" name = "z5cben"> Entry Delay
-  <input type = "checkbox" id = "z5cbxt" name = "z5cbxt"> Exit Delay
-  <input type = "checkbox" id = "z5cbrf" name = "z5cbrf"> RF
-  <input type = "checkbox" id = "z5cb24" name = "z5cb24"> 24H
-  <input type = "checkbox" id = "z5cbch" name = "z5cbch"> Chime
- </div>
- <br>
- <div>
-  <label for="z5">Zone 6:</label>
-  <input type="text" id="z6" name="z6" />
-  <input type = "checkbox" id = "z6cbb"  name = "z6cbb"> Bypass
-  <input type = "checkbox" id = "z6cben" name = "z6cben"> Entry Delay
-  <input type = "checkbox" id = "z6cbxt" name = "z6cbxt"> Exit Delay
-  <input type = "checkbox" id = "z6cbrf" name = "z6cbrf"> RF
-  <input type = "checkbox" id = "z6cb24" name = "z6cb24"> 24H
-  <input type = "checkbox" id = "z6cbch" name = "z6cbch"> Chime
- </div>
- <br>
- <div>
-  <label for="z7">Zone 7:</label>
-  <input type="text" id="z7" name="z7" >
-  <input type = "checkbox" id = "z7cbb"  name = "z7cbb"> Bypass
-  <input type = "checkbox" id = "z7cben" name = "z7cben"> Entry Delay
-  <input type = "checkbox" id = "z7cbxt" name = "z7cbxt"> Exit Delay
-  <input type = "checkbox" id = "z7cbrf" name = "z7cbrf"> RF
-  <input type = "checkbox" id = "z7cb24" name = "z7cb24"> 24H
-  <input type = "checkbox" id = "z7cbch" name = "z7cbch"> Chime
- </div>
- <br>
- </div>
- <div class = "submit">
-      <label><span> </span><input type="submit" value="Submit" /></label>
- </div>
-</form>
-<iframe style="display:none" name="hidden-form"></iframe>
-<div class="form-style-2-heading">RF zone scanning</div>
- 
- <div class = "fieldSET">
-     <span id = select_div>
-            <label for="rflist">Select zone:</label>
-            <select name="zone" id="rflist">
-            <option value="0">zone 0</option>
-            <option value="1">zone 1</option>
-            <option value="2">zone 2</option>
-            <option value="3">zone 3</option>
-            <option value="4">zone 4</option>
-            <option value="5">zone 5</option>
-            <option value="6">zone 6</option>
-            <option value="7">zone 7</option>
-          </select>
-     </span>
- <span id = "rfbox">
-            <label for="rfid">RF ID:</label>
-            <input type="text" id="rfid" name="rfid"/>
-            <button id="bt0" type="button">Read</button>
-             <button id="bt1" type="button">Scan</button>
-            <button id="bt2" type="button">Set</button>
-     </span>
- 
- </div>
-  
+  <div class="wrap">
+    <h2>ZONE SETTINGS</h2>
+    <div class="hint">
+      48 zones are shown (grouped by 8). Use search or group filter. Submit saves using GET (/get).
+      <br><b>Backend requirement:</b> WebSocket "pint" should return <code>{"respHeader":"pint","zones":[...]}</code>.
+    </div>
+
+    <div class="toolbar">
+      <div class="left">
+        <input id="searchBox" type="text" placeholder="Search by zone number or name..." />
+        <select id="groupSelect"></select>
+        <button type="button" id="btnAllBypass">Bypass (visible)</button>
+        <button type="button" id="btnAllUnbypass">Unbypass (visible)</button>
+        <button type="button" id="btnAllRFOn">RF ON (visible)</button>
+        <button type="button" id="btnAllRFOff">RF OFF (visible)</button>
+      </div>
+      <div class="status">Status: <span id="statusText">...</span></div>
+    </div>
+
+    <form action="/get" target="hidden-form">
+      <div class="grid" id="zoneGrid"></div>
+
+      <!-- hidden iframe to avoid page refresh -->
+      <iframe style="display:none" name="hidden-form"></iframe>
+
+      <div class="submitBar">
+        <div class="submitWrap">
+          <div class="status">Submit will send all fields to ESP32.</div>
+          <input class="btnPrimary" type="submit" value="Submit" />
+        </div>
+      </div>
+    </form>
+
+    <div class="section">
+      <h3 style="margin:0 0 10px;">RF zone scanning</h3>
+      <div class="rfRow">
+        <label for="rflist"><b>Select zone:</b></label>
+        <select id="rflist"></select>
+
+        <label for="rfid"><b>RF ID:</b></label>
+        <input type="text" id="rfid" />
+
+        <button id="bt0" type="button">Read</button>
+        <button id="bt1" type="button">Scan</button>
+        <button id="bt2" type="button">Set</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
-
-
-

@@ -1035,11 +1035,19 @@ void setup_call_backs(){
 	
 	myAlarm_pannel.set_fn_intializ_sensors(initiliz_sensor_data);
 #ifdef MQTT_OK
-	set_onMQTT_connection(onMqtt_connection);
+	callback_onMQTT_connection(onMqtt_connection);
+	callback_onMQTT_disconnection(onMqtt_disconnection);
+	
 #endif
 }
 
 void onMqtt_connection(){
+
+#ifdef GSM_PULSEX_IOT_BOARD || GSM_MINI_BOARD_V3
+	uint32_t colour = Adafruit_NeoPixel::Color(200, 0, 255);
+  	pixel.startBlink(colour, 100, 1000, 255);
+#endif
+	publish_system_startup_msg();
 	for(uint8_t index = 0; index<4; index++){
 		send_sensor_state_update_to_mqtt(index,digitalRead(GPIO_array[index].GPIOpin));
 	}
@@ -1052,6 +1060,10 @@ void onMqtt_connection(){
 		publish_system_state("DISARMED","info/mode",true);
 	}
 
+}
+
+void onMqtt_disconnection(){
+	Serial.println(F("mqtt disconnected"));
 }
 
 void call_back_chime_sound(){

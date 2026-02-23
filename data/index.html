@@ -1,410 +1,1606 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <title>GSM Alarm System</title>
-    <style type="text/css">
-        .navsec {
-            font-family: Helvetica Neue, Helvetica, sans-serif;
-            background: tomato;
-            border: 1px solid black;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            margin-right: 10px;
-            margin-left: 10px;
-            padding: 20px 12px 10px 10px;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Black Wire Security - Portal</title>
+
+  <style>
+    :root{
+      --bg:#0f1115;
+      --card:#151923;
+      --card2:#101521;
+      --text:#e9eef7;
+      --muted:#a9b4c7;
+      --border:#24304a;
+      --accent:#ff6b3d;
+      --accent2:#ff8a00;
+      --good:#1fda8a;
+      --bad:#ff4d4d;
+      --warn:#ffbf3d;
+      --shadow: 0 10px 22px rgba(0,0,0,.35);
+      --radius: 14px;
+      --radius2: 10px;
+      --pad: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      background: radial-gradient(1200px 600px at 20% 10%, rgba(255,107,61,.12), transparent 60%),
+                  radial-gradient(900px 500px at 80% 30%, rgba(255,138,0,.10), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+    }
+
+    /* Top bar */
+    .topbar{
+      position: sticky;
+      top:0;
+      z-index: 10;
+      background: rgba(15,17,21,.78);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(36,48,74,.6);
+    }
+    .topbar-inner{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 10px 12px;
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .logo{
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 8px 18px rgba(255,107,61,.18);
+    }
+    .brand h1{
+      margin:0;
+      font-size: 15px;
+      letter-spacing: .3px;
+      font-weight: 800;
+    }
+    .brand small{
+      display:block;
+      color: var(--muted);
+      margin-top: 2px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 7px 10px;
+      border: 1px solid rgba(36,48,74,.85);
+      border-radius: 999px;
+      background: rgba(21,25,35,.65);
+      box-shadow: 0 6px 16px rgba(0,0,0,.18);
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .dot{
+      width: 10px;
+      height: 10px;
+      border-radius: 99px;
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(255,191,61,.12);
+    }
+    .dot.ok{
+      background: var(--good);
+      box-shadow: 0 0 0 4px rgba(31,218,138,.12);
+    }
+    .dot.bad{
+      background: var(--bad);
+      box-shadow: 0 0 0 4px rgba(255,77,77,.12);
+    }
+
+    /* Tabs */
+    .tabs{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+    .tab{
+      border:1px solid rgba(36,48,74,.9);
+      background: rgba(21,25,35,.55);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 999px;
+      cursor:pointer;
+      font-weight: 700;
+      font-size: 13px;
+      transition: .15s;
+    }
+    .tab:hover{ transform: translateY(-1px); }
+    .tab.active{
+      border-color: rgba(255,107,61,.7);
+      background: rgba(255,107,61,.12);
+      box-shadow: 0 10px 20px rgba(255,107,61,.10);
+    }
+
+    /* Layout */
+    .wrap{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 12px 26px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(21,25,35,.85), rgba(21,25,35,.70));
+      border: 1px solid rgba(36,48,74,.9);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(36,48,74,.75);
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: rgba(16,21,33,.45);
+    }
+    .card-header h2{
+      margin:0;
+      font-size: 14px;
+      letter-spacing: .2px;
+    }
+    .card-header .hint{
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .card-body{ padding: 14px; }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items: end;
+      margin-bottom: 10px;
+    }
+    .field{
+      min-width: 220px;
+      flex: 1;
+    }
+    .field label{
+      display:block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    input[type="text"], input[type="password"], select, textarea{
+      width:100%;
+      padding: 10px 10px;
+      border-radius: var(--radius2);
+      border: 1px solid rgba(36,48,74,.9);
+      background: rgba(10,12,18,.55);
+      color: var(--text);
+      outline: none;
+    }
+    textarea{ min-height: 110px; resize: vertical; font-family: var(--mono); }
+
+    .checks{
+      display:flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items:center;
+      padding-top: 18px;
+    }
+    .check{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      user-select:none;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .btnbar{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content: flex-end;
+      padding-top: 6px;
+    }
+    .btn{
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(36,48,74,.9);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      font-weight: 800;
+      cursor:pointer;
+      transition: .14s;
+    }
+    .btn:hover{ transform: translateY(-1px); }
+    .btn.primary{
+      border-color: rgba(255,107,61,.6);
+      background: linear-gradient(135deg, rgba(255,107,61,.18), rgba(255,138,0,.12));
+      box-shadow: 0 12px 24px rgba(255,107,61,.10);
+    }
+    .btn.danger{
+      border-color: rgba(255,77,77,.6);
+      background: rgba(255,77,77,.08);
+    }
+    .btn.small{ padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+
+    /* Pages */
+    .page{ display:none; }
+    .page.active{ display:block; }
+
+    /* Zones */
+    .zones-toolbar{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .zones-toolbar .left{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+    .pill{
+      padding: 8px 10px;
+      border: 1px solid rgba(36,48,74,.9);
+      border-radius: 999px;
+      background: rgba(21,25,35,.55);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .zones-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 12px;
+    }
+    @media (max-width: 980px){
+      .zones-grid{ grid-template-columns: 1fr; }
+    }
+    .zone-group{
+      background: rgba(16,21,33,.45);
+      border: 1px solid rgba(36,48,74,.85);
+      border-radius: var(--radius);
+      overflow:hidden;
+    }
+    .zone-group-header{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(36,48,74,.75);
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      color: var(--muted);
+      font-weight: 850;
+      font-size: 12px;
+      letter-spacing: .2px;
+    }
+    .zone-rows{ padding: 10px 12px 12px; }
+    .zone-row{
+      border: 1px solid rgba(36,48,74,.8);
+      border-radius: 12px;
+      background: rgba(10,12,18,.35);
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .zone-top{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .zone-title{
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--text);
+      display:flex;
+      gap: 8px;
+      align-items:center;
+    }
+    .zone-title code{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(36,48,74,.9);
+      color: var(--muted);
+      background: rgba(21,25,35,.55);
+    }
+    .zone-name{
+      width: 260px;
+      max-width: 100%;
+    }
+    .zone-flags{
+      display:flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items:center;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+    .zone-flags .check{ color: var(--text); }
+
+    /* Contacts */
+    .contacts-grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .contact-row{
+      border: 1px solid rgba(36,48,74,.8);
+      border-radius: 12px;
+      background: rgba(10,12,18,.35);
+      padding: 10px;
+    }
+    .contact-top{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:end;
+      justify-content: space-between;
+    }
+    .contact-title{
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--text);
+      display:flex;
+      gap: 8px;
+      align-items:center;
+    }
+    .contact-title code{
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(36,48,74,.9);
+      color: var(--muted);
+      background: rgba(21,25,35,.55);
+    }
+    .contact-fields{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:end;
+      width: 100%;
+    }
+    .contact-fields .field{ min-width: 240px; flex: 1; }
+    .contact-flags{
+      display:flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items:center;
+      padding-top: 4px;
+    }
+
+    /* Info table */
+    /* Zone status badge */
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(36,48,74,.85);
+      font-weight: 900;
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+    .badge .mini-dot{
+      width:10px; height:10px; border-radius: 999px;
+      background: var(--muted);
+      box-shadow: 0 0 0 4px rgba(169,180,199,.12);
+    }
+    .badge.open  .mini-dot{ background: var(--bad);  box-shadow: 0 0 0 4px rgba(255,77,77,.12); }
+    .badge.close .mini-dot{ background: var(--good); box-shadow: 0 0 0 4px rgba(31,218,138,.12); }
+    .badge.fault .mini-dot{ background: var(--warn); box-shadow: 0 0 0 4px rgba(255,191,61,.12); }
+
+    .badge.open  { color: var(--bad); }
+    .badge.close { color: var(--good); }
+    .badge.fault { color: var(--warn); }
+    .badge.na    { color: var(--muted); }
+
+    .zoneStatusTable td:first-child{
+      width: 110px;
+      font-family: var(--mono);
+      color: var(--muted);
+      font-weight: 900;
+    }
+    table{
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(36,48,74,.85);
+      background: rgba(10,12,18,.25);
+    }
+    th,td{
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(36,48,74,.55);
+      text-align: left;
+      font-size: 13px;
+    }
+    th{
+      color: var(--muted);
+      font-weight: 900;
+      background: rgba(16,21,33,.55);
+    }
+    td{
+      font-family: var(--mono);
+      color: var(--text);
+    }
+    tr:last-child td{ border-bottom: none; }
+
+    /* Toast */
+    .toast-wrap{
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      z-index: 50;
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 380px;
+      width: calc(100% - 28px);
+      pointer-events: none;
+    }
+    .toast{
+      pointer-events: auto;
+      border-radius: 14px;
+      border: 1px solid rgba(36,48,74,.9);
+      background: rgba(21,25,35,.92);
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      display:flex;
+      gap: 10px;
+      align-items:flex-start;
+      animation: pop .18s ease-out;
+    }
+    @keyframes pop{
+      from{ transform: translateY(6px); opacity:.0; }
+      to{ transform: translateY(0); opacity:1; }
+    }
+    .toast .ticon{
+      width: 12px; height: 12px; border-radius: 999px; margin-top: 4px;
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(255,191,61,.12);
+      flex: 0 0 auto;
+    }
+    .toast.ok .ticon{ background: var(--good); box-shadow: 0 0 0 4px rgba(31,218,138,.12); }
+    .toast.bad .ticon{ background: var(--bad); box-shadow: 0 0 0 4px rgba(255,77,77,.12); }
+    .toast .ttext{ flex: 1 1 auto; }
+    .toast .ttext b{ display:block; font-size: 13px; margin-bottom: 2px; }
+    .toast .ttext small{ color: var(--muted); font-size: 12px; }
+    .toast .tclose{
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor:pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+  </style>
+
+  <script>
+    /**********************************************************************
+     *  PORTAL PROTOCOL (WebSocket)
+     *
+     *  Browser -> ESP32
+     *    { action:"init" }                         // request all data
+     *    { action:"get", page:"sys|zones|contacts|info|log" }
+     *    { action:"set", page:"sys", sysconf:{...} }
+     *    { action:"set", page:"zones", zones:[{n,by,ed,xd,rf,x24,sl,pm?}, ...] }
+     *    { action:"set", page:"contacts", users:[{number,sms,call,name?,active?,remID?}, ...] }
+     *    { action:"cmd", command:"bt0|bt1|bt2", data0:"...", data1:"..." } // existing RF actions
+     *
+     *  ESP32 -> Browser
+     *    { respHeader:"sys", sysconf:{...} }
+     *    { respHeader:"zones", zones:[...] }
+     *    { respHeader:"contacts", users:[...] }
+     *    { respHeader:"info", P1:"...", P2:"...", ... }
+     *    { respHeader:"log", lines:[...], text:"..." }
+     *    { respHeader:"ok", page:"sys|zones|contacts", message:"OK" }
+     *    { respHeader:"err", page:"...", message:"reason" }
+     *    { respHeader:"data", scan_rfid:"...." } // your existing RF scan responses
+     **********************************************************************/
+
+    // -------- Portal constants --------
+    const ZONE_COUNT = 48;
+    const ZONE_GROUP_SIZE = 8;
+
+    // WebSocket
+    const WS_URL = `ws://${window.location.hostname}/ws`;
+    let ws = null;
+    let wsRetryMs = 500;
+
+    // Page state
+    let currentPage = "sys";
+
+    // Cache (so tab switching is instant)
+    const cache = {
+      sys: null,       // sysconf object
+      zones: null,     // zones array
+      contacts: null,  // users array
+      info: null,      // info object (P1..)
+      log: null        // log
+    };
+
+    window.addEventListener("load", () => {
+      buildZonesUI();
+      buildContactsUI();
+
+      // tab buttons
+      document.getElementById("tab-sys").addEventListener("click", () => showPage("sys"));
+      document.getElementById("tab-zones").addEventListener("click", () => showPage("zones"));
+      document.getElementById("tab-contacts").addEventListener("click", () => showPage("contacts"));
+      document.getElementById("tab-info").addEventListener("click", () => showPage("info"));
+      document.getElementById("tab-log").addEventListener("click", () => showPage("log"));
+
+      // save buttons
+      document.getElementById("btnSaveSys").addEventListener("click", onSaveSys);
+      document.getElementById("btnReloadSys").addEventListener("click", () => wsSend({action:"get", page:"sys"}));
+
+      document.getElementById("btnSaveZones").addEventListener("click", onSaveZones);
+      document.getElementById("btnReloadZones").addEventListener("click", () => wsSend({action:"get", page:"zones"}));
+
+      document.getElementById("btnSaveContacts").addEventListener("click", onSaveContacts);
+      document.getElementById("btnReloadContacts").addEventListener("click", () => wsSend({action:"get", page:"contacts"}));
+
+      document.getElementById("btnReloadInfo").addEventListener("click", () => wsSend({action:"get", page:"info"}));
+      document.getElementById("btnReloadLog").addEventListener("click", () => wsSend({action:"get", page:"log"}));
+
+      // zones tools
+      document.getElementById("zonesSearch").addEventListener("input", applyZonesFilter);
+      document.getElementById("zonesGroupSel").addEventListener("change", applyZonesFilter);
+      document.getElementById("btnBypassVisible").addEventListener("click", () => bulkZoneFlag("by", true));
+      document.getElementById("btnUnbypassVisible").addEventListener("click", () => bulkZoneFlag("by", false));
+      document.getElementById("btnRfOnVisible").addEventListener("click", () => bulkZoneFlag("rf", true));
+      document.getElementById("btnRfOffVisible").addEventListener("click", () => bulkZoneFlag("rf", false));
+
+      // RF scanning (zones)
+      buildZoneSelect48("zoneRfSelect");
+      document.getElementById("btnRfRead").addEventListener("click", () => rfCmd("bt0", document.getElementById("zoneRfSelect").value, null));
+      document.getElementById("btnRfScan").addEventListener("click", () => rfCmd("bt1", null, null));
+      document.getElementById("btnRfSet").addEventListener("click", () => rfCmd("bt2", document.getElementById("rfidInput").value, document.getElementById("zoneRfSelect").value));
+
+      // Start WS
+      initWebSocket();
+
+      // Default page
+      showPage("sys");
+    });
+
+    function initWebSocket(){
+      setWsStatus("Connecting...", "warn");
+      try{
+        ws = new WebSocket(WS_URL);
+      }catch(e){
+        setWsStatus("WS create failed", "bad");
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        wsRetryMs = 500;
+        setWsStatus("Connected", "ok");
+        toast("Connected", "WebSocket is up. Loading data…", "ok");
+
+        // Ask for everything once
+        wsSend({action:"init"});
+      };
+
+      ws.onclose = () => {
+        setWsStatus("Disconnected", "bad");
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        // some browsers call onclose after onerror; keep it simple
+        setWsStatus("WS error", "bad");
+      };
+
+      ws.onmessage = (ev) => {
+        let msg = null;
+        try { msg = JSON.parse(ev.data); }
+        catch(e){
+          // ignore non-json
+          return;
+        }
+        if (!msg || typeof msg !== "object") return;
+        onWsMessage(msg);
+      };
+    }
+
+    function scheduleReconnect(){
+      toast("Disconnected", `Retrying in ${wsRetryMs}ms`, "bad");
+      setTimeout(initWebSocket, wsRetryMs);
+      wsRetryMs = Math.min(wsRetryMs * 2, 4000);
+    }
+
+    function wsSend(obj){
+      if (!ws || ws.readyState !== 1){
+        toast("Not connected", "WebSocket not ready yet.", "bad");
+        return false;
+      }
+      ws.send(JSON.stringify(obj));
+      return true;
+    }
+
+    function onWsMessage(msg){
+      // OK / ERR acknowledgements for saves
+      if (msg.respHeader === "ok"){
+        const p = msg.page || "unknown";
+        toast("Saved", `${p}: ${msg.message || "OK"}`, "ok");
+        return;
+      }
+      if (msg.respHeader === "err"){
+        const p = msg.page || "unknown";
+        toast("Save failed", `${p}: ${msg.message || "ERROR"}`, "bad");
+        return;
+      }
+
+      // Existing RF scan response
+      if (msg.respHeader === "data"){
+        if (typeof msg.scan_rfid === "string"){
+          document.getElementById("rfidInput").value = msg.scan_rfid;
+        }
+        return;
+      }
+
+      // Data payloads
+      if (msg.respHeader === "sys" && msg.sysconf){
+        cache.sys = msg.sysconf;
+        renderSys(cache.sys);
+        return;
+      }
+
+        if ((msg.respHeader === "zones" || msg.respHeader === "pint") && Array.isArray(msg.zones)){
+        cache.zones = msg.zones;
+        renderZones(cache.zones);
+
+        // ✅ if currently on Info tab, update the zone status table too
+        if (currentPage === "info") {
+          renderZoneStatusTableFromZones(cache.zones);
+        }
+        return;
+      }
+
+      if (msg.respHeader === "contacts" && Array.isArray(msg.users)){
+        cache.contacts = msg.users;
+        renderContacts(cache.contacts);
+        return;
+      }
+
+      if (msg.respHeader === "info"){
+        cache.info = msg;
+        renderInfo(cache.info);
+        return;
+      }
+
+      if (msg.respHeader === "log"){
+        cache.log = msg;
+        renderLog(cache.log);
+        return;
+      }
+    }
+
+    // ---------------- UI routing ----------------
+    // ---------------- UI routing ----------------
+      function showPage(page){
+        currentPage = page;
+
+        // tabs
+        for (const id of ["sys","zones","contacts","info","log"]){
+          document.getElementById(`tab-${id}`).classList.toggle("active", id === page);
         }
 
-        .fieldSET {
-            display: inline;
-            text-align: left;
-            padding: 10px 12px 10px 10px;
+        // pages
+        document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+        document.getElementById(`page-${page}`).classList.add("active");
 
+        // ✅ ALWAYS draw Zone Status table when entering Info page
+        if (page === "info") {
+          renderZoneStatusTableFromZones(cache.zones); // if null -> shows UNAVAILABLE
         }
 
-        .submit {
-            text-align: center;
-
-            padding: 10px 120px 10px 10px;
-
-
+        // If cache not present, request
+        if (!cache[page]){
+          wsSend({action:"get", page});
         }
 
-        .selSpan ui {
-            display: inline;
+        if (page === "info" && !cache.zones) {
+          wsSend({ action:"get", page:"zones" });
+        }
+      }
 
+    // ---------------- Toast ----------------
+    function toast(title, message, type){
+      const wrap = document.getElementById("toasts");
+      const t = document.createElement("div");
+      t.className = `toast ${type || ""}`.trim();
+
+      const icon = document.createElement("div");
+      icon.className = "ticon";
+
+      const text = document.createElement("div");
+      text.className = "ttext";
+      text.innerHTML = `<b>${escapeHtml(title)}</b><small>${escapeHtml(message || "")}</small>`;
+
+      const close = document.createElement("button");
+      close.className = "tclose";
+      close.innerHTML = "&times;";
+      close.onclick = () => t.remove();
+
+      t.appendChild(icon);
+      t.appendChild(text);
+      t.appendChild(close);
+
+      wrap.appendChild(t);
+      setTimeout(() => { try{ t.remove(); }catch(e){} }, 4500);
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // ---------------- WS status pill ----------------
+    function setWsStatus(text, kind){
+      document.getElementById("wsText").textContent = text;
+      const dot = document.getElementById("wsDot");
+      dot.classList.remove("ok","bad");
+      if (kind === "ok") dot.classList.add("ok");
+      else if (kind === "bad") dot.classList.add("bad");
+    }
+
+    // =====================================================================
+    // SYSTEM PAGE
+    // =====================================================================
+    function renderSys(sys){
+      // Map to your current config.json sysconf keys
+      // (These inputs mirror your old index.html)
+      setVal("sys_entry_delay_time", sys.entry_delay_time);
+      setChecked("sys_et_en", !!sys.et_en);
+      setChecked("sys_et_beep", !!sys.et_beep);
+
+      setVal("sys_exit_delay_time", sys.exit_delay_time);
+      setChecked("sys_xt_en", !!sys.xt_en);
+      setChecked("sys_xt_beep", !!sys.xt_beep);
+
+      setVal("sys_beep_time_out", sys.beep_time_out);
+      setChecked("sys_beep_en", !!sys.beep_en);
+
+      setVal("sys_bell_time_out", sys.bell_time_out);
+      setChecked("sys_siren_en", !!sys.siren_en);
+
+      setVal("sys_call_attempts", sys.call_attempts);
+      setChecked("sys_call_en", !!sys.call_en);
+
+      setVal("sys_wifissid_sta", sys.wifissid_sta);
+      setChecked("sys_wifi_sta_en", !!sys.wifi_sta_en);
+      setVal("sys_wifipass", sys.wifipass);
+
+      setVal("sys_mqtt_server", sys.mqtt_server);
+      setChecked("sys_mqtt_en", !!sys.mqtt_en);
+      setVal("sys_mqtt_port", sys.mqtt_port);
+      setVal("sys_mqtt_user", sys.mqtt_user);
+      setVal("sys_mqtt_pass", sys.mqtt_pass);
+
+      setVal("sys_installer_no", sys.installer_no);
+      setVal("sys_installer_pass", sys.installer_pass);
+
+      // helpful
+      setVal("sys_debounce_time", sys.debounce_time);
+      setVal("sys_cli_access_level", sys.cli_access_level);
+      setVal("sys_last_sms_sender", sys.last_sms_sender);
+      setVal("sys_last_system_state", sys.last_system_state);
+    }
+
+    function onSaveSys(){
+      const sysconf = {
+        entry_delay_time: getVal("sys_entry_delay_time"),
+        et_en: getChecked("sys_et_en"),
+        et_beep: getChecked("sys_et_beep"),
+
+        exit_delay_time: getVal("sys_exit_delay_time"),
+        xt_en: getChecked("sys_xt_en"),
+        xt_beep: getChecked("sys_xt_beep"),
+
+        beep_time_out: getVal("sys_beep_time_out"),
+        beep_en: getChecked("sys_beep_en"),
+
+        bell_time_out: getVal("sys_bell_time_out"),
+        siren_en: getChecked("sys_siren_en"),
+
+        call_attempts: getVal("sys_call_attempts"),
+        call_en: getChecked("sys_call_en"),
+
+        wifissid_sta: getVal("sys_wifissid_sta"),
+        wifi_sta_en: getChecked("sys_wifi_sta_en"),
+        wifipass: getVal("sys_wifipass"),
+
+        mqtt_server: getVal("sys_mqtt_server"),
+        mqtt_en: getChecked("sys_mqtt_en"),
+        mqtt_port: getVal("sys_mqtt_port"),
+        mqtt_user: getVal("sys_mqtt_user"),
+        mqtt_pass: getVal("sys_mqtt_pass"),
+
+        installer_no: getVal("sys_installer_no"),
+        installer_pass: getVal("sys_installer_pass"),
+
+        // optional/advanced
+        debounce_time: getVal("sys_debounce_time"),
+        cli_access_level: getVal("sys_cli_access_level"),
+
+        // keep these if your firmware expects them
+        last_sms_sender: getVal("sys_last_sms_sender"),
+        last_system_state: getVal("sys_last_system_state"),
+      };
+
+      const ok = wsSend({action:"set", page:"sys", sysconf});
+      if (ok) toast("Saving…", "System config sent. Waiting for OK…", "warn");
+    }
+
+    // =====================================================================
+    // ZONES PAGE
+    // =====================================================================
+    function buildZonesUI(){
+      // group select
+      const sel = document.getElementById("zonesGroupSel");
+      sel.innerHTML = "";
+      const optAll = document.createElement("option");
+      optAll.value = "all";
+      optAll.textContent = "All zones";
+      sel.appendChild(optAll);
+
+      const groupCount = Math.ceil(ZONE_COUNT / ZONE_GROUP_SIZE);
+      for (let g=0; g<groupCount; g++){
+        const s = g*ZONE_GROUP_SIZE;
+        const e = Math.min(s + ZONE_GROUP_SIZE, ZONE_COUNT);
+        const o = document.createElement("option");
+        o.value = String(g);
+        o.textContent = `Zones ${s}-${e-1}`;
+        sel.appendChild(o);
+      }
+
+      // build UI groups
+      const grid = document.getElementById("zonesGrid");
+      grid.innerHTML = "";
+
+      for (let g=0; g<groupCount; g++){
+        const start = g*ZONE_GROUP_SIZE;
+        const end = Math.min(start + ZONE_GROUP_SIZE, ZONE_COUNT);
+
+        const group = document.createElement("div");
+        group.className = "zone-group";
+        group.innerHTML = `
+          <div class="zone-group-header">
+            <span>Zones ${start} - ${end-1}</span>
+            <span>${end-start} zones</span>
+          </div>
+          <div class="zone-rows" id="zoneGroupRows_${g}"></div>
+        `;
+        grid.appendChild(group);
+
+        const rows = group.querySelector(`#zoneGroupRows_${g}`);
+        for (let i=start; i<end; i++){
+          rows.appendChild(makeZoneRow(i));
+        }
+      }
+    }
+
+    function makeZoneRow(i){
+      const row = document.createElement("div");
+      row.className = "zone-row";
+      row.dataset.zone = String(i);
+
+      row.innerHTML = `
+        <div class="zone-top">
+          <div class="zone-title">Zone <code>${i}</code></div>
+          <div class="field zone-name" style="min-width:260px; flex:1;">
+            <label for="z_name_${i}">Name</label>
+            <input type="text" id="z_name_${i}" placeholder="Front Door, Hall PIR, ..." />
+          </div>
+        </div>
+
+        <div class="zone-flags">
+          <label class="check"><input type="checkbox" id="z_by_${i}"> Bypass</label>
+          <label class="check"><input type="checkbox" id="z_ed_${i}"> Entry Delay</label>
+          <label class="check"><input type="checkbox" id="z_xd_${i}"> Exit Delay</label>
+          <label class="check"><input type="checkbox" id="z_rf_${i}"> RF</label>
+          <label class="check"><input type="checkbox" id="z_24_${i}"> 24H</label>
+          <label class="check"><input type="checkbox" id="z_sl_${i}"> Chime</label>
+        </div>
+      `;
+      return row;
+    }
+
+    function renderZones(zones){
+      // zones array expected length 48, each: {n,by,ed,xd,rf,x24,sl}
+      const n = Math.min(zones.length, ZONE_COUNT);
+      for (let i=0; i<n; i++){
+        const z = zones[i] || {};
+        setVal(`z_name_${i}`, typeof z.n === "string" ? z.n : `Z${String(i).padStart(2,'0')}`);
+        setChecked(`z_by_${i}`,  !!z.by);
+        setChecked(`z_ed_${i}`,  !!z.ed);
+        setChecked(`z_xd_${i}`,  !!z.xd);
+        setChecked(`z_rf_${i}`,  !!z.rf);
+        setChecked(`z_24_${i}`,  !!z.x24);
+        setChecked(`z_sl_${i}`,  !!z.sl);
+      }
+      applyZonesFilter();
+      document.getElementById("zonesCountPill").textContent = `${ZONE_COUNT} zones`;
+    }
+
+    function onSaveZones(){
+      const zones = [];
+      for (let i=0; i<ZONE_COUNT; i++){
+        zones.push({
+          n:  getVal(`z_name_${i}`) || `Z${String(i).padStart(2,'0')}`,
+          by: getChecked(`z_by_${i}`),
+          ed: getChecked(`z_ed_${i}`),
+          xd: getChecked(`z_xd_${i}`),
+          rf: getChecked(`z_rf_${i}`),
+          x24:getChecked(`z_24_${i}`),
+          sl: getChecked(`z_sl_${i}`)
+        });
+      }
+      const ok = wsSend({action:"set", page:"zones", zones});
+      if (ok) toast("Saving…", "Zones sent. Waiting for OK…", "warn");
+    }
+
+    function applyZonesFilter(){
+      const q = (document.getElementById("zonesSearch").value || "").toLowerCase();
+      const groupVal = document.getElementById("zonesGroupSel").value;
+
+      const rows = document.querySelectorAll(".zone-row");
+      rows.forEach(row => {
+        const idx = Number(row.dataset.zone);
+        const name = (getVal(`z_name_${idx}`) || "").toLowerCase();
+
+        let passGroup = true;
+        if (groupVal !== "all"){
+          const g = Number(groupVal);
+          const s = g*ZONE_GROUP_SIZE;
+          const e = Math.min(s + ZONE_GROUP_SIZE, ZONE_COUNT);
+          passGroup = idx >= s && idx < e;
         }
 
-        .skew-menu {
-            text-align: center;
-            margin-top: 9em;
-            margin-bottom: 20px;
-            margin-top: 60px;
+        const passText = (q.length === 0) || String(idx).includes(q) || name.includes(q);
+
+        row.style.display = (passGroup && passText) ? "" : "none";
+      });
+    }
+
+    function bulkZoneFlag(flag, value){
+      // Apply only to visible rows for nice UX
+      const rows = document.querySelectorAll(".zone-row");
+      rows.forEach(row => {
+        if (row.style.display === "none") return;
+        const idx = Number(row.dataset.zone);
+        const idMap = {
+          by: `z_by_${idx}`,
+          rf: `z_rf_${idx}`
+        };
+        const el = document.getElementById(idMap[flag]);
+        if (el) el.checked = value;
+      });
+    }
+
+    // =====================================================================
+    // CONTACTS PAGE
+    // =====================================================================
+    function buildContactsUI(){
+      const container = document.getElementById("contactsGrid");
+      container.innerHTML = "";
+
+      for (let i=1; i<=8; i++){
+        container.appendChild(makeContactRow(i));
+      }
+    }
+
+    function makeContactRow(i){
+      const row = document.createElement("div");
+      row.className = "contact-row";
+      row.dataset.idx = String(i);
+
+      row.innerHTML = `
+        <div class="contact-top">
+          <div class="contact-title">Telephone <code>${i}</code></div>
+          <div class="contact-fields">
+            <div class="field">
+              <label for="c_name_${i}">Name</label>
+              <input type="text" id="c_name_${i}" placeholder="Name (optional)" />
+            </div>
+            <div class="field">
+              <label for="c_num_${i}">Number</label>
+              <input type="text" id="c_num_${i}" placeholder="+94..." />
+            </div>
+            <div class="field" style="min-width:180px; max-width:240px;">
+              <label for="c_rem_${i}">Remote ID</label>
+              <input type="text" id="c_rem_${i}" placeholder="0000000" />
+            </div>
+          </div>
+        </div>
+
+        <div class="contact-flags">
+          <label class="check"><input type="checkbox" id="c_sms_${i}"> SMS</label>
+          <label class="check"><input type="checkbox" id="c_call_${i}"> CALL</label>
+          <label class="check"><input type="checkbox" id="c_active_${i}"> Active</label>
+        </div>
+      `;
+      return row;
+    }
+
+    function renderContacts(users){
+      // Expect users length 8 (P1..P8)
+      // Each can be: {name, number, sms, call, active, remID}
+      const n = Math.min(users.length, 8);
+      for (let i=1; i<=n; i++){
+        const u = users[i-1] || {};
+        setVal(`c_name_${i}`, u.name || "");
+        setVal(`c_num_${i}`, u.number || "");
+        setVal(`c_rem_${i}`, u.remID || "");
+
+        // accept bool or "0"/"1"
+        setChecked(`c_sms_${i}`,  boolish(u.sms));
+        setChecked(`c_call_${i}`, boolish(u.call));
+        setChecked(`c_active_${i}`, boolish(u.active));
+      }
+    }
+
+    function onSaveContacts(){
+      const users = [];
+      for (let i=1; i<=8; i++){
+        users.push({
+          name: getVal(`c_name_${i}`) || "",
+          number: getVal(`c_num_${i}`) || "",
+          remID: getVal(`c_rem_${i}`) || "",
+          sms: getChecked(`c_sms_${i}`),
+          call: getChecked(`c_call_${i}`),
+          active: getChecked(`c_active_${i}`)
+        });
+      }
+      const ok = wsSend({action:"set", page:"contacts", users});
+      if (ok) toast("Saving…", "Contacts sent. Waiting for OK…", "warn");
+    }
+
+    function boolish(v){
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v !== 0;
+      if (typeof v === "string") return v === "1" || v.toLowerCase() === "true";
+      return false;
+    }
+
+    // =====================================================================
+    // INFO PAGE
+    // =====================================================================
+    function zoneStatusToBadge(status){
+        // status: 0 close, 1 open, 2 fault, else unavailable
+        if (status === 0) return { cls:"close", text:"CLOSE" };
+        if (status === 1) return { cls:"open",  text:"OPEN"  };
+        if (status === 2) return { cls:"fault", text:"FAULT" };
+        return { cls:"na", text:"UNAVAILABLE" };
+      }
+
+      function renderZoneStatusTableFromZones(zones){
+        const body = document.getElementById("zoneStatusBody");
+        if (!body) return;
+
+        body.innerHTML = "";
+
+        const n = Math.min(Array.isArray(zones) ? zones.length : 0, ZONE_COUNT);
+
+        for (let i = 0; i < ZONE_COUNT; i++) {
+          const z = (Array.isArray(zones) && zones[i]) ? zones[i] : {};
+          const st = (typeof z.status === "number") ? z.status : null;
+          const b = zoneStatusToBadge(st);
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>Z${String(i).padStart(2,"0")}</td>
+            <td><span class="badge ${b.cls}"><span class="mini-dot"></span>${b.text}</span></td>
+          `;
+          body.appendChild(tr);
+        }
+      }
+
+      function renderInfo(obj){
+        // Existing P1..P10 table
+        const known = ["P1","P2","P3","P4","P5","P6","P7","P8","P9","P10"];
+        known.forEach(k => {
+          const el = document.getElementById(`info_${k}`);
+          if (el && obj[k] != null) el.textContent = String(obj[k]);
+        });
+
+        // Extra keys
+        const extra = Object.keys(obj).filter(k => !known.includes(k) && k !== "respHeader");
+        const extraBox = document.getElementById("infoExtra");
+        if (extra.length){
+          extraBox.value = extra.map(k => `${k}: ${obj[k]}`).join("\n");
+        } else {
+          extraBox.value = "";
         }
 
-        .skew-menu ul {
-            display: inline-block;
-            margin: 0;
-            padding: 0;
-            list-style: none;
-            transform: skew(-25deg);
-        }
+        // ✅ Zone status table:
+        // Prefer zones from cache (latest zones page data)
+        // If later you send zones inside info payload, it will still work.
+        const zonesSrc = Array.isArray(obj.zones) ? obj.zones : cache.zones;
+        renderZoneStatusTableFromZones(zonesSrc);
+      }
 
-        .skew-menu ul li {
-            background: #fff;
-            float: left;
-            border-right: 1px solid #eee;
-            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
-            text-transform: uppercase;
-            color: #555;
-            font-weight: bolder;
-            transition: all 0.3s linear;
-        }
+    // =====================================================================
+    // LOG PAGE
+    // =====================================================================
+    function renderLog(log){
+      // Accept {lines:[...]} or {text:"..."}
+      const box = document.getElementById("logBox");
+      if (Array.isArray(log.lines)) box.value = log.lines.join("\n");
+      else if (typeof log.text === "string") box.value = log.text;
+      else box.value = JSON.stringify(log, null, 2);
+    }
 
-        .skew-menu ul li:first-child {
-            border-radius: 7px 0 0 7px;
-        }
+    // =====================================================================
+    // RF commands (zones)
+    // =====================================================================
+    function buildZoneSelect48(selectId){
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = "";
+      for (let i=0; i<ZONE_COUNT; i++){
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `Zone ${i}`;
+        sel.appendChild(opt);
+      }
+    }
 
-        .skew-menu ul li:last-child {
-            border-right: none;
-            border-radius: 0 7px 7px 0;
-        }
+    function rfCmd(command, data0, data1){
+      const payload = {action:"cmd", command};
+      if (data0 != null) payload.data0 = data0;
+      if (data1 != null) payload.data1 = data1;
+      const ok = wsSend(payload);
+      if (ok) toast("RF command", `Sent ${command}`, "warn");
+    }
 
-        .skew-menu ul li:hover {
-            background: #eee;
-            color: tomato;
-        }
-
-        .skew-menu ul li a {
-            display: block;
-            padding: 1em 2em;
-            color: inherit;
-            text-decoration: none;
-            transform: skew(25deg);
-        }
-
-        .input-field {
-            display: inline-block;
-        }
-
-        .form-style-2 {
-            max-width: 750px;
-            padding: 20px 12px 10px 100px;
-            font: 13px Arial, Helvetica, sans-serif;
-        }
-
-        .form-style-2-heading {
-            text-align: left;
-            font-weight: bold;
-            font-style: italic;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 20px;
-            font-size: 15px;
-            padding-bottom: 3px;
-            padding-top: 10px;
-        }
-
-        .form-style-2 label {
-            display: inline;
-            margin: 0px 0px 15px 0px;
-        }
-
-        .form-style-2 label>span {
-            width: 100px;
-            font-weight: bold;
-            float: left;
-            padding-top: 8px;
-            padding-right: 5px;
-        }
-
-        .form-style-2 span.required {
-            color: red;
-        }
-
-        .form-style-2 .tel-number-field {
-            width: 40px;
-            text-align: center;
-        }
-
-        .form-style-2 input.input-field,
-        .form-style-2 .select-field {
-            width: 48%;
-        }
-
-        .form-style-2 input.input-field,
-        .form-style-2 .tel-number-field,
-        .form-style-2 .textarea-field,
-        .form-style-2 .select-field {
-            box-sizing: border-box;
-            -webkit-box-sizing: border-box;
-            -moz-box-sizing: border-box;
-            border: 1px solid #C2C2C2;
-            box-shadow: 1px 1px 4px #EBEBEB;
-            -moz-box-shadow: 1px 1px 4px #EBEBEB;
-            -webkit-box-shadow: 1px 1px 4px #EBEBEB;
-            border-radius: 3px;
-            -webkit-border-radius: 3px;
-            -moz-border-radius: 3px;
-            padding: 7px;
-            outline: none;
-        }
-
-        .form-style-2 .input-field:focus,
-        .form-style-2 .tel-number-field:focus,
-        .form-style-2 .textarea-field:focus,
-        .form-style-2 .select-field:focus {
-            border: 1px solid #0C0;
-        }
-
-        .form-style-2 .textarea-field {
-            height: 100px;
-            width: 55%;
-        }
-
-        .form-style-2 input[type=submit],
-        .form-style-2 input[type=button] {
-            border: none;
-            padding: 8px 15px 8px 15px;
-            background: #FF8500;
-            color: #fff;
-            box-shadow: 1px 1px 4px #DADADA;
-            -moz-box-shadow: 1px 1px 4px #DADADA;
-            -webkit-box-shadow: 1px 1px 4px #DADADA;
-            border-radius: 3px;
-            -webkit-border-radius: 3px;
-            -moz-border-radius: 3px;
-        }
-
-        .form-style-2 input[type=submit]:hover,
-        .form-style-2 input[type=button]:hover {
-            background: #EA7B00;
-            color: #fff;
-        }
-
-    </style>
-
-        <script type="text/javascript">
-        var gateway = `ws://${window.location.hostname}/ws`;
-        var websocket;
-        window.addEventListener('load', onLoad);
-
-        function onLoad(event) {
-            initWebSocket();
-            initButtons();
-        }
-
-        function initWebSocket() {
-            console.log('Trying to open a WebSocket connection...');
-            websocket = new WebSocket(gateway);
-            websocket.onopen = onOpen;
-            websocket.onclose = onClose;
-            websocket.onmessage = onMessage;
-        }
-
-        function onOpen(event) {
-            console.log('Connection opened so get default values');
-            websocket.send(JSON.stringify({
-                action: "sys"
-            }));
-
-        }
-
-        function onClose(event) {
-            console.log('Connection closed');
-            setTimeout(initWebSocket, 2000);
-        }
-
-        function onMessage(event) {
-
-            const objectToRead = JSON.parse(event.data);
-
-            if (objectToRead.respHeader === "pint") {
-                console.log(objectToRead.respHeader);
-                document.getElementById('txt0').value = objectToRead.sysconf.entry_delay_time;
-                document.getElementById('txt1').value = objectToRead.sysconf.exit_delay_time;
-                document.getElementById('txt2').value = objectToRead.sysconf.beep_time_out;
-                document.getElementById('txt3').value = objectToRead.sysconf.wifissid_sta;
-                document.getElementById('txt4').value = objectToRead.sysconf.installer_no;
-                document.getElementById('txt5').value = objectToRead.sysconf.mqtt_server;
-                document.getElementById('txt6').value = objectToRead.sysconf.mqtt_port;
-                document.getElementById('txt7').value = objectToRead.sysconf.mqtt_user;
-                document.getElementById('txt8').value = objectToRead.sysconf.bell_time_out;
-                document.getElementById('list0').value = objectToRead.sysconf.call_attempts;
-                
-                document.getElementById('psw0').value = objectToRead.sysconf.wifipass;                
-                document.getElementById('psw1').value = objectToRead.sysconf.installer_pass;                
-                document.getElementById('psw2').value = objectToRead.sysconf.mqtt_pass;
-                      
-                document.getElementById('cb0').checked = objectToRead.sysconf.et_en;
-                document.getElementById('cb1').checked = objectToRead.sysconf.et_beep;
-                document.getElementById('cb2').checked = objectToRead.sysconf.xt_en;
-                document.getElementById('cb3').checked = objectToRead.sysconf.xt_beep;
-                document.getElementById('cb4').checked = objectToRead.sysconf.beep_en;
-                document.getElementById('cb5').checked = objectToRead.sysconf.call_en;
-                document.getElementById('cb6').checked = objectToRead.sysconf.wifi_sta_en;
-                document.getElementById('cb7').checked = objectToRead.sysconf.mqtt_en;
-                document.getElementById('cb8').checked = objectToRead.sysconf.siren_en;
-            }
-            if (objectToRead.respHeader === "data") {
-                console.log(objectToRead.data);
-                document.getElementById('rfid').value = objectToRead.scan_rfid;
-            }
-
-        }
-
-        function initButtons() {
-            document.getElementById('bt2').addEventListener('click', callBack_bt2);
-            document.getElementById('bt0').addEventListener('click', callBack_bt0);
-            document.getElementById('bt1').addEventListener('click', callBack_bt1);
-        }
-
-
-
-        function callBack_bt0(event) {
-            websocket.send(JSON.stringify({
-                action: "pg_system_cmd",
-                command: "bt0",
-                
-            }));
-        }
-
-        function callBack_bt1(event) {
-            websocket.send(JSON.stringify({
-                action: "pg_system_cmd",
-                command: "bt1"
-            }));
-        }
-
-        function callBack_bt2(event) {
-            websocket.send(JSON.stringify({
-                action: "pg_system_cmd",
-                command: "bt2",
-               
-            }));
-        }
-    </script>
-
-
+    // =====================================================================
+    // Small DOM helpers
+    // =====================================================================
+    function setVal(id, v){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = (v == null) ? "" : String(v);
+    }
+    function getVal(id){
+      const el = document.getElementById(id);
+      if (!el) return "";
+      return el.value;
+    }
+    function setChecked(id, v){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.checked = !!v;
+    }
+    function getChecked(id){
+      const el = document.getElementById(id);
+      if (!el) return false;
+      return !!el.checked;
+    }
+  </script>
 </head>
 
 <body>
-    <div class="navsec">
-        <!-- partial:index.partial.html -->
-        <nav class="skew-menu">
-            <ul>
-                <li><a href="index.html">System</a></li>
-                <li><a href="zone.html">Zones</a></li>
-                <li><a href="contact.html">contacts</a></li>
-                <li><a href="log.html">log</a></li>
-            </ul>
-        </nav>
-        <!-- partial -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>Black Wire Security</h1>
+          <small>Single-page portal (WS)</small>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" id="tab-sys">System</button>
+        <button class="tab" id="tab-zones">Zones</button>
+        <button class="tab" id="tab-contacts">Contacts</button>
+        <button class="tab" id="tab-info">Info</button>
+        <button class="tab" id="tab-log">Log</button>
+      </div>
+
+      <div class="status-pill">
+        <div class="dot" id="wsDot"></div>
+        <div><b>WS:</b> <span id="wsText">Booting…</span></div>
+      </div>
     </div>
-    <div class="form-style-2">
-        <h2>SYSTEM SETTING</h2>
-        <div class="form-style-2-heading">General </div>
+  </div>
 
-        <form action="/get" target="hidden-form">
-            <div class="fieldSET">
-                <div>
-                    <span id=s elect_div>
-  <label for="txt0">Entry Delay Time:</label>
-  <input type="text" id="txt0" name="txt0"/>
-  <input type = "checkbox" id = "cb0" name = "cb0"> Enable
-  <input type = "checkbox" id = "cb1" name = "cb1"> Beep
- </span>
-                </div>
-                <br>
-                <div>
-                    <label for="txt1">Exit Delay Time:</label>
-                    <input type="text" id="txt1" name="txt1" />
-                    <input type="checkbox" id="cb2" name="cb2"> Enable
-                    <input type="checkbox" id="cb3" name="cb3"> Beep
+  <div class="wrap">
+    <!-- ===================== SYSTEM ===================== -->
+    <div class="page active" id="page-sys">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <h2>System Configuration</h2>
+            <div class="hint">Edit then Save. ESP should reply with OK.</div>
+          </div>
 
-                </div>
-                <br>
-                <div>
-                    <label for="txt2">Beep Sound Duration:</label>
-                    <input type="text" id="txt2" name="txt2" />
-                    <input type="checkbox" id="cb4" name="cb4"> Enable
-
-                </div>
-                <br>
-                <div>
-                    <label for="txt8">Siren Duration:</label>
-                    <input type="text" id="txt8" name="txt8" />
-                    <input type="checkbox" id="cb8" name="cb8"> Enable
-
-                </div>
-                <br>
-                <div>
-                    <span id=s elect_div>
-            <label for="list0">Calling Attempts:</label>
-            <select name="list0" id="list0">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-          <input type = "checkbox" id = "cb5" name = "cb5"> Enable
-     </span>
-                      </div>
-                <br>
-                 <div>
-                   <label for="txt4">Installer Number:</label>
-                    <input type="txt" id="txt4" name="txt4" />
-                </div>
-                <br>
-                 <div>
-                   <label for="psw1">Installer code:</label>
-                    <input type="password" id="psw1" name="psw1" />
-                </div>
-                <br> 
-                <div class="form-style-2-heading">Server </div>
-                <br> 
-                <div>
-                    <label for="txt3">Wi-Fi SSID:</label>
-                    <input type="txt" id="txt3" name="txt3" />
-                    <input type="checkbox" id="cb6" name="cb6"> Enable STA             
-                </div>
-                <br>
-                <div>
-                   <label for="psw0">Passwrd:</label>
-                    <input type="password" id="psw0" name="psw0" />
-                </div>
-                <br>
-                <div>
-                   <label for="txt5">Server:</label>
-                    <input type="txt" id="txt5" name="txt5" />
-                    <input type="checkbox" id="cb7" name="cb7"> Enable MQTT
-                </div>
-                <br>
-                 <div>
-                   <label for="txt6">Port:</label>
-                    <input type="txt" id="txt6" name="txt6" />
-                </div>
-                <br>
-                <div>
-                   <label for="txt7">User:</label>
-                    <input type="txt" id="txt7" name="txt7" />
-                </div>
-                <br>
-                 <div>
-                   <label for="psw2">Password:</label>
-                    <input type="password" id="psw2" name="psw2" />
-                </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="field">
+                <label for="sys_entry_delay_time">Entry Delay Time (sec)</label>
+                <input type="text" id="sys_entry_delay_time" />
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" id="sys_et_en" /> Enable</label>
+                <label class="check"><input type="checkbox" id="sys_et_beep" /> Beep</label>
+              </div>
             </div>
-            <div class="submit">
-                <label><span> </span><input type="submit" value="Submit" /></label>
+
+            <div class="row">
+              <div class="field">
+                <label for="sys_exit_delay_time">Exit Delay Time (sec)</label>
+                <input type="text" id="sys_exit_delay_time" />
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" id="sys_xt_en" /> Enable</label>
+                <label class="check"><input type="checkbox" id="sys_xt_beep" /> Beep</label>
+              </div>
             </div>
-        </form>
-          <div class="form-style-2-heading">Function Test </div>
-          <div>
-                   <button id="bt0" type="button">Siren Test</button>
-             <button id="bt1" type="button">Arm</button>
-            <button id="bt2" type="button">Disarm</button>
+
+            <div class="row">
+              <div class="field">
+                <label for="sys_beep_time_out">Beep Sound Duration (sec)</label>
+                <input type="text" id="sys_beep_time_out" />
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" id="sys_beep_en" /> Beep Enable</label>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field">
+                <label for="sys_bell_time_out">Siren Duration (sec)</label>
+                <input type="text" id="sys_bell_time_out" />
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" id="sys_siren_en" /> Siren Enable</label>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field" style="min-width: 240px; max-width: 260px;">
+                <label for="sys_call_attempts">Calling Attempts</label>
+                <select id="sys_call_attempts">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" id="sys_call_en" /> Alarm Call Enable</label>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 12px;">
+              <div class="card-header">
+                <h2>Wi-Fi & MQTT</h2>
+                <div class="hint">STA + MQTT settings</div>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_wifissid_sta">Wi-Fi SSID (STA)</label>
+                    <input type="text" id="sys_wifissid_sta" />
+                  </div>
+                  <div class="checks">
+                    <label class="check"><input type="checkbox" id="sys_wifi_sta_en" /> Enable STA</label>
+                  </div>
                 </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_wifipass">Wi-Fi Password</label>
+                    <input type="password" id="sys_wifipass" />
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_mqtt_server">MQTT Server</label>
+                    <input type="text" id="sys_mqtt_server" />
+                  </div>
+                  <div class="checks">
+                    <label class="check"><input type="checkbox" id="sys_mqtt_en" /> Enable MQTT</label>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="field" style="min-width: 180px; max-width: 240px;">
+                    <label for="sys_mqtt_port">Port</label>
+                    <input type="text" id="sys_mqtt_port" />
+                  </div>
+                  <div class="field">
+                    <label for="sys_mqtt_user">User</label>
+                    <input type="text" id="sys_mqtt_user" />
+                  </div>
+                  <div class="field">
+                    <label for="sys_mqtt_pass">Password</label>
+                    <input type="password" id="sys_mqtt_pass" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 12px;">
+              <div class="card-header">
+                <h2>Installer</h2>
+                <div class="hint">Number + code</div>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_installer_no">Installer Number</label>
+                    <input type="text" id="sys_installer_no" />
+                  </div>
+                  <div class="field">
+                    <label for="sys_installer_pass">Installer Code</label>
+                    <input type="password" id="sys_installer_pass" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 12px;">
+              <div class="card-header">
+                <h2>Advanced</h2>
+                <div class="hint">Optional fields</div>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_debounce_time">Sensor Debounce (ms)</label>
+                    <input type="text" id="sys_debounce_time" />
+                  </div>
+                  <div class="field" style="min-width:180px; max-width:240px;">
+                    <label for="sys_cli_access_level">CLI Access Level</label>
+                    <input type="text" id="sys_cli_access_level" />
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="field">
+                    <label for="sys_last_sms_sender">Last SMS Sender</label>
+                    <input type="text" id="sys_last_sms_sender" />
+                  </div>
+                  <div class="field">
+                    <label for="sys_last_system_state">Last System State</label>
+                    <input type="text" id="sys_last_system_state" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="btnbar">
+              <button class="btn" id="btnReloadSys" type="button">Reload</button>
+              <button class="btn primary" id="btnSaveSys" type="button">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== ZONES ===================== -->
+    <div class="page" id="page-zones">
+      <div class="card">
+        <div class="card-header">
+          <h2>Zones (48)</h2>
+          <div class="hint">Search, bulk edit visible rows, then Save.</div>
+        </div>
+        <div class="card-body">
+          <div class="zones-toolbar">
+            <div class="left">
+              <span class="pill" id="zonesCountPill">48 zones</span>
+              <input type="text" id="zonesSearch" placeholder="Search by zone index or name..." />
+              <select id="zonesGroupSel"></select>
+              <button class="btn small" type="button" id="btnBypassVisible">Bypass (visible)</button>
+              <button class="btn small" type="button" id="btnUnbypassVisible">Unbypass (visible)</button>
+              <button class="btn small" type="button" id="btnRfOnVisible">RF ON (visible)</button>
+              <button class="btn small" type="button" id="btnRfOffVisible">RF OFF (visible)</button>
+            </div>
+            <div class="btnbar" style="padding:0;">
+              <button class="btn" id="btnReloadZones" type="button">Reload</button>
+              <button class="btn primary" id="btnSaveZones" type="button">Save</button>
+            </div>
+          </div>
+
+          <div class="zones-grid" id="zonesGrid"></div>
+
+          <div class="card" style="margin-top: 12px;">
+            <div class="card-header">
+              <h2>RF zone scanning</h2>
+              <div class="hint">Uses existing websocket cmd messages</div>
+            </div>
+            <div class="card-body">
+              <div class="row" style="margin-bottom: 0;">
+                <div class="field" style="min-width:220px; max-width:260px;">
+                  <label for="zoneRfSelect">Select zone</label>
+                  <select id="zoneRfSelect"></select>
+                </div>
+                <div class="field" style="min-width:220px; max-width:320px;">
+                  <label for="rfidInput">RF ID</label>
+                  <input type="text" id="rfidInput" placeholder="Auto-filled by Scan" />
+                </div>
+                <div class="btnbar" style="justify-content:flex-start;">
+                  <button class="btn" id="btnRfRead" type="button">Read</button>
+                  <button class="btn" id="btnRfScan" type="button">Scan</button>
+                  <button class="btn primary" id="btnRfSet" type="button">Set</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== CONTACTS ===================== -->
+    <div class="page" id="page-contacts">
+      <div class="card">
+        <div class="card-header">
+          <h2>Contacts</h2>
+          <div class="hint">8 phone numbers with SMS/CALL flags</div>
+        </div>
+        <div class="card-body">
+          <div class="btnbar" style="justify-content: space-between;">
+            <div class="hint">Tip: keep numbers in international format (+94…)</div>
+            <div>
+              <button class="btn" id="btnReloadContacts" type="button">Reload</button>
+              <button class="btn primary" id="btnSaveContacts" type="button">Save</button>
+            </div>
+          </div>
+
+          <div class="contacts-grid" id="contactsGrid"></div>
+
+          <div class="card" style="margin-top: 12px;">
+            <div class="card-header">
+              <h2>Remote scanning</h2>
+              <div class="hint">If you already support remote read/scan/set, reuse cmd</div>
+            </div>
+            <div class="card-body">
+              <div class="hint" style="margin-bottom:8px;">
+                (Optional) You can wire this to your existing remote functions if needed.
+                For now, the portal focuses on contacts + zones + config.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== INFO ===================== -->
+    <div class="page" id="page-info">
+      <div class="card">
+        <div class="card-header">
+          <h2>Live Info</h2>
+          <div class="hint">ESP sends P1..P10 + optional extras</div>
+        </div>
+        <div class="card-body">
+          <div class="btnbar" style="justify-content:flex-end; padding-top:0; margin-bottom:10px;">
+            <button class="btn" id="btnReloadInfo" type="button">Reload</button>
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Sensor</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Status</td><td id="info_P1">-</td></tr>
+              <tr><td>Wi-Fi RSSI</td><td id="info_P2">-</td></tr>
+              <tr><td>IP</td><td id="info_P3">-</td></tr>
+              <tr><td>MAC</td><td id="info_P4">-</td></tr>
+              <tr><td>Z0</td><td id="info_P5">-</td></tr>
+              <tr><td>Z1</td><td id="info_P6">-</td></tr>
+              <tr><td>Z2</td><td id="info_P7">-</td></tr>
+              <tr><td>Z3</td><td id="info_P8">-</td></tr>
+              <tr><td>Server</td><td id="info_P9">-</td></tr>
+              <tr><td>GSM RSSI</td><td id="info_P10">-</td></tr>
+            </tbody>
+          </table>
+
+              <div class="card" style="margin-top: 12px;">
+          <div class="card-header">
+            <h2>Zone Status</h2>
+            <div class="hint">Open=red, Close=green, Fault=yellow</div>
+          </div>
+          <div class="card-body">
+            <table class="zoneStatusTable">
+              <thead>
+                <tr><th>Zone</th><th>Status</th></tr>
+              </thead>
+              <tbody id="zoneStatusBody">
+                <!-- rows generated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+          <div class="card" style="margin-top: 12px;">
+            <div class="card-header">
+              <h2>Extra keys</h2>
+              <div class="hint">If ESP sends more fields</div>
+            </div>
+            <div class="card-body">
+              <textarea id="infoExtra" placeholder="Extra info will appear here..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== LOG ===================== -->
+    <div class="page" id="page-log">
+      <div class="card">
+        <div class="card-header">
+          <h2>Log</h2>
+          <div class="hint">Optional: implement {respHeader:"log"} on ESP</div>
+        </div>
+        <div class="card-body">
+          <div class="btnbar" style="justify-content:flex-end; padding-top:0; margin-bottom:10px;">
+            <button class="btn" id="btnReloadLog" type="button">Reload</button>
+          </div>
+          <textarea id="logBox" placeholder="Waiting for log data..."></textarea>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+  <!--
+    ✅ Upload this file to SPIFFS as: /portal.html
+    ✅ In ESP32, set default route "/" to serve "/portal.html"
+    ✅ WebSocket should be at /ws
+    ✅ After "set" actions, ESP should reply:
+       {respHeader:"ok", page:"sys|zones|contacts", message:"OK"}
+       or {respHeader:"err", page:"...", message:"reason"}
+  -->
 </body>
-
 </html>

@@ -13,6 +13,8 @@
 #include "rf_methods.h"
 #include "mqtt_broker.h"
 #include "msgRingBuffer.h"
+#include "pixel_blink_module.h"
+#include "utility.h"
 
 //#include "message_buffer.h"
 #define SMS_STRCUT_MAX_MGS 10
@@ -78,5 +80,5 @@ void call_back_chime_sound();
 void setup_call_backs();
 
 void onMqtt_connection();
-
+void onMqtt_disconnection();
 #endif

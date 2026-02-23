@@ -15,17 +15,19 @@
 #include "call_backs.h"
 #include "sensor_scan.h"
 #include "Adafruit_FONA.h"
-extern void printStackUsage();
+
 extern AsyncWebSocket ws;
-void notifyClients_pageInfo();
-void notifyClients_pageZones();
 
-void notifyClients_pageUser();
+static void wsSendErr(AsyncWebSocketClient* c, const char* page, const char* msg);
+static void wsSendOk(AsyncWebSocketClient* c, const char* page, const char* msg);
+void sendPageSys(AsyncWebSocketClient* c);
+void sendPageZones(AsyncWebSocketClient* c);
+void sendPageInfo(AsyncWebSocketClient* c);
+void sendPageContacts(AsyncWebSocketClient* c);
+static bool saveSystemSettingsFromReq(JsonDocument& req, const char** errMsgOut);
+void handleWebSocketMessage(AsyncWebSocketClient* client, void *arg, uint8_t *data, size_t len);
+static bool writeJsonAtomic(const char* path, JsonDocument& doc);
 
-void notifyClients_pageSys();
-
-void notifyClients_rfidRx(const char* data,uint32_t len);
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len);
 
 void onEvent(AsyncWebSocket *server,AsyncWebSocketClient *client,AwsEventType type,void *arg, uint8_t *data,
 size_t len);

@@ -163,6 +163,8 @@ public:
   int8_t getFMVolume(void);
   int8_t getFMSignalLevel(uint16_t station);
 
+  bool getNetworkOperator(char *buffer, uint8_t size);
+
   // SMS handling
   int8_t GetSMSx(uint8_t position, char *phone_number,byte max_phone_len, char *SMS_text, uint16_t max_SMS_len,uint16_t *readlen);
   uint8_t getSMSIndex(uint8_t required_status);

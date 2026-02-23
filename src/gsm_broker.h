@@ -44,6 +44,8 @@ void creatSMS(const char* buffer,uint8_t type, const char* number);// creat a SM
 
 //void creatSMS_LL(const char* buffer,uint8_t type, const char* number);
 
+void getEMIE(char* buffer, uint8_t size);
+char* getGsmOperator(char* buffer, uint8_t size);
 
 void ultimate_sms_hadlr();					
 
