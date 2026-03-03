@@ -653,39 +653,89 @@ int8_t comp_User_id(const char *number){
 	
 }
 
-int8_t comp_remote_RFID(uint32_t rx_rf_id_uint, uint8_t command_length){
-	int8_t ret = -1;
-	char stored_rf_id_char[25];
-	memset(stored_rf_id_char,'\0', 25);
-	
-	File fileToReadx = SPIFFS.open("/personx.json");
-	 if(!fileToReadx){
-		 Serial.println(F("? failed to open directory"));
-		 return ret;
-	}	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(docx,  fileToReadx);
-	char buff[25];
-	for (int user_index = 1; user_index < 9; user_index++)
-	{
-		memset(buff, '\0', 25);		
-	    sprintf(buff, "P%d", user_index);
-		const char* remRf_id = docx[buff]["remID"];
-		Serial.println(remRf_id);
-			if (remRf_id!=NULL)
-			{
-				uint32_t stored_rf_id_uint = strtoul(remRf_id, NULL, 10);
-				uint32_t split_rem_command = stored_rf_id_uint >> command_length;
-				
-				if (split_rem_command == rx_rf_id_uint) {
-					ret = user_index;
-					break;
-				}
-			}
-		
-	}
-		return ret;	
+int8_t comp_remote_RFID(uint32_t rxBase, uint8_t cmdBits)
+{
+
+  File file = SPIFFS.open("/personx.json", "r");
+  if (!file) {
+    Serial.println(F("Failed to open personx.json"));
+    return -1;
+  }
+
+  DynamicJsonDocument doc(JSON_DOC_SIZE_USER_DATA);
+  DeserializationError err = deserializeJson(doc, file);
+  file.close();
+
+  if (err) {
+    Serial.print(F("JSON parse failed: "));
+    Serial.println(err.c_str());
+    return -1;
+  }
+
+  JsonObject users = doc["users"].as<JsonObject>();
+  if (users.isNull()) {
+    Serial.println(F("Invalid JSON: 'users' missing or not object"));
+    return -1;
+  }
+
+  // Iterate: P1, P2, ...
+  for (JsonPair kv : users) {
+    const char* key = kv.key().c_str();           // "P1"
+    JsonObject user = kv.value().as<JsonObject>();
+
+    uint32_t storedFull = user["remID"] | 0UL;
+    if (storedFull == 0) continue;
+
+    uint32_t storedBase = storedFull >> cmdBits;
+
+    if (storedBase == rxBase) {
+      Serial.printf("Remote matched %s\n", key);
+
+      // If you need numeric id: "P2" -> 2
+      int idNum = 0;
+      if (key[0] == 'P') idNum = atoi(key + 1);
+      return (int8_t)idNum;   // or return something else you prefer
+    }
+  }
+
+  return -1;
 }
+
+// int8_t comp_remote_RFID(uint32_t rx_rf_id_uint, uint8_t command_length){
+// 	int8_t ret = -1;
+// 	char stored_rf_id_char[25];
+// 	memset(stored_rf_id_char,'\0', 25);
+// 	Serial.printf_P(PSTR("compare rem rfid > received:%u, command length:%d\n"),rx_rf_id_uint,command_length);
+// 	File fileToReadx = SPIFFS.open("/personx.json");
+// 	 if(!fileToReadx){
+// 		 Serial.println(F("? failed to open directory"));
+// 		 return ret;
+// 	}	
+// 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
+// 	deserializeJson(docx,  fileToReadx);
+// 	char buff[25];
+// 	for (int user_index = 1; user_index < 9; user_index++)
+// 	{
+// 		memset(buff, '\0', 25);		
+// 	    sprintf(buff, "P%d", user_index);
+// 		const char* remRf_id = docx[buff]["remID"];
+// 		Serial.println(remRf_id);
+// 			if (remRf_id!=NULL)
+// 			{
+// 				uint32_t stored_rf_id_uint = strtoul(remRf_id, NULL, 10);
+// 				uint32_t split_rem_command = stored_rf_id_uint >> command_length;
+				
+// 				if (split_rem_command == rx_rf_id_uint) {
+// 					ret = user_index;
+// 					Serial.printf_P(PSTR("remote rfid matched for user %d"),user_index);
+// 					break;
+// 				}
+// 				Serial.printf_P(PSTR("compare rem rfid for user %d > received:%u, stored:%u, split command:%u\n"),user_index,rx_rf_id_uint,stored_rf_id_uint,split_rem_command);
+// 			}
+		
+// 	}
+// 		return ret;	
+// }
 
 char* get_remote_RFID(uint8_t device_index){
 	
@@ -1048,9 +1098,9 @@ void onMqtt_connection(){
   	pixel.startBlink(colour, 100, 1000, 255);
 #endif
 	publish_system_startup_msg();
-	for(uint8_t index = 0; index<4; index++){
-		send_sensor_state_update_to_mqtt(index,digitalRead(GPIO_array[index].GPIOpin));
-	}
+	// for(uint8_t index = 0; index<4; index++){
+	// 	send_sensor_state_update_to_mqtt(index,digitalRead(GPIO_array[index].GPIOpin));
+	// }
 	
 	if(myAlarm_pannel.get_system_state()!=DEACTIVE){
 		 publish_system_state("ARMED","info/mode",true);

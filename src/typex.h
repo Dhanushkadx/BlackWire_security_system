@@ -78,16 +78,9 @@ typedef struct systemConfig{
 #define TOTAL_DEVICES 48
 #define RF_DEVICE_START_INDEX 0
 typedef struct sensorAtribute{
-	//byte device_index;
-	uint8_t device_state;
-	//bool exit_delay_en;
-	//bool entry_delay_en;
-	//boolean sensor_en;
-	//boolean sensor_bypased;
+	uint8_t device_state;	
 	uint8_t device_type;
 	uint8_t device_card_id;
-	//boolean last_alarm_state;
-	//boolean last_state;
 	long last_updated_time_stamp;
 	
 } MY_SENS, *pMY_SENS;

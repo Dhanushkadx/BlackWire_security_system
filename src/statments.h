@@ -28,6 +28,7 @@ enumerator eInvalid?*/
 extern AsyncWebSocket ws;
 extern ESP32Time rtc;
 extern ALARM myAlarm_pannel;
+
 extern EventGroupHandle_t EventRTOS_lcd;
 extern EventGroupHandle_t EventRTOS_lcdkeyPad;
 extern EventGroupHandle_t EventRTOS_gsm;
@@ -38,12 +39,6 @@ extern SemaphoreHandle_t xBinarySemaphore;
 extern SemaphoreHandle_t xMutex_GSM;
 extern SemaphoreHandle_t xMutex_GSM_CALLING;
 extern SemaphoreHandle_t xMutex_I2C;
-
-
-/* this variable hold queue handle */
-extern xQueueHandle xQueue;
-/* this variable hold queue handle */
-extern xQueueHandle xQueue_sensor_state;
 
 extern size_t xBufferSizeBytes_number;
 extern MessageBufferHandle_t xMessageBuffer_number;
@@ -110,6 +105,8 @@ char lcd_time[17];
 #define LCD_COLS  16*/
 
 #define TOTAL_DEVICES 48
+// Single source of truth:
+constexpr uint8_t ZONE_COUNT = TOTAL_DEVICES;
 #define TOTAL_PHONE_NUMBER_COUNT 8
 #define  EVENT_LOG_MAX 10
 
@@ -128,7 +125,7 @@ extern unsigned long try_time;
 
 
 extern const uint8_t sensor_pin_count;
-extern Struct_GPIO_INFO GPIO_array[];
+//extern Struct_GPIO_INFO GPIO_array[];
 extern  MY_SENS any_sensor_array[];
 
 
@@ -138,6 +135,7 @@ extern systemConfigTypedef_struct systemConfig;
 
 
 extern eSYS_MODE system_mode;
+
 
 
 

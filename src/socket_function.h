@@ -13,8 +13,10 @@
 #include "WiFi.h"
 #include <SPIFFS.h>
 #include "call_backs.h"
-#include "sensor_scan.h"
 #include "Adafruit_FONA.h"
+#include "utils_bits.h"
+#include "RemoteStorage.h"
+#include "tasks_433rf.h"
 
 extern AsyncWebSocket ws;
 

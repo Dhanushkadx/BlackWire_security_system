@@ -21,7 +21,10 @@
 #include <SPIFFS.h>
 #include "pinsx.h"
 #include "ZoneStorage.h"
+#include "RemoteStorage.h"
+#include "ZoneManager.h"
 
+extern ZoneEngine zoneEngine;
 	 
 void configLoad(uint8_t mode);
 bool setJson_key_bool(const char* path, const char* jkey, bool state);

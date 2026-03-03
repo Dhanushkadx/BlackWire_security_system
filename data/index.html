@@ -514,9 +514,109 @@
       line-height: 1;
       padding: 2px 4px;
     }
+  
+    /* ------------------- Login Overlay ------------------- */
+    .login-overlay{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(10,12,16,.82);
+      backdrop-filter: blur(6px);
+      z-index:9999;
+    }
+    .login-card{
+      width:min(460px, 100%);
+      background: linear-gradient(180deg, rgba(21,25,35,.98), rgba(16,21,33,.98));
+      border:1px solid var(--border);
+      border-radius:16px;
+      box-shadow: var(--shadow);
+      padding:18px 18px 14px;
+    }
+    .login-brand{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    .login-msg{
+      margin-top:10px;
+      min-height:18px;
+      color: var(--warn);
+      font-size: 13px;
+    }
+    .btn.primary{
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-color: transparent;
+      color:#111;
+      font-weight:700;
+    }
+
   </style>
 
   <script>
+
+    // ------------------- Login (portal-only) -------------------
+    // NOTE: This is UI-level login for LAN usage. Anyone with physical/LAN access could bypass using developer tools.
+    // If you later want real security, implement /api/login + WS auth on the ESP32.
+    const LOGIN_PIN = "1234";          // <-- change this default PIN
+    const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+    const LS_SESSION_KEY = "bw_portal_session_v1";
+
+    function setSessionNow(){
+      localStorage.setItem(LS_SESSION_KEY, String(Date.now()));
+    }
+    function clearSession(){
+      localStorage.removeItem(LS_SESSION_KEY);
+    }
+    function sessionValid(){
+      const t = parseInt(localStorage.getItem(LS_SESSION_KEY) || "0", 10);
+      if (!t) return false;
+      return (Date.now() - t) <= SESSION_TTL_MS;
+    }
+
+    function showLogin(msg=""){
+      const o = document.getElementById("loginOverlay");
+      const a = document.getElementById("appRoot");
+      if (o) o.style.display = "flex";
+      if (a) a.style.display = "none";
+      const m = document.getElementById("loginMsg");
+      if (m) m.textContent = msg;
+      const pin = document.getElementById("loginPin");
+      if (pin) pin.focus();
+      const lo = document.getElementById("btnLogout");
+      if (lo) lo.style.display = "none";
+    }
+
+    function showApp(){
+      const o = document.getElementById("loginOverlay");
+      const a = document.getElementById("appRoot");
+      if (o) o.style.display = "none";
+      if (a) a.style.display = "block";
+      const lo = document.getElementById("btnLogout");
+      if (lo) lo.style.display = "inline-flex";
+    }
+
+    function doPortalLogin(){
+      const pin = (document.getElementById("loginPin")?.value || "").trim();
+      if (!pin) { showLogin("Enter PIN"); return; }
+      if (pin !== LOGIN_PIN){
+        showLogin("Wrong PIN");
+        return;
+      }
+      setSessionNow();
+      showApp();
+      initWebSocket();
+      showPage("info");
+    }
+
+    function doPortalLogout(){
+      clearSession();
+      try { if (ws) ws.close(); } catch(e){}
+      showLogin("Logged out");
+    }
+
     /**********************************************************************
      *  PORTAL PROTOCOL (WebSocket)
      *
@@ -542,6 +642,7 @@
     // -------- Portal constants --------
     const ZONE_COUNT = 48;
     const ZONE_GROUP_SIZE = 8;
+    const REMOTE_SLOT_COUNT = 8;
 
     // WebSocket
     const WS_URL = `ws://${window.location.hostname}/ws`;
@@ -563,11 +664,13 @@
     window.addEventListener("load", () => {
       buildZonesUI();
       buildContactsUI();
+      buildRemotesUI();
 
       // tab buttons
       document.getElementById("tab-sys").addEventListener("click", () => showPage("sys"));
       document.getElementById("tab-zones").addEventListener("click", () => showPage("zones"));
       document.getElementById("tab-contacts").addEventListener("click", () => showPage("contacts"));
+      document.getElementById("tab-remotes").addEventListener("click", () => showPage("remotes"));
       document.getElementById("tab-info").addEventListener("click", () => showPage("info"));
       document.getElementById("tab-log").addEventListener("click", () => showPage("log"));
 
@@ -598,11 +701,45 @@
       document.getElementById("btnRfScan").addEventListener("click", () => rfCmd("bt1", null, null));
       document.getElementById("btnRfSet").addEventListener("click", () => rfCmd("bt2", document.getElementById("rfidInput").value, document.getElementById("zoneRfSelect").value));
 
-      // Start WS
-      initWebSocket();
+      
+      // Remote learning (remotes page)
+      
+      document.getElementById("btnRemScan")?.addEventListener("click", () => {
+        const slot = document.getElementById("remSlotSel")?.value;
+        remoteCmd("rem_scan", slot, null);
+      });
 
-      // Default page
-      showPage("sys");
+      document.getElementById("btnRemLearn")?.addEventListener("click", () => {
+        const slot = document.getElementById("remSlotSel")?.value;
+        const code = document.getElementById("remCodeInput")?.value.trim();
+        if (!code) {
+          toast("Remote", "Code empty", "bad");
+          return;
+        }
+        remoteCmd("rem_learn", code, slot);
+      });
+
+      document.getElementById("btnRemClear")?.addEventListener("click", () => {
+        const slot = document.getElementById("remSlotSel")?.value;
+        remoteCmd("rem_clear", slot, null);
+      });
+
+      document.getElementById("btnReloadRemotes")?.addEventListener("click", () => {
+        wsSend({action:"get", page:"remotes"});
+      });
+
+// Login gate (show login first)
+      document.getElementById("btnLogin").addEventListener("click", doPortalLogin);
+      document.getElementById("loginPin").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doPortalLogin(); });
+      document.getElementById("btnLogout").addEventListener("click", doPortalLogout);
+
+      if (sessionValid()) {
+        showApp();
+        initWebSocket();
+        showPage("info");
+      } else {
+        showLogin("");
+      }
     });
 
     function initWebSocket(){
@@ -674,10 +811,17 @@
         return;
       }
 
-      // Existing RF scan response
+      // RF scan response (zones + remotes)
       if (msg.respHeader === "data"){
         if (typeof msg.scan_rfid === "string"){
-          document.getElementById("rfidInput").value = msg.scan_rfid;
+          if (msg.page === "remotes") {
+            const el = document.getElementById("remCodeInput");
+            if (el) el.value = msg.scan_rfid;
+            setRemotesStatus(`Scanned ✔ (Slot ${msg.slot || currentRemotesSlot()})`);
+          } else if (msg.page === "zones") {
+            const z = document.getElementById("rfidInput");
+            if (z) z.value = msg.scan_rfid;
+          }
         }
         return;
       }
@@ -706,6 +850,18 @@
         return;
       }
 
+
+      // if (msg.respHeader === "remotes" && Array.isArray(msg.users)) {
+      //     cache.remotes = msg.users;          // cache only the users array (same style as contacts)
+      //     renderRemotes(cache.remotes);       // renderRemotes will accept users array
+      //     return;
+      // }
+      if (msg.respHeader === "remotes") {
+        cache.remotes = msg;
+        renderRemotes(cache.remotes);
+        return;
+      }
+
       if (msg.respHeader === "info"){
         cache.info = msg;
         renderInfo(cache.info);
@@ -725,7 +881,7 @@
         currentPage = page;
 
         // tabs
-        for (const id of ["sys","zones","contacts","info","log"]){
+        for (const id of ["sys","zones","contacts","remotes","info","log"]){
           document.getElementById(`tab-${id}`).classList.toggle("active", id === page);
         }
 
@@ -966,7 +1122,52 @@
       document.getElementById("zonesCountPill").textContent = `${ZONE_COUNT} zones`;
     }
 
-    function onSaveZones(){
+    function pack48(getBoolFn){
+    // returns Uint8Array(6)
+    const bytes = new Uint8Array(6);
+    for(let i=0;i<ZONE_COUNT;i++){
+      if(getBoolFn(i)){
+        const byteIndex = (i / 8) | 0;
+        const bitIndex  = i % 8;
+        bytes[byteIndex] |= (1 << bitIndex);
+      }
+    }
+    return bytes;
+  }
+
+  function u8ToB64(u8){
+    let s = "";
+    for(let i=0;i<u8.length;i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+
+  //function onSaveZones(){ return onSaveZonesPacked(); }
+
+  function onSaveZonesPacked(){
+    const by  = pack48(i => getChecked(`z_by_${i}`));
+    const ed  = pack48(i => getChecked(`z_ed_${i}`));
+    const xd  = pack48(i => getChecked(`z_xd_${i}`));
+    const rf  = pack48(i => getChecked(`z_rf_${i}`));
+    const x24 = pack48(i => getChecked(`z_24_${i}`));
+    const sl  = pack48(i => getChecked(`z_sl_${i}`));
+
+    wsSend({
+      action:"set",
+      page:"zones",
+      m:{
+        by:  u8ToB64(by),
+        ed:  u8ToB64(ed),
+        xd:  u8ToB64(xd),
+        rf:  u8ToB64(rf),
+        x24: u8ToB64(x24),
+        sl:  u8ToB64(sl)
+      }
+    });
+
+    toast("Saving…", "Packed zones sent. Waiting for OK…", "warn");
+  }
+
+   function onSaveZones(){
       const zones = [];
       for (let i=0; i<ZONE_COUNT; i++){
         zones.push({
@@ -1106,6 +1307,128 @@
       return false;
     }
 
+
+    // =====================================================================
+    // REMOTES PAGE (Simplified: Slot == User)
+    // =====================================================================
+    const remState = {
+      // 1-indexed for convenience
+      slots: Array(REMOTE_SLOT_COUNT + 1).fill(""),
+      // Optional: if backend sends users[{remId:"..."}], store here
+      userRemId: Array(REMOTE_SLOT_COUNT + 1).fill("")
+    };
+
+    let remScanSlot = 0;
+    let lastScanTarget = "zones";
+
+    function setRemotesStatus(text){
+      const el = document.getElementById("remotesStatus");
+      if (el) el.textContent = text || "";
+    }
+
+    function buildRemotesUI(){
+      const sel = document.getElementById("remSlotSel");
+      if (!sel) return;
+
+      sel.innerHTML = "";
+      for (let s=1; s<=REMOTE_SLOT_COUNT; s++){
+        const opt = document.createElement("option");
+        opt.value = String(s);
+        opt.textContent = `Slot ${s} (User ${s})`;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener("change", () => renderRemotesSelected(true));
+      renderRemotesSelected();
+    }
+
+    function currentRemotesSlot(){
+      const sel = document.getElementById("remSlotSel");
+      const s = parseInt(sel?.value || "1", 10);
+      if (isNaN(s) || s < 1) return 1;
+      if (s > REMOTE_SLOT_COUNT) return REMOTE_SLOT_COUNT;
+      return s;
+    }
+
+    function renderRemotesSelected(force = false){
+  const slot = Number(currentRemotesSlot());
+  const shown = (remState.slots[slot] || "").trim();
+
+  const inp = document.getElementById("remCodeInput");
+  if (inp){
+    // Update if:
+    //  - forced (slot changed), OR
+    //  - user is not actively editing the input
+    if (force || document.activeElement !== inp){
+      inp.value = shown;
+    }
+  }
+
+  const hint = document.getElementById("remotesHint");
+  if (hint){
+    hint.textContent = shown
+      ? `Showing User ${slot} / Slot ${slot}.`
+      : `User ${slot} has no learned remote yet.`;
+  }
+}
+
+    function remoteCmd(command, data0, data1){
+      const payload = { action:"cmd", page:"remotes", command };
+      if (data0 != null) payload.data0 = data0;
+      if (data1 != null) payload.data1 = data1;
+      console.log("TX:", JSON.stringify(payload));
+      const ok = wsSend(payload);
+      if (ok) toast("Remote command", `Sent ${command}`, "warn");
+    }
+
+    function onRemScan(){
+      const slot = currentRemotesSlot();
+      remScanSlot = slot;
+      lastScanTarget = "remotes";
+      setRemotesStatus(`Scanning… (Slot ${slot})`);
+      remoteCmd("rem_scan", String(slot), null);
+    }
+
+    function onRemLearn(){
+      const slot = currentRemotesSlot();
+      const code = (document.getElementById("remCodeInput")?.value || "").trim();
+      if (!code){
+        setRemotesStatus("No code. Click Scan first.");
+        return;
+      }
+      setRemotesStatus(`Learning… (Slot ${slot})`);
+      remoteCmd("rem_learn", code, String(slot));
+    }
+
+    function onRemClear(){
+      const slot = currentRemotesSlot();
+      setRemotesStatus(`Clearing… (Slot ${slot})`);
+      remoteCmd("rem_clear", String(slot), null);
+    }
+
+    function renderRemotes(payload){
+  if (!payload || typeof payload !== "object") return;
+
+  // reset slots
+  for (let i = 1; i <= REMOTE_SLOT_COUNT; i++) remState.slots[i] = "";
+
+  if (Array.isArray(payload.users)) {
+    for (const u of payload.users) {
+      if (!u || typeof u !== "object") continue;
+
+      const id = Number(u.id);
+      if (id >= 1 && id <= REMOTE_SLOT_COUNT) {
+        const rid = u.remId ?? u.remid ?? u.remID ?? "";
+        remState.slots[id] = String(rid);
+      }
+    }
+  } else {
+    console.warn("Remotes: users is not an array");
+  }
+
+    renderRemotesSelected();
+  }
+
+
     // =====================================================================
     // INFO PAGE
     // =====================================================================
@@ -1223,6 +1546,36 @@
 </head>
 
 <body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="logo"></div>
+        <div>
+          <h2 style="margin:0;">Black Wire Security</h2>
+          <div class="hint" style="margin-top:4px;">Enter PIN to continue</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:16px;">
+        <label for="loginPin">PIN</label>
+        <input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••" />
+      </div>
+
+      <div class="btnbar" style="justify-content:flex-end; margin-top:14px;">
+        <button class="btn primary" id="btnLogin" type="button">Login</button>
+      </div>
+
+      <div id="loginMsg" class="login-msg"></div>
+      <div class="hint" style="margin-top:10px; opacity:.8">
+        Tip: Change the default PIN inside <code>&lt;script&gt;</code> (SEARCH: <b>LOGIN_PIN</b>).
+      </div>
+    </div>
+  </div>
+
+  <div id="appRoot" style="display:none;">
+
   <div class="topbar">
     <div class="topbar-inner">
       <div class="brand">
@@ -1234,23 +1587,27 @@
       </div>
 
       <div class="tabs">
-        <button class="tab active" id="tab-sys">System</button>
+        
+        <button class="tab active" id="tab-info">Info</button>
+        <button class="tab" id="tab-sys">System</button>
         <button class="tab" id="tab-zones">Zones</button>
         <button class="tab" id="tab-contacts">Contacts</button>
-        <button class="tab" id="tab-info">Info</button>
+        <button class="tab" id="tab-remotes">Remotes</button>
         <button class="tab" id="tab-log">Log</button>
+      
       </div>
 
       <div class="status-pill">
         <div class="dot" id="wsDot"></div>
         <div><b>WS:</b> <span id="wsText">Booting…</span></div>
+        <button class="btn" id="btnLogout" type="button" style="margin-left:10px; padding:6px 10px; display:none;">Logout</button>
       </div>
     </div>
   </div>
 
   <div class="wrap">
     <!-- ===================== SYSTEM ===================== -->
-    <div class="page active" id="page-sys">
+    <div class="page" id="page-sys">
       <div class="grid">
         <div class="card">
           <div class="card-header">
@@ -1515,7 +1872,7 @@
     </div>
 
     <!-- ===================== INFO ===================== -->
-    <div class="page" id="page-info">
+    <div class="page active" id="page-info">
       <div class="card">
         <div class="card-header">
           <h2>Live Info</h2>
@@ -1574,7 +1931,58 @@
       </div>
     </div>
 
-    <!-- ===================== LOG ===================== -->
+    
+    <!-- ===================== REMOTES ===================== -->
+    <div class="page" id="page-remotes">
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <h2>Remotes</h2>
+            <div class="hint">Slot number = User number (User 1 → Slot 1, ...)</div>
+          </div>
+          <div class="card-body">
+
+            <div class="card" style="margin-bottom: 12px;">
+              <div class="card-header">
+                <h2>Remote Learning</h2>
+                <div class="hint">Scan → press any button → Learn (saves to selected slot)</div>
+              </div>
+              <div class="card-body">
+
+                <div class="row">
+                  <div class="field" style="min-width:220px;">
+                    <label for="remSlotSel">Select slot (User)</label>
+                    <select id="remSlotSel"></select>
+                  </div>
+
+                  <div class="field" style="flex:1; min-width:260px;">
+                    <label for="remCodeInput">Remote ID (current)</label>
+                    <input type="text" id="remCodeInput" placeholder="Empty" />
+                  </div>
+                </div>
+
+                <div class="hint" id="remotesHint" style="margin-bottom:10px;"></div>
+
+                <div class="btnbar" style="justify-content:flex-start;">
+                  <button class="btn" id="btnRemScan" type="button">Scan</button>
+                  <button class="btn primary" id="btnRemLearn" type="button">Learn</button>
+                  <button class="btn danger" id="btnRemClear" type="button">Clear</button>
+
+                  <div style="flex:1"></div>
+
+                  <button class="btn" id="btnReloadRemotes" type="button">Reload</button>
+                  <span id="remotesStatus" class="hint"></span>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+<!-- ===================== LOG ===================== -->
     <div class="page" id="page-log">
       <div class="card">
         <div class="card-header">
@@ -1602,5 +2010,7 @@
        {respHeader:"ok", page:"sys|zones|contacts", message:"OK"}
        or {respHeader:"err", page:"...", message:"reason"}
   -->
+
+  </div>
 </body>
 </html>

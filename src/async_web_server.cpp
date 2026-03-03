@@ -56,12 +56,6 @@ static inline void makeKey(char* out, size_t outSz, int idx, const char* suffix)
   snprintf(out, outSz, "z%d%s", idx, suffix);
 }
 
-// --------- helper: set/clear bit ----------
-static inline void setBit(uint8_t &v, uint8_t bit, bool en) {
-  if (en) v |=  (1U << bit);
-  else    v &= ~(1U << bit);
-}
-
 
 void setup_web_server_with_AP()
 {
@@ -279,47 +273,89 @@ String processor(const String &var) {
 // =====================================================
 // ZONES submit handler
 // marker param: "z0"
-// expects checkbox keys: z<idx>cbb, z<idx>cen, z<idx>cxt, z<idx>crf, z<idx>c24, z<idx>cch
+// expects checkbox keys: 
+// z<idx>cbb  -> bypass
+// z<idx>cen  -> entry delay
+// z<idx>cxt  -> exit delay
+// z<idx>crf  -> RF
+// z<idx>c24  -> 24H
+// z<idx>cch  -> silent/chime
 // =====================================================
 static bool handleZonesSubmit(AsyncWebServerRequest *request)
 {
-  if (!request->hasParam("z0")) return false;
+    // Check if this request is a zone form submission
+    if (!request->hasParam("z0")) {
+        return false;
+    }
 
-  // (Optional) ensure current is loaded. If you always keep array in RAM, you can remove.
-  (void)ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, TOTAL_DEVICES);
+    // -------------------------------------------------
+    // Ensure zones.bin exists and load attributes to RAM
+    // -------------------------------------------------
+    bool ok = ZoneStorage::loadOrInit(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT);
 
-  char key[16];
+    if (!ok) {
+        request->send(500, "text/plain", "FAIL: zones.bin load/init");
+        return true;
+    }
 
-  for (int idx = 0; idx < TOTAL_DEVICES; idx++) {
-    makeKey(key, sizeof(key), idx, KEY_BYPASS);
-    setBit(any_sensor_array[idx].device_state, BIT_MASK_BYPASSED, request->hasParam(key));
+    char key[16];
 
-    makeKey(key, sizeof(key), idx, KEY_ENTRY);
-    setBit(any_sensor_array[idx].device_state, BIT_MASK_ENTRY_DELAY, request->hasParam(key));
+    // -------------------------------------------------
+    // Update zone attributes based on form checkboxes
+    // -------------------------------------------------
+    for (int idx = 0; idx < ZONE_COUNT; idx++)
+    {
+        // BYPASS
+        makeKey(key, sizeof(key), idx, KEY_BYPASS);
+        bool bypassEnabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_state, BIT_MASK_BYPASSED, bypassEnabled);
 
-    makeKey(key, sizeof(key), idx, KEY_EXIT);
-    setBit(any_sensor_array[idx].device_state, BIT_MASK_EXIT_DELAY, request->hasParam(key));
+        // ENTRY DELAY
+        makeKey(key, sizeof(key), idx, KEY_ENTRY);
+        bool entryEnabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_state, BIT_MASK_ENTRY_DELAY, entryEnabled);
 
-    makeKey(key, sizeof(key), idx, KEY_RF);
-    setBit(any_sensor_array[idx].device_type, BIT_MASK_RF, request->hasParam(key));
+        // EXIT DELAY
+        makeKey(key, sizeof(key), idx, KEY_EXIT);
+        bool exitEnabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_state, BIT_MASK_EXIT_DELAY, exitEnabled);
 
-    makeKey(key, sizeof(key), idx, KEY_24H);
-    setBit(any_sensor_array[idx].device_type, BIT_MASK_24H, request->hasParam(key));
+        // RF SENSOR
+        makeKey(key, sizeof(key), idx, KEY_RF);
+        bool rfEnabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_type, BIT_MASK_RF, rfEnabled);
 
-    makeKey(key, sizeof(key), idx, KEY_SILENT);
-    setBit(any_sensor_array[idx].device_type, BIT_MASK_SILENT, request->hasParam(key));
+        // 24H SENSOR
+        makeKey(key, sizeof(key), idx, KEY_24H);
+        bool h24Enabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_type, BIT_MASK_24H, h24Enabled);
 
-    // Optional timestamp update (enable if you want)
-    // any_sensor_array[idx].last_updated_time_stamp = millis();
-  }
+        // SILENT / CHIME
+        makeKey(key, sizeof(key), idx, KEY_SILENT);
+        bool silentEnabled = request->hasParam(key);
+        setBit(any_sensor_array[idx].device_type, BIT_MASK_SILENT, silentEnabled);
 
-  if (!ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
-    request->send(500, "text/plain", "FAIL: save zones.bin");
+        // Optional timestamp update
+        // any_sensor_array[idx].last_updated_time_stamp = millis();
+    }
+
+    // -------------------------------------------------
+    // Save updated attributes to zones.bin
+    // (zone names are preserved automatically)
+    // -------------------------------------------------
+    bool saved = ZoneStorage::savePreserveNames(SPIFFS, "/zones.bin",
+                                                any_sensor_array, ZONE_COUNT);
+
+    if (!saved) {
+        request->send(500, "text/plain", "FAIL: save zones.bin");
+        return true;
+    }
+
+    // -------------------------------------------------
+    // Respond success
+    // -------------------------------------------------
+    request->send(200, "text/plain", "OK");
     return true;
-  }
-
-  request->send(200, "text/plain", "OK");
-  return true;
 }
 
 // =====================================================

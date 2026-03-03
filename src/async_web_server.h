@@ -17,6 +17,7 @@
 #include "pixel_blink_module.h"
 // ZoneStorage module
 #include "ZoneStorage.h"
+#include "utils_bits.h"
 
 // wifi
 // the Wifi radio's status
@@ -29,8 +30,7 @@ extern TimerSW Timer_WIFIreconnect;
 
 // --------- helper: build keys safely ----------
 static inline void makeKey(char* out, size_t outSz, int idx, const char* suffix);
-// --------- helper: set/clear bit ----------
-static inline void setBit(uint8_t &v, uint8_t bit, bool en);
+
 
 void setup_web_server_with_AP();
 void setup_web_server_with_STA();

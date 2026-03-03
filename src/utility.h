@@ -5,7 +5,7 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include "gsm_broker.h"
-#include "mqtt_broker.h"  // for mqtt.publish(), use your transport layer instance
+#include "mqtt_brokerx.h"  // for mqtt.publish(), use your transport layer instance
 
 // Constants
 #define NUM_ZONES 48

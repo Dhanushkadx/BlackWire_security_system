@@ -23,13 +23,12 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "statments.h"
 #include "alarm.h"
 #include "TimerSW.h"
-#include <RCSwitch.h>
+//#include <RCSwitch.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include "ESP32Time.h"
 #include "gsm_broker.h"
 #include "rf_methods.h"
-#include "sensor_scan.h"
 #include "config_manager.h"
 #include "async_web_server.h"
 #include "siren.h"
@@ -38,9 +37,61 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
 #include "OTA.h"
+#include "event_bus.h"
 #ifdef MQTT_OK
-#include "mqtt_broker.h"
+#include "mqtt_brokerx.h"
 #endif
+
+#include "zone_engine.h"
+#include "providers/prov_gpio_readable.h"
+#include "providers/prov_ads1115_readable.h"
+#include "providers/prov_rf_ev1527_readable.h"
+
+// Split task modules
+#include "tasks_alarm.h"
+#include "tasks_zone_engine.h"
+#include "tasks_io.h"
+#include "tasks_broadcasting.h"
+#include "tasks_433rf.h"
+#include "ws_tx_queue.h"
+
+extern AsyncWebSocket ws;  // or your actual global
+ZoneEngine zoneEngine;
+ProvGPIO provGpio;
+ProvADS1115 provAds;
+ProvRF_EV1527 provRf;
+
+// GPIO zones example
+static const GpioChannel gpioCh[] = {
+  {0, 35, false},  // zone0 on GPIO4, inverted (pullup)
+  {1, 34, false},
+  {2, 36, false},
+  {3, 39, false},
+};
+
+// ADS example: 2 devices => 8 zones (4ch each)
+static const AdsDeviceConfig adsDevs[] = {
+  { 0x48, {
+      {8, 0, 2.0f, 1.6f, true},
+      {9, 1, 2.0f, 1.6f, true},
+      {10,2, 2.0f, 1.6f, true},
+      {11,3, 2.0f, 1.6f, true},
+    }
+  },
+  { 0x49, {
+      {12,0, 2.0f, 1.6f, true},
+      {13,1, 2.0f, 1.6f, true},
+      {14,2, 2.0f, 1.6f, true},
+      {15,3, 2.0f, 1.6f, true},
+    }
+  },
+};
+
+// RF zones mapping (EV1527 remotes etc.)
+static const RfCodeToZone rfMap[] = {
+    { 0x123456, 40 },   // code , zone
+    { 0x654321, 41 },
+};
 //ESP32Time rtc;
 ESP32Time rtc(0);  // offset in seconds GMT+1
 
@@ -52,16 +103,8 @@ SemaphoreHandle_t xBinarySemaphore;
 SemaphoreHandle_t xMutex_GSM = NULL;
 SemaphoreHandle_t xMutex_GSM_CALLING = NULL;
 SemaphoreHandle_t xMutex_I2C = NULL;
-SemaphoreHandle_t sensorMutex = NULL;
 SemaphoreHandle_t xMutex_spiff = NULL;
 
-
-
-/* this variable hold queue handle */
-xQueueHandle xQueue;
-/* this variable hold queue handle */
-xQueueHandle xQueue_sensor_state;
-xQueueHandle xQueue_mqtt_Qhdlr;
 
 /* create event group */
 EventGroupHandle_t EventRTOS_lcd;
@@ -103,16 +146,12 @@ TaskHandle_t Task10;
 // Use this one for FONA 3G
 //Adafruit_FONA_3G fona = Adafruit_FONA_3G(FONA_RST);
 void printStackUsage(TaskHandle_t);
-//uint8_t readline(char *buff, uint8_t maxbuff, uint16_t timeout = 0);
-void rfid_int_to_str(char* buff, unsigned long rf_id);
-void transfer_rf_scan_data(char* rfid);
 void RFbaster(const char* rf_id_msg);
 void RFListiner();
 void Power_detect_loop(); 
 void buzzer();
 void printLocalTime();
 void send_all_zone_states_mqtt();
-uint8_t remcode(const char* codeStr);
 uint8_t type;
 
 TimerSW Timer_call_init_delay;
@@ -184,76 +223,6 @@ int Rii         = -1;
 // Create PixelBlink object
 PixelBlink pixel(LED_PIN, LED_COUNT);
 
-void Task1code( void * parameter ){
-	/*Serial.print("Task1 is running on core ");
-	Serial.println(xPortGetCoreID());*/
-	//xSemaphoreTake( xMutex_GSM_CALLING, portMAX_DELAY );
-	/* keep the status of receiving data */
-	TickType_t xLastWakeTime;
-    const TickType_t xFrequency =  pdMS_TO_TICKS(1);;
-	BaseType_t xStatus_queu_sensorTsk, xStatus_queu_mqttTsk;
-	/* time to block the task until data is available */
-	const TickType_t xTicksToWait = pdMS_TO_TICKS(50);
-	DataBuffer data_buff_sensTsk, data_buff_mqttTsk;
-	for(;;){
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );		
-		/* receive data from the queue */
-		xStatus_queu_sensorTsk = xQueueReceive( xQueue_sensor_state, &data_buff_sensTsk, xTicksToWait );
-		/* check whether receiving is ok or not */
-		if(xStatus_queu_sensorTsk == pdPASS){
-			/* print the data to terminal */
-			Serial.print(F("rx Queu sensor data: "));
-			Serial.println(data_buff_sensTsk.char_buffer_rx);
-			universal_event_hadler(data_buff_sensTsk.char_buffer_rx,SYSTEM_ITSELF,0);
-		}
-#ifdef MQTT_OK
-		xStatus_queu_mqttTsk = xQueueReceive( xQueue_mqtt_Qhdlr, &data_buff_mqttTsk, xTicksToWait );
-		/* check whether receiving is ok or not */
-		if(xStatus_queu_mqttTsk == pdPASS){
-			/* print the data to terminal */
-			Serial.print(F("mqtt Queu data: "));
-			Serial.println(data_buff_mqttTsk.char_buffer_rx);
-			universal_event_hadler(data_buff_mqttTsk.char_buffer_rx,WEB,0);
-		}
-#endif		
-ByteBuffer packet = {0};
-		// Check if sensorEventQueue has data
-		if (xQueueReceive(sensorEventQueue, &packet, xTicksToWait)) {
-			// Process all sensor states
-			for (int i = 0; i < 48; i++) {
-				bool state = (packet.zoneStates[i / 8] >> (i % 8)) & 0x01;
-				myAlarm_pannel.Universal_zone_state_update(i, state);
-			}
-		}
-
-		myAlarm_pannel.watcher();
-		
-		if (stringComplete_at_serial0)
-		{
-			stringComplete_at_serial0 = false;
-			universal_event_hadler(inputString.c_str(),last_invorker,0);
-			inputString = "";
-		}
-		
-		RFListiner();
-	}
-}
-
-void Task2code_sms( void * parameter ){
-	/*Serial.print("Task2 is running on core ");
-	Serial.println(xPortGetCoreID());*/
-	//creatSMS("Hi :-)",3,0);
- TickType_t xLastWakeTime;
- const TickType_t xFrequency =  pdMS_TO_TICKS(1);;
- // Initialize the xLastWakeTime variable with the current time.
- xLastWakeTime = xTaskGetTickCount ();
- for(;;){
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );		
-#ifdef GSM_OK	
-		ultimate_sms_hadlr();
-#endif
-	}
-}
 
 void Task3code_lcd( void * parameter ){
 	/*Serial.print("Task3 is running on core ");
@@ -281,20 +250,6 @@ void Task3code_lcd( void * parameter ){
 	}
 }
 
-void Task4code_gsm_ctrl( void * parameter ){
-	/*Serial.print("Task4 is running on core ");
-	Serial.println(xPortGetCoreID());*/
-	 TickType_t xLastWakeTime;
-	 const TickType_t xFrequency =  pdMS_TO_TICKS(3000);
-	 // Initialize the xLastWakeTime variable with the current time.
-	 xLastWakeTime = xTaskGetTickCount ();
-	for(;;){
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );
-#ifdef GSM_OK		
-			gsm_manager();		
-#endif
-	}
-}
 
 void Task5code_call( void * parameter ){
 	/*Serial.print("Task5 is running on core ");
@@ -318,9 +273,10 @@ void Task6code(void * parameter){
 	const TickType_t xTicksToWait = pdMS_TO_TICKS(100);
 	DataBuffer data;
 	Serial.print(F("task 6 start"));
+	return;
 	for(;;){
 		/* receive data from the queue */
-		xStatus = xQueueReceive( xQueue, &data, xTicksToWait );
+		xStatus = 1;//xQueueReceive( xQueue, &data, xTicksToWait );
 		/* check whether receiving is ok or not */
 		if(xStatus == pdPASS){
 			/* print the data to terminal */
@@ -393,18 +349,6 @@ switch (system_mode) {
 }
 
 
-void Task9code( void * parameter ){
-	Serial.print(F("Task9 is running on core "));
-	Serial.println(xPortGetCoreID());
-	
-	for(;;){
-		delay(1);
-		buzzer();
-		relayTask();
-		// Must be called continuously to handle blinking
-  		pixel.update();
-	}
-}
 
 void Task10code( void * parameter ){
 	Serial.print(F("Task10 is running on core "));
@@ -415,7 +359,7 @@ void Task10code( void * parameter ){
 	xLastWakeTime = xTaskGetTickCount ();
 	for(;;){
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );
-		GPIO_sens_scan();
+		//GPIO_sens_scan();
 		// pooling_i2c_a();
 		// pooling_i2c_b();
 		// pooling_i2c_c();
@@ -430,6 +374,9 @@ void Task10code( void * parameter ){
 	}
 }
 
+
+
+
 void init_timersSW(){
 	 //Timer_second_counter.interval = 1000;
 	  Timer_WIFIreconnect.interval = 60000;
@@ -438,6 +385,22 @@ void init_timersSW(){
 	  Timer_sms_send_delay.interval = 60000;
 	  Timer_mqtt_breath.interval = 30000;
 	  Timer_websocket_update.interval = 2000;
+}
+
+void init_zoneEventbus(){
+  eventBusInit(96, 96);
+  zoneEngine.begin();
+  // Example: make RF zones momentary (auto close after 800ms)
+  ZoneConfig zc;
+  zc.debounce_ms = 40;
+  zc.momentary_hold_ms = 800;
+  zoneEngine.setConfig(40, zc);
+  zoneEngine.setConfig(41, zc);
+
+  provGpio.begin(gpioCh, sizeof(gpioCh)/sizeof(gpioCh[0]));
+  provAds.begin(adsDevs, sizeof(adsDevs)/sizeof(adsDevs[0]));
+  provRf.begin(rfMap, sizeof(rfMap)/sizeof(rfMap[0]));
+  provGpio.syncAll();
 }
 
 void setup()
@@ -493,13 +456,13 @@ void setup()
 	}
 	//eeprom_reset();
 	eeprom_load(0);
-	setup_sensor_settings();
+	setup_mqtt(); 
+	//setup_sensor_settings();
 	//system_mode = CONFIG_MODE;
 	if((system_mode==CONFIG_MODE)||(systemConfig.wifiap_en)){
 		setup_web_server_with_AP();
 	}
 	else if(system_mode==NOMAL_MODE_WIFI){
-
 #ifdef MQTT_OK
 		if(systemConfig.mqtt_en){
 			mqtt_enable = true; 
@@ -541,41 +504,40 @@ void setup()
   setup_siren();
   setup_buzzer();	
   setup_gsmled();
-  sensorMutex = xSemaphoreCreateMutex();
   EventRTOS_lcd = xEventGroupCreate();
-
-//   EventRTOS_buzzer = xEventGroupCreate();
-//   EventRTOS_siren = xEventGroupCreate();
   EventRTOS_lcdkeyPad = xEventGroupCreate();
   EventRTOS_gsm = xEventGroupCreate();
  
-
+// start TX RX infra
+ mqtt_rx_init();   // create inbound queue
+ mqtt_tx_init();   // create TX queue + task
  initMsgQueue();
  initSMSQueuex();
- /* create the queue which size can contains 5 elements of Data */
- xQueue = xQueueCreate(1, sizeof(DataBuffer));
- xQueue_sensor_state = xQueueCreate(8, sizeof(DataBuffer));
- xQueue_mqtt_Qhdlr = xQueueCreate(3, sizeof(DataBuffer));
- sensorEventQueue = xQueueCreate(1, sizeof(ByteBuffer));
- if (!xQueue || !xQueue_sensor_state || !xQueue_mqtt_Qhdlr) {
-    // Code inside this block will execute if any of the queue creations failed
-	Serial.println(F("ini queu faild system can't start"));
-}
+ init_zoneEventbus();
+ setupZoneBroadcasting();
+ wsTxAttach(&ws);
+ wsTxBegin(16, 4096, 3);  // queue depth, stack words, priority
+ // Init queue + start tasks
+ rf433_init();
+
  
 xMessageBuffer = xMessageBufferCreate(xBufferSizeBytes );
 xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
  
-	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
+	startAlarmTasks();
+	startZoneEngineTasks();
+	startIoTasks();
+	rf433_start_tasks();
+
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
-	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
 	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
-	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
 	
-	xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
 	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
+
+
 	/* Clear bit 0 and bit 4 in xEventGroup. */
 	xEventGroupSetBits(
 	EventRTOS_gsm,  /* The event group being updated. */
@@ -636,29 +598,6 @@ void printLocalTime(){
 #endif
 }
 
-
-void transfer_rf_scan_data(char* rfid){
-	 /* keep the status of sending data */
-	 BaseType_t xStatus;
-	 /* time to block the task until the queue has free space */
-	 const TickType_t xTicksToWait = pdMS_TO_TICKS(1);
-	 /* create data to send */
-	DataBuffer data;
-	/* sender 1 has id is 1 */
-	memset(data.char_buffer_rx,'\0',15);
-	strcpy(data.char_buffer_rx,rfid);
-	
-		Serial.println(F("sendTask RFscan is sending data"));
-		/* send data to front of the queue */
-		xStatus = xQueueSendToFront( xQueue, &data, xTicksToWait );
-		/* check whether sending is ok or not */
-		if( xStatus == pdPASS ) {
-			/* increase counter of sender 1 */
-			Serial.println(F("sendTask1 is sending data"));
-		}
-		/* we delay here so that receiveTask has chance to receive data */
-		delay(100);
-}
 
 
 void eeprom_save(){configSave();}
@@ -913,53 +852,7 @@ if (strncmp("RID",rf_id_msg,3)==0)// rf id received  RFD=254266
 	}					
 }
 	
-	
-void RFListiner(){
-		if (mySwitch.available()){
-			char buff[10]="";
-			unsigned long now_RFID = mySwitch.getReceivedValue();
-			Serial.println(now_RFID);
-			if (now_RFID!= prev_RFID)
-			{prev_RFID = now_RFID;
-				rf_id_automatic_clr_timer_en= true;
-				Timer_rf_id_auto_clr.interval=3000;
-				Timer_rf_id_auto_clr.previousMillis=millis();
-				
-				rfid_int_to_str(buff,now_RFID);
-				//filter some noise
-				if (strlen(buff)<4)
-				{
-					return;
-				}
-				xEventGroupSetBits(EventRTOS_buzzer,    TASK_7_BIT );// RF rx buzzer event
-					char zone_name[15]="";
-					sprintf(zone_name,"RID=,%s",buff);
-					transfer_rf_scan_data(zone_name);
-					RFbaster(zone_name);
-				
-			}
-			else{
-				mySwitch.resetAvailable();
-			}
-			
-			
-		}
-		if (rf_id_automatic_clr_timer_en)
-		{
-			if (Timer_rf_id_auto_clr.Timer_run())
-			{
-				rf_id_automatic_clr_timer_en = false;
-				
-				prev_RFID = 0;
-			}
-		}
-	}
-	
-	void rfid_int_to_str(char* buff, unsigned long rf_id){
-		
-		mySwitch.resetAvailable();
-		ultoa	(rf_id, buff,10);
-	}
+
 	
 	
 	void get_eInvoker_type_to_char(eInvoking_source invoker, char* buffer){
@@ -1058,17 +951,17 @@ void Power_detect_loop() {
 }
 
 
-void send_all_zone_states_mqtt(){
+void send_all_zone_states_mqtt(){//****************************************************************************************/
 	
             for (int i = 0; i < TOTAL_DEVICES; ++i) {
 				if(myAlarm_pannel.is_sensor_available(i)){
-					bool state = getSensor(i);
+					bool state = myAlarm_pannel.is_sensor_ready(i);
                 	send_sensor_state_update_to_mqtt(i, state);
 					setZone(i,state);
 				}
 
 				if(myAlarm_pannel.is_sensor_RF(i)){
-					bool state = getSensor(i);
+					bool state = myAlarm_pannel.is_sensor_ready(i);
                 	send_sensor_state_update_to_mqtt(i, state);
 				}
                 
@@ -1084,8 +977,7 @@ void printStackUsage(TaskHandle_t TaskHandle) {
 	// Get the stack high water mark for the loop task
 	return;
 	UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(TaskHandle);
-	Serial.print("Minimum stack remaining for loop task: ");
+	Serial.print(F("Minimum stack remaining for loop task: "));
 	Serial.print(highWaterMark);
-	Serial.println(" words.");
+	Serial.println(F(" words."));
   }
-

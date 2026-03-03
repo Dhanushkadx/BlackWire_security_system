@@ -85,176 +85,261 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     return true; // Return true if successful
 }
 	 
- void configLoad(uint8_t mode){	 
+void configLoad(uint8_t mode)
+{
+    switch (mode)
+    {
 
-	switch (mode)
-	{
-	case 2:{
-		// load zone data 
-	// Try to load file
-    if (!ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
-        Serial.println(F("Zone file not found or invalid — initializing example array"));
-
-        ZoneStorage::initExampleArray(any_sensor_array, ZONE_COUNT);  // fill with example bits
-        if (ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
-            Serial.println(F("Example zones saved to SPIFFS"));
-        } else {
-            Serial.println(F("Failed to save example zones!"));
-        }
-    } else {
-        Serial.println(F("Zone file loaded successfully"));
+    // =====================================================
+    // MODE 2 : Load zones and user database
+    // =====================================================
+    case 2:
+    {
+        Serial.println(F("Loading zone database..."));
+        gZoneManager.begin(SPIFFS, "/zones.bin");
+        gZoneManager.syncToEngine(zoneEngine);
+        // -------------------------------------------------
+        // Load remote database
+        // ------------------------------------------------
+            Serial.println(F("Loading remote database..."));
+            if(RemoteStorage::begin(SPIFFS, "/remotes.bin")){
+                Serial.println(F("RemoteStorage loaded successfully"));
+            } else {
+                Serial.println(F("RemoteStorage load failed"));
+            }
 #ifdef _DEBUG
-ZoneStorage::printZones(any_sensor_array, ZONE_COUNT);
+          
+            RemoteStorage::printToSerial();  
 #endif
+       
+
+        // -------------------------------------------------
+        // Load user database
+        // -------------------------------------------------
+
+        File usersFile = SPIFFS.open("/personx.json", "r");
+
+        if (!usersFile) {
+#ifdef _DEBUG
+            Serial.println(F("Failed to open /personx.json"));
+#endif
+            break;
+        }
+
+        DynamicJsonDocument usersDoc(JSON_DOC_SIZE_USER_DATA);
+
+        DeserializationError err = deserializeJson(usersDoc, usersFile);
+        usersFile.close();
+
+        if (err) {
+#ifdef _DEBUG
+            Serial.print(F("User JSON parse failed: "));
+            Serial.println(err.c_str());
+#endif
+            break;
+        }
+
+        JsonObject usersObj = usersDoc["users"].as<JsonObject>();
+
+        if (usersObj.isNull()) {
+#ifdef _DEBUG
+            Serial.println(F("Invalid format: missing users object"));
+#endif
+            break;
+        }
+
+#ifdef _DEBUG
+        Serial.println(F("Loaded users:"));
+        serializeJsonPretty(usersObj, Serial);
+        Serial.println();
+#endif
+
+        break;
     }
 
-	File users_fileToRead = SPIFFS.open("/personx.json");
-	
-	DynamicJsonDocument users_docx(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(users_docx,  users_fileToRead);
-#ifdef _DEBUG
-	// This code will only be included in the Debug configuration
-	serializeJsonPretty(users_docx, Serial);
-#endif		
-	users_fileToRead.close();
 
-	}
-		/* code */
-		break;
-	
-	case 0:{
+    // =====================================================
+    // MODE 0 : Full configuration load at boot
+    // =====================================================
+    case 0:
+    {
+        Serial.println(F("Loading system configuration..."));
 
-	Serial.println(F("reload config data...................."));
-	 File fileToRead = SPIFFS.open("/config.json");
-	 if (!fileToRead)
-	 {
-		 Serial.println(F("no file found reset eeprom"));
-		 configReset();
-	 }
-	 
-	 DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
-	 deserializeJson(doc,  fileToRead);	 
-	 
-	 systemConfig.battery_charging_en = doc["sysconf"]["battery_charging_en"];
+        File fileToRead = SPIFFS.open("/config.json");
 
-	 systemConfig.bell_time_out = doc["sysconf"]["bell_time_out"];
-	 systemConfig.beep_time_out = doc["sysconf"]["beep_time_out"];
-	 systemConfig.siren_en = doc["sysconf"]["siren_en"];
-	 systemConfig.beep_en = doc["sysconf"]["beep_en"];
-	 systemConfig.cli_access_level = doc["sysconf"]["cli_access_level"];
-	 systemConfig.entry_delay_time = doc["sysconf"]["entry_delay_time"];
-	 systemConfig.exit_delay_time = doc["sysconf"]["exit_delay_time"];
-	 systemConfig.sensor_debounce_time = doc["sysconf"]["debounce_time"];
-	 systemConfig.wifi_sta_en = doc["sysconf"]["wifi_sta_en"];
-	 systemConfig.mqtt_en = doc["sysconf"]["mqtt_en"];
-	 systemConfig.call_attempts = doc["sysconf"]["call_attempts"];
-	 systemConfig.call_en = doc["sysconf"]["call_en"];
-	 systemConfig.wifiap_en = doc["sysconf"]["wifiap_en"];
+        if (!fileToRead) {
+            Serial.println(F("config.json missing -> resetting config"));
+            configReset();
+            break;
+        }
+
+        DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
+
+        DeserializationError err = deserializeJson(doc, fileToRead);
+        fileToRead.close();
+
+        if (err) {
+            Serial.println(F("config.json parse error"));
+            break;
+        }
+
+        JsonObject sys = doc["sysconf"];
+
+        // -------------------------------------------------
+        // System parameters
+        // -------------------------------------------------
+
+        systemConfig.battery_charging_en   = sys["battery_charging_en"];
+        systemConfig.bell_time_out         = sys["bell_time_out"];
+        systemConfig.beep_time_out         = sys["beep_time_out"];
+        systemConfig.siren_en              = sys["siren_en"];
+        systemConfig.beep_en               = sys["beep_en"];
+        systemConfig.cli_access_level      = sys["cli_access_level"];
+        systemConfig.entry_delay_time      = sys["entry_delay_time"];
+        systemConfig.exit_delay_time       = sys["exit_delay_time"];
+        systemConfig.sensor_debounce_time  = sys["debounce_time"];
+        systemConfig.wifi_sta_en           = sys["wifi_sta_en"];
+        systemConfig.mqtt_en               = sys["mqtt_en"];
+        systemConfig.call_attempts         = sys["call_attempts"];
+        systemConfig.call_en               = sys["call_en"];
+        systemConfig.wifiap_en             = sys["wifiap_en"];
+
 #ifdef GSM_PULSEX_IOT_BOARD
-	 	bool reset_pin_state = true;
+        bool reset_pin_state = true;
 #else
-	 	bool reset_pin_state = digitalRead(PROGRAM_PIN);
+        bool reset_pin_state = digitalRead(PROGRAM_PIN);
 #endif
-	 if (1==1)
-	//if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
-	{	
-	//if(systemConfig.wifiap_en==true){	
-		 strcpy(systemConfig.installer_pass, "admin");	
-		 Serial.println(F("WiFi Password Default"));
-		 system_mode = CONFIG_MODE;
-	}
-	else{
 
-		if(systemConfig.wifi_sta_en==true){
-		const char* ssid = doc["sysconf"]["wifissid_sta"];
-		strcpy(systemConfig.wifissid_sta, ssid);	
-		const char* pss = doc["sysconf"]["wifipass"];
-		strcpy(systemConfig.wifipass, pss);	
-		Serial.println(F("WiFi Password Set"));
-		const char* installerPW = doc["sysconf"]["installer_pass"];
-		strcpy(systemConfig.installer_pass, installerPW);
-		system_mode = NOMAL_MODE_WIFI;
-		}
-		else{
-			system_mode = NOMAL_MODE_NO_WIFI;
-		}
-	}
-	 
-	 memset(systemConfig.last_sms_sender,'\0',15);	 
-	 strcpy(systemConfig.last_sms_sender, doc["sysconf"]["last_sms_sender"]);	
-	 const char* last_sys_state = doc["sysconf"]["last_system_state"];
-	 Serial.print("Last sys state");
-	 Serial.println(last_sys_state);
-	 
-	 if (strncmp("Home arm",last_sys_state,8)==0)
-	 {
-		 systemConfig.last_system_state = SYS1_IDEAL;
-	 }
-	 else if (strncmp("Disarm",last_sys_state,6)==0)
-	 {
-		 systemConfig.last_system_state = DEACTIVE;
-	 }
-	 systemConfig.last_system_state = SYS1_IDEAL;
-	 Serial.println(F("reload zone data...................."));
-	 // Try to load file
-    // Try to load file
-    if (!ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
-        Serial.println(F("Zone file not found or invalid — initializing example array"));
+        // -------------------------------------------------
+        // Determine system mode
+        // -------------------------------------------------
 
-        ZoneStorage::initExampleArray(any_sensor_array, ZONE_COUNT);  // fill with example bits
-        if (ZoneStorage::save(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
-            Serial.println(F("Example zones saved to SPIFFS"));
-        } else {
-            Serial.println(F("Failed to save example zones!"));
+        if (true)   // your forced CONFIG_MODE logic
+        {
+            strcpy(systemConfig.installer_pass, "admin");
+            Serial.println(F("Installer password default"));
+            system_mode = CONFIG_MODE;
         }
-    } else {
-        Serial.println(F("Zone file loaded successfully"));
+        else
+        {
+            if (systemConfig.wifi_sta_en)
+            {
+                const char* ssid = sys["wifissid_sta"];
+                const char* pass = sys["wifipass"];
+
+                strcpy(systemConfig.wifissid_sta, ssid);
+                strcpy(systemConfig.wifipass, pass);
+
+                const char* installerPW = sys["installer_pass"];
+                strcpy(systemConfig.installer_pass, installerPW);
+
+                system_mode = NOMAL_MODE_WIFI;
+
+                Serial.println(F("WiFi credentials loaded"));
+            }
+            else
+            {
+                system_mode = NOMAL_MODE_NO_WIFI;
+            }
+        }
+
+        // -------------------------------------------------
+        // Restore last system state
+        // -------------------------------------------------
+
+        memset(systemConfig.last_sms_sender, '\0', 15);
+        strcpy(systemConfig.last_sms_sender, sys["last_sms_sender"]);
+
+        const char* lastState = sys["last_system_state"];
+
+        if (strncmp("Home arm", lastState, 8) == 0) {
+            systemConfig.last_system_state = SYS1_IDEAL;
+        }
+        else if (strncmp("Disarm", lastState, 6) == 0) {
+            systemConfig.last_system_state = DEACTIVE;
+        }
+
+        systemConfig.last_system_state = SYS1_IDEAL;
+
 #ifdef _DEBUG
-ZoneStorage::printZones(any_sensor_array, ZONE_COUNT);
+        Serial.println(F("Loaded config.json"));
+        serializeJsonPretty(doc, Serial);
+        Serial.println();
 #endif
-		
+
+        // -------------------------------------------------
+        // Load zones
+        // -------------------------------------------------
+
+        Serial.println(F("Loading zone database..."));
+
+        gZoneManager.begin(SPIFFS, "/zones.bin");
+        gZoneManager.syncToEngine(zoneEngine);
+
+         // -------------------------------------------------
+        // Load remote database
+        // ------------------------------------------------
+            Serial.println(F("Loading remote database..."));
+            if(RemoteStorage::begin(SPIFFS, "/remotes.bin")){
+                Serial.println(F("RemoteStorage loaded successfully"));
+                //RemoteStorage::learnFromCodeStr(0, "1234567890", true);
+                //RemoteStorage::setEnabled(0, true);
+            } else {
+                Serial.println(F("RemoteStorage load failed"));
+            }
+            RemoteStorage::printToSerial();  
+#ifdef _DEBUG
+          
+            RemoteStorage::printToSerial();  
+#endif
+
+        // -------------------------------------------------
+        // Load users
+        // -------------------------------------------------
+
+        File usersFile = SPIFFS.open("/personx.json");
+
+        if (usersFile) {
+            DynamicJsonDocument usersDoc(JSON_DOC_SIZE_USER_DATA);
+            deserializeJson(usersDoc, usersFile);
+
+#ifdef _DEBUG
+            serializeJsonPretty(usersDoc, Serial);
+#endif
+
+            usersFile.close();
+        }
+
+        // -------------------------------------------------
+        // Reset temporary AP request flag
+        // -------------------------------------------------
+
+        if (systemConfig.wifiap_en)
+        {
+            Serial.println(F("Reverting temporary WiFi AP flag"));
+
+            File cfg = SPIFFS.open("/config.json");
+            if (!cfg) break;
+
+            DynamicJsonDocument docx(JSON_DOC_SIZE_CONFIG_DATA);
+            deserializeJson(docx, cfg);
+            cfg.close();
+
+            docx["sysconf"]["wifiap_en"] = false;
+
+            File out = SPIFFS.open("/config.json", FILE_WRITE);
+            serializeJson(docx, out);
+            out.close();
+        }
+
+        break;
     }
-	 
-#ifdef _DEBUG
-	 // This code will only be included in the Debug configuration
-	serializeJsonPretty(doc, Serial);
-#endif	
-	fileToRead.close();	
 
-	File users_fileToRead = SPIFFS.open("/personx.json");
-	
-	DynamicJsonDocument users_docx(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(users_docx,  users_fileToRead);
-#ifdef _DEBUG
-	// This code will only be included in the Debug configuration
-	serializeJsonPretty(users_docx, Serial);
-#endif		
-	users_fileToRead.close();		  
-
-	// finally set wifi ap if sms command asked for that
-	if(systemConfig.wifiap_en){
-		Serial.println(F("WIFI_TEMP_AP_REVERT_BACK"));
-		File fileToRead = SPIFFS.open("/config.json");
-		if (!fileToRead)
-		{
-			Serial.println(F("no file found reset eeprom"));
-			return;
-		}
-		DynamicJsonDocument docx(JSON_DOC_SIZE_CONFIG_DATA);
-		deserializeJson(docx,  fileToRead);
-		fileToRead.close();
-		docx["sysconf"]["wifiap_en"] = false;
-		File fileToWritey = SPIFFS.open("/config.json", FILE_WRITE);	
-		serializeJson(docx,  fileToWritey);
-		fileToWritey.close();
-
-	}
-	}
-		break;
-	}
-	
-	 
+    } // end switch
 }
+	
+	 
+
 	 
 
 	 

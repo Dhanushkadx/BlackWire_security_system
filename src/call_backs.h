@@ -11,7 +11,7 @@
 #include "FS.h"
 #include <SPIFFS.h>
 #include "rf_methods.h"
-#include "mqtt_broker.h"
+#include "mqtt_brokerx.h"
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
 #include "utility.h"
@@ -59,7 +59,7 @@ int8_t comp_device_RFID(const char* rf_id_rx);
 char* get_device_RFID(uint8_t device_index);
 void set_device_RFID(uint8_t device_index, const char* rf_id);
 int8_t comp_User_id(const char *number);
-int8_t comp_remote_RFID(uint32_t rx_rf_id_uint, uint8_t command_length);
+int8_t comp_remote_RFID(uint32_t rxBase, uint8_t cmdBits);
 char* get_remote_RFID(uint8_t device_index);
 void set_remote_RFID(uint8_t device_index, const char* rf_id);
 char* get_GSM_number(uint8_t gsm_number_index);

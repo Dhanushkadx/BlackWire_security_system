@@ -8,6 +8,12 @@
 
 AsyncWebSocket ws("/ws");
 
+static size_t   ws_text_len = 0;
+static uint32_t ws_text_client = 0;
+static char ws_text_buf[12000];  // make it bigger than your zones JSON
+static uint32_t ws_client_id = 0;
+static size_t ws_expected_len = 0;
+
 
 void onEvent(AsyncWebSocket       *server,
 AsyncWebSocketClient *client,
@@ -81,9 +87,15 @@ void sendPageSys(AsyncWebSocketClient* c){
 }
 
 void sendPageZones(AsyncWebSocketClient* c){
-  if(!ZoneStorage::load(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)){
-    // still send something, otherwise UI stays empty
-  }
+// Load zones.bin (or auto-create defaults if missing/corrupt)
+if (!ZoneStorage::loadOrInit(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+    Serial.println(F("ZoneStorage: loadOrInit failed"));
+} else {
+    Serial.println(F("ZoneStorage: zones loaded/initialized OK"));
+#ifdef _DEBUG
+    ZoneStorage::printZones(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT);
+#endif
+}
   DynamicJsonDocument r(8192);
   r["respHeader"] = "zones";
   JsonArray arr = r.createNestedArray("zones");
@@ -91,7 +103,11 @@ void sendPageZones(AsyncWebSocketClient* c){
   for(uint8_t i=0;i<ZONE_COUNT;i++){
     JsonObject z = arr.createNestedObject();
     // n/by/ed/xd/rf/x24/sl
-    z["n"]   = /* name */ String("Z") + (i<10?"0":"") + String(i);
+    char name[ZONE_NAME_LEN];
+	if(ZoneStorage::getName(SPIFFS, "/zones.bin", i, name, sizeof(name), ZONE_COUNT))
+	z["n"] = name;
+	else
+	z["n"] = "";
     z["by"]  = (any_sensor_array[i].device_state & (1 << BIT_MASK_BYPASSED)) != 0;
     z["ed"]  = (any_sensor_array[i].device_state & (1 << BIT_MASK_ENTRY_DELAY)) != 0;
     z["xd"]  = (any_sensor_array[i].device_state & (1 << BIT_MASK_EXIT_DELAY)) != 0;
@@ -126,6 +142,38 @@ void sendPageContacts(AsyncWebSocketClient* c){
   c->text(out);
 }
 
+// Sends portal format: {respHeader:"remotes", users:[{id, remId}, ...]}
+// New strategy: slot number == user number (1..8)
+void sendPageRemotes(AsyncWebSocketClient* c)
+{
+  StaticJsonDocument<512> r;
+
+  r["respHeader"] = "remotes";
+
+  JsonArray users = r.createNestedArray("users");
+
+  for (uint8_t id = 1; id <= 8; id++)
+  {
+    JsonObject u = users.createNestedObject();
+    u["id"] = id;
+
+    uint32_t code = RemoteStorage::getBaseCode(id);
+
+    if (code == 0) {
+      // Empty slot
+      u["remId"] = "";
+    } else {
+      char code_str[12];  // enough for 32-bit decimal
+      snprintf(code_str, sizeof(code_str), "%lu", (unsigned long)code);
+      u["remId"] = code_str;
+    }
+  }
+
+  String out;
+  serializeJson(r, out);
+  c->text(out);
+}
+
 void sendPageInfo(AsyncWebSocketClient* c){
   DynamicJsonDocument r(768);
   r["respHeader"] = "info";
@@ -138,109 +186,357 @@ void sendPageInfo(AsyncWebSocketClient* c){
   r["P4"] = WiFi.macAddress();
   for(int i=0;i<4;i++){
     String key = "P" + String(i+5);
-    r[key] = getSensor(i);
+    r[key] = true;//getSensor(i);
   }
 
   String out; serializeJson(r, out);
   c->text(out);
 }
 
-// ---- Main dispatcher ----
-void handleWebSocketMessage(AsyncWebSocketClient* client, void *arg, uint8_t *data, size_t len) {
-  AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if(!(info->final && info->index==0 && info->len==len && info->opcode==WS_TEXT)) return;
 
-  DynamicJsonDocument req(len + 128);
-  auto err = deserializeJson(req, data, len);
-  if(err) return wsSendErr(client, "", "bad json");
 
-  const char* action = req["action"] | "";
-  const char* page   = req["page"]   | "";
 
-  if(!strcmp(action,"init")){
-    // send all pages (portal says init = request all) :contentReference[oaicite:8]{index=8}
-    sendPageSys(client);
-    sendPageZones(client);
-    sendPageContacts(client);
-    sendPageInfo(client);
-    // sendPageLog(client); // if you implement
-    return;
-  }
 
-  if(!strcmp(action,"get")){
-    if(!strcmp(page,"sys"))      return sendPageSys(client);
-    if(!strcmp(page,"zones"))    return sendPageZones(client);
-    if(!strcmp(page,"contacts")) return sendPageContacts(client);
-    if(!strcmp(page,"info"))     return sendPageInfo(client);
-    if(!strcmp(page,"log"))      {/* sendPageLog(client); */ return;}
-    return wsSendErr(client, page, "unknown page");
-  }
 
-  if(!strcmp(action,"set")){
-    // TODO: implement saves (config.json / zones.bin / personx.json)
-    // On success: {respHeader:"ok", page:"...", message:"OK"} :contentReference[oaicite:9]{index=9}
-    // On fail:    {respHeader:"err", page:"...", message:"reason"} :contentReference[oaicite:10]{index=10}
-	const char* page = req["page"] | "";
+void handleWebSocketMessage(AsyncWebSocketClient* client, void *arg, uint8_t *data, size_t len)
+{
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
 
-		if(!strcmp(page, "sys")) {
-			const char* errMsg = nullptr;
-
-			if (!saveSystemSettingsFromReq(req, &errMsg)) {
-			wsSendErr(client, "sys", errMsg ? errMsg : "Save failed");
-			return;
-			}
-
-			wsSendOk(client, "sys", "Saved");
-
-			// Optional: immediately push back what was saved (keeps UI in sync)
-			sendPageSys(client);
-			return;
-		}
-		return wsSendErr(client, page, "set not implemented yet");
-		// Later you can add:
-		// else if(!strcmp(page,"zones")) { ... }
-		// else if(!strcmp(page,"contacts")) { ... }
-
-		wsSendErr(client, page, "Unknown set page");
-		return;
-		
-  }
-
-  if(!strcmp(action,"cmd")){
-    const char* cmd = req["command"] | "";
-    // keep your bt0/bt1/bt2 logic, but reply with respHeader:"data" or "ok"
-    StaticJsonDocument<256> r;
-
-    if(!strcmp(cmd,"bt0")){
-      uint8_t device_index = req["data0"] | 0;
-      r["respHeader"] = "data";
-      r["scan_rfid"] = get_device_RFID(device_index);
-    }else if(!strcmp(cmd,"bt1")){
-      xTaskCreate(Task6code,"Task6",5000,NULL,6,&Task6);
-      r["respHeader"] = "ok";
-      r["page"] = "zones";
-      r["message"] = "RF scan started";
-    }else if(!strcmp(cmd,"bt2")){
-		const char* rfid = req["data0"] | "";
-		uint8_t zone_id  = req["data1"] | 0;
-		char buff[15];
-		strlcpy(buff, rfid, sizeof(buff));
-		set_device_RFID(zone_id, buff);
-		wsSendOk(client, "zones", "RF ID saved");
-		// optional: send updated zones to refresh UI
-		sendPageZones(client);
-
-		return;
-}else{
-      return wsSendErr(client, "cmd", "unknown command");
+    if (info->opcode != WS_TEXT) {
+        return;
     }
 
-    String out; serializeJson(r, out);
-    client->text(out);
-    return;
-  }
+    // Start of a new message
+    if (info->index == 0) {
+    ws_client_id = client->id();
+    ws_expected_len = info->len;
 
-  wsSendErr(client, "", "unknown action");
+    if (ws_expected_len >= sizeof(ws_text_buf)) {
+        ws_expected_len = 0;
+        wsSendErr(client, "", "msg too large");
+        return;
+    }
+}
+
+    // Ignore if another client interferes
+    if (ws_client_id != client->id()) {
+        return;
+    }
+
+    // Copy this piece into the correct offset
+    if (info->index + len > sizeof(ws_text_buf)) {
+        wsSendErr(client, "", "overflow");
+        return;
+    }
+
+    memcpy(ws_text_buf + info->index, data, len);
+
+    // IMPORTANT: completion check (do NOT rely on info->final)
+    bool messageComplete = (info->index + len == ws_expected_len);
+    if (!messageComplete) {
+        return;
+    }
+
+    // Now parse the FULL message
+    ws_text_buf[ws_expected_len] = '\0';
+
+    DynamicJsonDocument req(16000);   // big enough for zones JSON
+    DeserializationError err = deserializeJson(req, ws_text_buf, ws_expected_len);
+
+    if (err) {
+        Serial.print(F("WS JSON error: "));
+        Serial.println(err.c_str());
+        wsSendErr(client, "", "bad json");
+        // Now parse the FULL message  
+        ws_expected_len = 0;
+
+        return;
+    }
+
+    Serial.print("WS RAW: ");
+    Serial.println(ws_text_buf);
+// json prity print req
+    Serial.print("WS JSON: ");
+    serializeJsonPretty(req, Serial);
+
+    const char* action = req["action"] | "";
+    const char* page   = req["page"] | "";
+    Serial.printf("WS OK action=%s page=%s bytes=%u\n", action, page, (unsigned)ws_expected_len);
+
+    // ---- your dispatcher continues here ----
+
+    // ---------------- init ----------------
+    if (strcmp(action, "init") == 0) {
+        sendPageSys(client);
+        sendPageZones(client);
+        sendPageContacts(client);
+        sendPageInfo(client);
+        return;
+    }
+
+    // ---------------- get ----------------
+    if (strcmp(action, "get") == 0) {
+
+        if (strcmp(page, "sys") == 0)      { sendPageSys(client); return; }
+        if (strcmp(page, "zones") == 0)    { sendPageZones(client); return; }
+        if (strcmp(page, "contacts") == 0) { sendPageContacts(client); return; }
+        if (strcmp(page, "remotes") == 0) {  sendPageRemotes(client); return; }
+        if (strcmp(page, "info") == 0)     { sendPageInfo(client); return; }
+
+        wsSendErr(client, page, "unknown page");
+        return;
+    }
+
+    // ---------------- set ----------------
+    if (strcmp(action, "set") == 0) {
+
+        // ---- set sys ----
+        if (strcmp(page, "sys") == 0) {
+
+            const char* errMsg = nullptr;
+
+            if (!saveSystemSettingsFromReq(req, &errMsg)) {
+                wsSendErr(client, "sys", errMsg ? errMsg : "Save failed");
+                return;
+            }
+
+            wsSendOk(client, "sys", "Saved");
+            sendPageSys(client);
+            return;
+        }
+
+        // ---- set zones ----
+        if(!strcmp(page, "zones"))
+        {
+          Serial.println("zone page rx");
+            // 1) Validate input
+            if (!req.containsKey("zones") || !req["zones"].is<JsonArray>()) {
+                wsSendErr(client, "zones", "Missing zones array");
+                return;
+            }
+
+            JsonArray arr = req["zones"].as<JsonArray>();
+
+            // 2) Ensure zones exist in RAM (creates file if missing/corrupt)
+            if (!ZoneStorage::loadOrInit(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)) {
+                wsSendErr(client, "zones", "zones.bin load/init failed");
+                return;
+            }
+
+            // 3) Apply flags from JSON to RAM
+            uint8_t count = arr.size();
+            if (count > ZONE_COUNT) count = ZONE_COUNT;
+
+            for (uint8_t i = 0; i < count; i++)
+            {
+                JsonObject z = arr[i];
+                bool by  = z["by"]  | false;
+                bool ed  = z["ed"]  | false;
+                bool xd  = z["xd"]  | false;
+                bool rf  = z["rf"]  | false;
+                bool x24 = z["x24"] | false;
+                bool sl  = z["sl"]  | false;
+
+                setBit(any_sensor_array[i].device_state, BIT_MASK_BYPASSED,    by);
+                setBit(any_sensor_array[i].device_state, BIT_MASK_ENTRY_DELAY, ed);
+                setBit(any_sensor_array[i].device_state, BIT_MASK_EXIT_DELAY,  xd);
+
+                setBit(any_sensor_array[i].device_type,  BIT_MASK_RF,     rf);
+                setBit(any_sensor_array[i].device_type,  BIT_MASK_24H,    x24);
+                setBit(any_sensor_array[i].device_type,  BIT_MASK_SILENT, sl);
+            }
+
+            // 4) Save flags + names in one write (names not kept in RAM)
+            struct NameCtx {
+                JsonArray zones;
+            };
+
+            auto getNameCb = [](uint8_t index, void* user) -> const char*
+            {
+                NameCtx* ctx = (NameCtx*)user;
+
+                if (ctx == nullptr) return nullptr;
+                if (ctx->zones.isNull()) return nullptr;
+                if (index >= ctx->zones.size()) return nullptr;
+
+                JsonVariant v = ctx->zones[index]["n"];
+                if (v.is<const char*>()) {
+                    const char* name = v.as<const char*>();
+                    if (name && name[0]) return name;
+                }
+
+                return nullptr; // ZoneStorage will fallback to default "Zxx"
+            };
+
+            NameCtx ctx;
+            ctx.zones = arr;
+
+            bool saved = ZoneStorage::saveWithNameGetter(SPIFFS, "/zones.bin",
+                                                        any_sensor_array, ZONE_COUNT,
+                                                        getNameCb, &ctx);
+
+            if (!saved) {
+                wsSendErr(client, "zones", "zones.bin save failed");
+                return;
+            }
+
+            // 5) Reply OK and refresh zones page
+            wsSendOk(client, "zones", "Saved");
+            sendPageZones(client);
+            return;
+        }
+
+        wsSendErr(client, page, "set not implemented yet");
+        return;
+    }
+
+    // ---------------- cmd ---------------------------------------------------------------------
+    
+if (strcmp(action, "cmd") == 0) {
+
+    const char* cmd = req["command"] | "";
+    StaticJsonDocument<256> r;
+    // Use the page field to decide which command set to use
+    // (Your portal already sends page in most messages, and req["page"] exists)
+    if (strcmp(page, "zones") == 0) {
+        // ===== EXISTING ZONE RF COMMANDS (UNCHANGED) =====
+        if (strcmp(cmd, "bt0") == 0) {
+            uint8_t device_index = req["data0"] | 0;
+            r["respHeader"] = "data";
+            r["scan_rfid"] = get_device_RFID(device_index);
+        }
+        else if (strcmp(cmd, "bt1") == 0) {
+           
+            r["respHeader"] = "ok";
+            r["page"] = "zones";
+            r["message"] = "RF scan started";
+            Serial.printf("WS CMD cmd=%s req=%s\n", cmd, req);
+        }
+        else if (strcmp(cmd, "bt2") == 0) {
+            
+            const char* rfid = req["data0"] | "";
+            uint8_t zone_id  = req["data1"] | 0;
+            char buff[15];
+            strlcpy(buff, rfid, sizeof(buff));
+            set_device_RFID(zone_id, buff);
+
+            wsSendOk(client, "zones", "RF ID saved");
+            sendPageZones(client);
+            return;
+        }
+        else {
+            wsSendErr(client, "zones", "unknown zones command");
+            return;
+        }
+
+        String out;
+        serializeJson(r, out);
+        client->text(out);
+        return;
+    }
+
+    else if (strcmp(page, "remotes") == 0) {
+        // ===== NEW REMOTES PAGE COMMANDS =====
+        // data0 / data1 usage:
+        //  - rm_read_slot:  data0=slot
+        //  - rm_scan:       data0=slot (optional)
+        //  - rm_save_slot:  data0=code, data1=slot
+        //  - rm_clear_slot: data0=slot
+        //  - rm_get_user:   data0=userId
+        //  - rm_assign_user:data0=userId, data1=slot   (enforce 1:1)
+
+        if (strcmp(cmd, "rm_read_slot") == 0) {
+            uint8_t slot = req["data0"] | 0;
+
+            r["respHeader"] = "data";
+            r["page"] = "remotes";
+            r["slot"] = slot;
+            r["code"] = RemoteStorage::getBaseCode(slot); // "" if empty
+        }
+        else if (strcmp(cmd, "rem_scan") == 0) {
+
+            // Start scan (you already have task + queue system)
+            uint8_t slot = req["data0"] | 0;   // 1..8 expected (or 0)
+            Serial.printf("cmd=%s slot=%u\n", cmd, slot);
+            // Arm scan in RF module (NO task creation here)
+            rfScanArm(SCAN_REMOTES, (slot > 0) ? (int8_t)slot : -1, 30000); // 30s
+            r["respHeader"] = "ok";
+            r["page"] = "remotes";
+            r["message"] = "Remote scan started";
+            r["slot"] = slot;
+        }
+        else if (strcmp(cmd, "rem_learn") == 0) {
+
+            const char* code = req["data0"] | "";
+            const char* slot_char = req["data1"] | "";
+            //convert slot_char to uint  
+            uint8_t slot = atoi(slot_char);
+           Serial.printf("cmd=%s data0=%s data1=%u\n", cmd, code, slot);
+            if (slot < 1 || slot > 8) {
+                wsSendErr(client, "remotes", "slot out of range");
+                return;
+            }
+            if (!code) {
+                wsSendErr(client, "remotes", "empty code");
+                return;
+            }
+
+            if (!RemoteStorage::learnFromCodeStr(slot, code)) {//learnFromCodeStr(0, "1234567890", true);
+                wsSendErr(client, "remotes", "save slot failed");
+                return;
+            }
+
+            wsSendOk(client, "remotes", "Remote slot saved");
+            // optional: send remotes page data back if you have sendPageRemotes()
+            // sendPageRemotes(client);
+            return;
+        }
+        else if (strcmp(cmd, "rem_clear") == 0) {
+
+            const char* slot_char = req["data0"] | "";
+            uint8_t slot = atoi(slot_char);
+
+            if (slot < 1 || slot > 8) {
+                wsSendErr(client, "remotes", "slot out of range");
+                return;
+            }
+            
+            if (!RemoteStorage::removeSlot(slot)) {
+                wsSendErr(client, "remotes", "clear slot failed");
+                return;
+            }
+
+            wsSendOk(client, "remotes", "Remote slot cleared");
+            return;
+        }
+        else if (strcmp(cmd, "rm_get_user") == 0) {
+
+            uint8_t userId = req["data0"] | 0;
+
+            r["respHeader"] = "data";
+            r["page"] = "remotes";
+            r["user"] = userId;
+           // r["slot"] = get_user_remote_slot(userId); // 0 = none
+        }
+        
+        else {
+            wsSendErr(client, "remotes", "unknown remotes command");
+            return;
+        }
+
+        String out;
+        serializeJson(r, out);
+        client->text(out);
+        return;
+    }
+
+    // If cmd came without a known page
+    wsSendErr(client, "cmd", "unknown cmd page");
+    return;
+}
+
+
+    wsSendErr(client, "", "unknown action");
 }
 
 
