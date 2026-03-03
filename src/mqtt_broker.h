@@ -13,6 +13,7 @@
 #include "gsm_broker.h"
 #include "config_manager.h"
 #include "pixel_blink_module.h"
+#include "OTA.h"
 
 extern "C" {
     typedef void (*_callbackFunctionType7)(void);

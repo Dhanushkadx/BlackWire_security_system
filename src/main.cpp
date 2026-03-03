@@ -69,7 +69,7 @@ EventGroupHandle_t EventRTOS_lcdkeyPad;
 EventGroupHandle_t EventRTOS_gsm;
 
 
- size_t xBufferSizeBytes = 100;
+size_t xBufferSizeBytes = 100;
 MessageBufferHandle_t xMessageBuffer;
 
 size_t xBufferSizeBytes_number = 20;
