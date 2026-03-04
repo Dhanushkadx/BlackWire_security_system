@@ -38,6 +38,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
 #include "OTA.h"
+#include "tasks_OTA.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
@@ -183,6 +184,21 @@ int Rii         = -1;
 
 // Create PixelBlink object
 PixelBlink pixel(LED_PIN, LED_COUNT);
+
+#include "tasks_OTA.h"
+
+#include "esp_partition.h"
+
+void printSpiffsSize() {
+  const esp_partition_t* p =
+    esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
+  if (p) {
+    Serial.printf("SPIFFS partition: offset=0x%06X size=%u bytes\n", (unsigned)p->address, (unsigned)p->size);
+  } else {
+    Serial.println("SPIFFS partition not found!");
+  }
+}
+
 
 void Task1code( void * parameter ){
 	/*Serial.print("Task1 is running on core ");
@@ -370,6 +386,7 @@ switch (system_mode) {
             publish_network_info();
             send_all_zone_states_mqtt();
             Timer_mqtt_breath.previousMillis = millis();
+			printSpiffsSize();
         }
 #endif
         //reconnect();
@@ -565,8 +582,26 @@ xMessageBuffer = xMessageBufferCreate(xBufferSizeBytes );
 xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
- 
-	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
+
+TasksOTA::bootLoadPending();
+
+if (TasksOTA::isOtaBootMode()) {
+  // Create ONLY WiFi + MQTT + OTA task
+  //xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
+	//xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
+	//xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
+	//xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
+	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
+	//xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
+	
+	//xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
+	//xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
+	/* Clear bit 0 and bit 4 in xEventGroup. */
+	//xEventGroupSetBits(EventRTOS_gsm,TASK_4_BIT);/* The bits being cleared. */
+	//vTaskSuspend(Task2_sms);
+} else {
+  // Normal boot: create everything
+  	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
 	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
 	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
 	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
@@ -576,10 +611,10 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
 	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
 	/* Clear bit 0 and bit 4 in xEventGroup. */
-	xEventGroupSetBits(
-	EventRTOS_gsm,  /* The event group being updated. */
-	TASK_4_BIT);/* The bits being cleared. */
+	xEventGroupSetBits(EventRTOS_gsm,TASK_4_BIT);/* The bits being cleared. */
 	vTaskSuspend(Task2_sms);
+}
+ 
 }
 
 void loop()

@@ -128,6 +128,8 @@ void reconnectMQTT() {
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         setup_subscriptions();
+        TasksOTA::begin(otaMqttPublishCb, "info/sys/ota");
+        TasksOTA::startFromPending();
         uint32_t colour = Adafruit_NeoPixel::Color(200, 0, 255);
   		  pixel.startBlink(colour, 100, 1000, 255);
         fn_onMQTT_connection();
@@ -350,7 +352,9 @@ void callback(char *topic, byte *payload, unsigned int length) {
 
     if (strcmp(topic, my_topic) == 0) {
         // start OTA
-        downloadAndApplyFirmware((const char*)payload);
+        TasksOTA::markPendingAndReboot(byteRead.c_str(), OtaType::Firmware, otaMqttPublishCb, "info/sys/ota");
+   
+        
     }
 
     memset(my_topic, '\0', sizeof(my_topic));
@@ -358,7 +362,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
 
     if (strcmp(topic, my_topic) == 0) {
         // start OTA
-        downloadAndApplySPIFFS((const char*)payload);
+        TasksOTA::markPendingAndReboot(byteRead.c_str(), OtaType::Spiffs, otaMqttPublishCb, "info/sys/ota");        
     }
 }
 
@@ -426,4 +430,16 @@ void mqtt_com_loop() {
   }
   client.loop(); 
   delay(500);
+}
+
+static bool otaMqttPublishCb(const char* topic, const char* payload, bool retain)
+{
+    (void)topic;   // not used
+    (void)retain;  // not used
+
+    if (!payload) return false;
+
+    //publish_json_to_mqtt(payload);
+    publish_system_state(payload, topic, false);
+    return true;
 }

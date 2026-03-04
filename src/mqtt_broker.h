@@ -1,7 +1,7 @@
 #ifndef _MQTT_BROKER_H
 #define _MQTT_BROKER_H
 #define MQTT_SECURE
-//#define _DEBUG
+#define _DEBUG
 #include "Arduino.h"
 #include "typex.h"
 #include "statments.h"
@@ -14,6 +14,7 @@
 #include "config_manager.h"
 #include "pixel_blink_module.h"
 #include "OTA.h"
+#include "tasks_OTA.h"
 
 extern "C" {
     typedef void (*_callbackFunctionType7)(void);
@@ -35,4 +36,5 @@ void transfer_mqtt_data(const char* msg);
 void send_rfid_state_update_to_mqtt(const char* rfid);
 void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n );
 void publish_network_info();
+static bool otaMqttPublishCb(const char* topic, const char* payload, bool retain);
 #endif

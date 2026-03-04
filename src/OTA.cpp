@@ -92,6 +92,8 @@ bool startOTAUpdate(WiFiClient* client, int contentLength) {
 }
 
 void downloadAndApplyFirmware(const char* firmwareUrl) {
+  Serial.println("Downloading firmware...");
+  Serial.printf("Firmware URL: %s\n", firmwareUrl);
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.begin(firmwareUrl);
