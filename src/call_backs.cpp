@@ -1074,16 +1074,16 @@ void setup_call_backs(){
 	myAlarm_pannel.set_exit_delay_timer_interval(15);
 	myAlarm_pannel.set_bell_time_timer_interval(systemConfig.bell_time_out);
 	
-	myAlarm_pannel.set_fn_set_name(set_device_name);
-	myAlarm_pannel.set_fn_get_name(get_device_name);
+	//myAlarm_pannel.set_fn_set_name(set_device_name);
+	//myAlarm_pannel.set_fn_get_name(get_device_name);
 	
-	myAlarm_pannel.set_fn_set_rfid(set_device_RFID);
-	myAlarm_pannel.set_fn_get_rfid(comp_device_RFID);
+	// myAlarm_pannel.set_fn_set_rfid(set_device_RFID);
+	// myAlarm_pannel.set_fn_get_rfid(comp_device_RFID);
 	
-	myAlarm_pannel.set_fn_set_remote_id(set_remote_RFID);
-	myAlarm_pannel.set_fn_get_remote_id(get_remote_RFID);
+	// myAlarm_pannel.set_fn_set_remote_id(set_remote_RFID);
+	// myAlarm_pannel.set_fn_get_remote_id(get_remote_RFID);
 	
-	myAlarm_pannel.set_fn_intializ_sensors(initiliz_sensor_data);
+	//myAlarm_pannel.set_fn_intializ_sensors(initiliz_sensor_data);
 #ifdef MQTT_OK
 	callback_onMQTT_connection(onMqtt_connection);
 	callback_onMQTT_disconnection(onMqtt_disconnection);

@@ -770,7 +770,7 @@ void creat_arm_sms(char* str_invorker){
 	for (int index=0; index<TOTAL_DEVICES; index++)
 	{
 		
-		if ((!myAlarm_pannel.is_sensor_ready(index))&&(myAlarm_pannel.is_sensor_available(index)))
+		if ((!gZoneManager.isReady(index))&&(gZoneManager.isAvailable(index)))
 		{
 			open_zone_yes=true;
 			itoa(msg_line_number_int,msg_line_number_char,10);

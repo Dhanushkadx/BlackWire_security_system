@@ -28,6 +28,8 @@ enumerator eInvalid?*/
 extern AsyncWebSocket ws;
 extern ESP32Time rtc;
 extern ALARM myAlarm_pannel;
+extern ZoneEngine zoneEngine;
+
 
 extern EventGroupHandle_t EventRTOS_lcd;
 extern EventGroupHandle_t EventRTOS_lcdkeyPad;
@@ -81,7 +83,6 @@ extern void get_eInvoker_type_to_char(eInvoking_source invoker, char* buffer);
 extern byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uint8_t user_id);//0- gsm 1-lcd
 extern void eeprom_save();
 extern void eeprom_load(uint8_t mode);
-extern uint8_t initiliz_sensor_data();
 
 extern eMain_state eCurrent_state;
 extern eMain_state ePrev_state;

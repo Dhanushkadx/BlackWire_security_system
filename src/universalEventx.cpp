@@ -428,20 +428,6 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		}
 	}
 	
-	else if (strncmp("sc=",smsbuffer,3)==0)// sensor state update sc=02,1 : zone 2 opend
-	{
-		char zone_index[10];
-		char zone_name[10];
-		strlcpy(zone_index,smsbuffer+3,3);
-		strlcpy(zone_name,smsbuffer+6,2);
-		int zone = atoi(zone_index);
-		int state = atoi(zone_name);
-		myAlarm_pannel.Universal_zone_state_update(zone,state);
-		//send update to MQTT
-#ifdef MQTT_OK
-		send_sensor_state_update_to_mqtt(zone,state);		
-#endif		
-	}
 
 	else if (strncmp("Relay 2 off",smsbuffer,10)==0)
 	{

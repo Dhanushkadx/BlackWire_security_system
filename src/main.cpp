@@ -151,7 +151,6 @@ void RFListiner();
 void Power_detect_loop(); 
 void buzzer();
 void printLocalTime();
-void send_all_zone_states_mqtt();
 uint8_t type;
 
 TimerSW Timer_call_init_delay;
@@ -168,7 +167,7 @@ TimerSW Timer_rf_id_auto_clr;
 TimerSW Timer_websocket_update;
 
 eSYS_MODE system_mode = NOMAL_MODE_NO_WIFI;
-ALARM myAlarm_pannel(any_sensor_array);
+ALARM myAlarm_pannel;
 
 //typedef enum power_states{YES,NO,UNK};
 bool ac_main_power_current_state  = 0;
@@ -325,7 +324,7 @@ switch (system_mode) {
 		if (Timer_mqtt_breath.Timer_run()) {
             publish_network_info();
 			publish_health_info(12.5, 5);
-            send_all_zone_states_mqtt();
+            //send_all_zone_states_mqtt();
             Timer_mqtt_breath.previousMillis = millis();
         }
 #endif
@@ -610,25 +609,7 @@ void eeprom_reset(){configReset(); configLoad(0);}
 
 		
 		
-uint8_t initiliz_sensor_data(){
-	
-	Serial.println(F("RF zones clearing"));
-	
-	// update rf sensors as closed	
-	for (int x =0; x<TOTAL_DEVICES;x++)
-	{
-		
-		if (myAlarm_pannel.is_sensor_RF(x))// RF zones should always closed 
-		{
-			myAlarm_pannel.Universal_zone_state_update(x,false);
-		}
-		
-	}	
-	uint8_t ret_value=0;
-// 	/myAlarm_pannel.Universal_zone_state_update(0,1);
 
-	return ret_value;
-}
 
 
 
@@ -756,101 +737,7 @@ int8_t remcode(const char* codeStr, int8_t *remoteUserID) {
     }
 }
 
-void RFbaster(const char* rf_id_msg){
-if (strncmp("RID",rf_id_msg,3)==0)// rf id received  RFD=254266
-	{				
-		if (strncmp("=",rf_id_msg+3,1)==0)
-		{			
-			char RFID_char[15]={0};
-			strlcpy(RFID_char,rf_id_msg+5,9);	
-			// check remote actions
-			int8_t remote_user_index;
-			int8_t remote_command = remcode(RFID_char, &remote_user_index);
-			
-			if ((remote_command!=-1)&&(remote_user_index != -1))
-			{
-				Serial.printf(("Remote command : %d\n"),remote_command);
-				if(remote_command == 1)
-				{
-					Serial.println(F("key Arm"));
-					myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-					myAlarm_pannel.set_system_state(SYS1_IDEAL,RF,remote_user_index);
-#ifdef MQTT_OK
-					publish_system_state("ARMED","info/mode",true);
-#endif
-				}
-				//if (strncmp("11",received_rf_id_char+18,2)==0)
-				if(remote_command == 4)
-				{
-					Serial.println(F("key Panic"));
-					myAlarm_pannel.set_system_state(ALARM_CALLING,RF,remote_user_index);
-					char buffer[10];
-					get_eInvoker_type_to_char(RF,buffer);
-					creat_panic_sms(buffer);
-					//activate siren					
-					if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
-					if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
-					char zone_char[25];
-					memset(zone_char,'\0',25);
-					sprintf(zone_char,"Panic %s",buffer);
-					const TickType_t x100ms = pdMS_TO_TICKS( 10 );
-					/* Send the string to the message buffer.  Return immediately if there is
-					not enough space in the buffer. */
-					size_t xBytesSent;
-					xBytesSent = xMessageBufferSend( xMessageBuffer_zone,
-												( void * ) zone_char,
-												strlen( zone_char ), 0 );
 
-					if( xBytesSent != strlen( zone_char ) )
-					{
-						Serial.println(F("The string could not be added to the message buffer because there was not enough free space in the buffer"));
-						
-					}
-					
-				}
-				if (remote_command==3)
-				{
-					Serial.println(F("key Away"));
-				}
-				//if (strncmp("11",received_rf_id_char+22,2)==0)
-				if(remote_command == 2)
-				{
-					Serial.println(F("key Disarm"));
-					myAlarm_pannel.set_system_state(DEACTIVE,RF,remote_user_index);
-					eCurrent_state =  DEACTIVE;
-#ifdef MQTT_OK
-					publish_system_state("DISARMED","info/mode",true);
-#endif                    
-				}
-			}
-			else{
-				Serial.println(F("Not a Remote"));
-				// get RFID and pass it to the function
-			int8_t zone;
-			uint8_t attempts = 0;
-			do {// try two times to compaire rfid
-				zone = comp_device_RFID(RFID_char);
-				if (zone != -1) {
-					break;
-				}
-				attempts++;
-			} while (zone == -1 && attempts < 2);
-#ifdef MQTT_OK
-			send_rfid_state_update_to_mqtt(RFID_char);
-#endif	
-			if(zone!=-1){ 
-				myAlarm_pannel.Universal_zone_state_update(zone, 1); 
-#ifdef MQTT_OK
-				send_sensor_state_update_to_mqtt(zone,1);		
-#endif						
-			}
-			}
-
-					
-		}
-		
-	}					
-}
 	
 
 	
@@ -950,27 +837,6 @@ void Power_detect_loop() {
 	}
 }
 
-
-void send_all_zone_states_mqtt(){//****************************************************************************************/
-	
-            for (int i = 0; i < TOTAL_DEVICES; ++i) {
-				if(myAlarm_pannel.is_sensor_available(i)){
-					bool state = myAlarm_pannel.is_sensor_ready(i);
-                	send_sensor_state_update_to_mqtt(i, state);
-					setZone(i,state);
-				}
-
-				if(myAlarm_pannel.is_sensor_RF(i)){
-					bool state = myAlarm_pannel.is_sensor_ready(i);
-                	send_sensor_state_update_to_mqtt(i, state);
-				}
-                
-            }
-				char zone_name[15] = "";
-                zonesToHex(zone_name);
-                publish_system_state(zone_name, "zones", true);
-           
-}
 
 
 void printStackUsage(TaskHandle_t TaskHandle) {

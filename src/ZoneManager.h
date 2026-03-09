@@ -59,11 +59,19 @@ public:
     bool isRF(uint8_t z) const;
     bool isSilent(uint8_t z) const;
     bool isPerimeter(uint8_t z) const;
+    bool isEntryDelay(uint8_t z) const;
+    bool isExitDelay(uint8_t z) const;
+    bool isReady(uint8_t z) const;
+    bool isAvailable(uint8_t z) const { return getStateBit(z, DS_AVAILABLE); }
+    
 
     // --------- Device Type Setters ----------
     bool setRF(uint8_t z, bool v, bool saveNow = true);
     bool setSilent(uint8_t z, bool v, bool saveNow = true);
     bool setPerimeter(uint8_t z, bool v, bool saveNow = true);
+
+    bool setExitDelay(uint8_t z, bool v, bool saveNow = true);
+    bool setEntryDelay(uint8_t z, bool v, bool saveNow = true);
 
     // Save explicitly
     bool save();

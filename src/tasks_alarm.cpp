@@ -75,8 +75,8 @@ void Task1code(void *parameter)
         Serial.printf("Zone %u state %u\n", z, st);
 
         // 2.1 Update alarm logic (must be fast)
-        myAlarm_pannel.Universal_zone_state_update(z, (bool)st);
-
+        myAlarm_pannel.Universal_zone_state_update(z);
+        //gZoneManager.
         // 2.2 Broadcast to comms router (non-blocking, drop if full)
         ZoneBroadcast bz;
         bz.zone  = z;

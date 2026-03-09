@@ -14,6 +14,7 @@
 #include "pixel_blink_module.h"
 #include "siren.h"
 #include "pinsx.h"
+#include "ZoneManager.h"
 
 
 #define SIM800_OK 0

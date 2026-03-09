@@ -109,6 +109,43 @@ bool ZoneManager::isPerimeter(uint8_t z) const
     return getTypeBit(z, DT_PERIMETER);
 }
 
+
+
+
+bool ZoneManager::isExitDelay(uint8_t z) const
+{
+    return getStateBit(z, DS_EXIT_DELAY);
+}
+
+bool ZoneManager::isEntryDelay(uint8_t z) const
+{
+    return getStateBit(z, DS_ENTRY_DELAY);
+}
+
+
+bool ZoneManager::isReady(uint8_t z) const
+{
+    if (z >= MAX_ZONES) return false;
+
+    const auto& zone = _zones[z];
+
+    // RF zones are always considered ready
+    if (zone.device_type & mask(DT_RF)) {
+        return true;
+    }
+
+    bool isOpen   = zone.device_state & mask(DS_LAST_STATE);
+    bool bypassed = zone.device_state & mask(DS_BYPASSED);
+
+    // If zone is open and not bypassed → system not ready
+    if (isOpen && !bypassed) {
+        return false;
+    }
+
+    return true;
+}
+
+
 // -------- SETTERS --------
 
 
@@ -126,3 +163,18 @@ bool ZoneManager::setPerimeter(uint8_t z, bool v, bool saveNow)
 {
     return setTypeBit(z, DT_PERIMETER, v, saveNow);
 }
+
+
+
+bool ZoneManager::setExitDelay(uint8_t z, bool v, bool saveNow)
+{
+    return setStateBit(z, DS_ENTRY_DELAY, v, saveNow);
+}
+
+bool ZoneManager::setEntryDelay(uint8_t z, bool v, bool saveNow)
+{
+    return setStateBit(z, DS_EXIT_DELAY, v, saveNow);
+}
+
+
+
