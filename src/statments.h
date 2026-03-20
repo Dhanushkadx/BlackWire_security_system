@@ -107,7 +107,6 @@ char lcd_time[17];
 
 #define TOTAL_DEVICES 48
 // Single source of truth:
-constexpr uint8_t ZONE_COUNT = TOTAL_DEVICES;
 #define TOTAL_PHONE_NUMBER_COUNT 8
 #define  EVENT_LOG_MAX 10
 

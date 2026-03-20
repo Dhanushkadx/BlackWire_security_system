@@ -214,7 +214,7 @@ void configLoad(uint8_t mode)
         // Determine system mode
         // -------------------------------------------------
 
-        if (true)   // your forced CONFIG_MODE logic
+        if ( systemConfig.wifiap_en == true)   // your forced CONFIG_MODE logic
         {
             strcpy(systemConfig.installer_pass, "admin");
             Serial.println(F("Installer password default"));

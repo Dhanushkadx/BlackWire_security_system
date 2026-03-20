@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "author": "Codex",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": -6, "left": 10, "attrs": {} },
+
+    { "type": "wokwi-slide-switch", "id": "zone0", "top": -170, "left": -220, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "zone1", "top": -130, "left": -220, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "zone2", "top": -90, "left": -220, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "zone3", "top": -50, "left": -220, "attrs": {} },
+
+    { "type": "wokwi-led", "id": "ledAlarm", "top": -160, "left": 330, "attrs": { "color": "red" } },
+    { "type": "wokwi-led", "id": "ledArm", "top": -120, "left": 330, "attrs": { "color": "green" } },
+    { "type": "wokwi-led", "id": "ledDisarm", "top": -80, "left": 330, "attrs": { "color": "blue" } },
+    { "type": "wokwi-led", "id": "ledBuzzer", "top": -40, "left": 330, "attrs": { "color": "yellow" } },
+    { "type": "wokwi-led", "id": "ledRf", "top": 0, "left": 330, "attrs": { "color": "purple" } },
+
+    { "type": "wokwi-resistor", "id": "rAlarm", "top": -150, "left": 270, "attrs": { "value": "330" } },
+    { "type": "wokwi-resistor", "id": "rArm", "top": -110, "left": 270, "attrs": { "value": "330" } },
+    { "type": "wokwi-resistor", "id": "rDisarm", "top": -70, "left": 270, "attrs": { "value": "330" } },
+    { "type": "wokwi-resistor", "id": "rBuzzer", "top": -30, "left": 270, "attrs": { "value": "330" } },
+    { "type": "wokwi-resistor", "id": "rRf", "top": 10, "left": 270, "attrs": { "value": "330" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
+    [ "zone0:2", "esp:35", "green", [ "h70", "v60" ] ],
+    [ "zone1:2", "esp:34", "green", [ "h80", "v80" ] ],
+    [ "zone2:2", "esp:36", "green", [ "h90", "v100" ] ],
+    [ "zone3:2", "esp:39", "green", [ "h100", "v120" ] ],
+
+    [ "zone0:1", "esp:3V3", "red", [ "h40", "v190" ] ],
+    [ "zone1:1", "zone0:1", "red", [ "h0", "v-40" ] ],
+    [ "zone2:1", "zone1:1", "red", [ "h0", "v-40" ] ],
+    [ "zone3:1", "zone2:1", "red", [ "h0", "v-40" ] ],
+
+    [ "zone0:3", "esp:GND.1", "black", [ "h20", "v210" ] ],
+    [ "zone1:3", "zone0:3", "black", [ "h0", "v-40" ] ],
+    [ "zone2:3", "zone1:3", "black", [ "h0", "v-40" ] ],
+    [ "zone3:3", "zone2:3", "black", [ "h0", "v-40" ] ],
+
+    [ "esp:19", "rAlarm:1", "green", [ "h130", "v-120" ] ],
+    [ "rAlarm:2", "ledAlarm:A", "green", [ "h24", "v0" ] ],
+    [ "ledAlarm:C", "esp:GND.2", "black", [ "h-12", "v88" ] ],
+
+    [ "esp:12", "rArm:1", "green", [ "h150", "v-80" ] ],
+    [ "rArm:2", "ledArm:A", "green", [ "h24", "v0" ] ],
+    [ "ledArm:C", "esp:GND.2", "black", [ "h-12", "v88" ] ],
+
+    [ "esp:13", "rDisarm:1", "green", [ "h140", "v-40" ] ],
+    [ "rDisarm:2", "ledDisarm:A", "green", [ "h24", "v0" ] ],
+    [ "ledDisarm:C", "esp:GND.2", "black", [ "h-12", "v88" ] ],
+
+    [ "esp:2", "rBuzzer:1", "green", [ "h160", "v0" ] ],
+    [ "rBuzzer:2", "ledBuzzer:A", "green", [ "h24", "v0" ] ],
+    [ "ledBuzzer:C", "esp:GND.2", "black", [ "h-12", "v88" ] ],
+
+    [ "esp:27", "rRf:1", "green", [ "h120", "v40" ] ],
+    [ "rRf:2", "ledRf:A", "green", [ "h24", "v0" ] ],
+    [ "ledRf:C", "esp:GND.2", "black", [ "h-12", "v88" ] ]
+  ],
+  "dependencies": {}
+}

@@ -1,4 +1,5 @@
 #include "universalEventx.h"
+#include "universalEvent_commands.h"
 
 char netowrk_operator_name_char[10];
 
@@ -30,7 +31,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		break;
 	}
 	
-	if (strncmp("log",smsbuffer,3)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kSysLog, sizeof(UniversalCmd::kSysLog) - 1)==0)
 	{
 		Serial.println(F("Reading Log"));
         delay(500);
@@ -40,13 +41,13 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		Serial.println("loop2 exit");
 		
 	}
-	if (strncmp("reboot",smsbuffer,6)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kSysReboot, sizeof(UniversalCmd::kSysReboot) - 1)==0)
 	{
 		Serial.println(F("Restart in 5 sec"));
         delay(5000);
 		ESP.restart();
 	}
-    if (strncmp("sms ap",smsbuffer,6)==0)
+    if (strncmp(smsbuffer, UniversalCmd::kNetApEnable, sizeof(UniversalCmd::kNetApEnable) - 1)==0)
 	{
         if(setJson_key_bool("/config.json", "wifiap_en", true)){
             Serial.println(F("AP setup ok"));
@@ -56,29 +57,29 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		ESP.restart();
 	}
 	
-	if (strncmp("net?",smsbuffer,4)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kNetQuery, sizeof(UniversalCmd::kNetQuery) - 1)==0)
 	{
 		
 		Serial.print(F("Network>"));
 		Serial.println(netowrk_operator_name_char);
 	}
-	if (strncmp("info?",smsbuffer,5)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kInfoPrefix, sizeof(UniversalCmd::kInfoPrefix) - 1)==0)
 	{
 		
 		
 	}
-	if (strncmp("BLOCK",smsbuffer,5)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kSysBlock, sizeof(UniversalCmd::kSysBlock) - 1)==0)
 	{
 		while(1){}
 		
 	}
 	
 	
-	if (strncmp("psw=1234",smsbuffer,3)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kAuthPrefix, sizeof(UniversalCmd::kAuthPrefix) - 1)==0)
 	{
 		ret_value = 1;
 		char psw_char[6];
-		strlcpy(psw_char,smsbuffer+4,5);
+		strlcpy(psw_char,smsbuffer + (sizeof(UniversalCmd::kAuthPrefix) - 1),5);
 		int psw_int = atoi(psw_char);
 		Serial.println(F("password>"));
 		Serial.println(psw_int);
@@ -92,17 +93,24 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			Serial.println(F("cli locked"));
 		}
 	}
-	if (strncmp_P(smsbuffer,PSTR("Name="),4)==0)// Name=01,Front D
+	if (strncmp(smsbuffer, UniversalCmd::kZonePrefix, sizeof(UniversalCmd::kZonePrefix) - 1)==0 &&
+		strstr(smsbuffer, UniversalCmd::kZoneNameTag) != nullptr)
 	{
 		ret_value = 1;
-		//check access
-		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3);}
-		//Serial.print(F("zone id>> "));
-		char zone_index[5]={0};
-		char zone_name[10]={0};
-		strlcpy	(zone_index,smsbuffer+5,3);
-		uint8_t zone_index_int = atoi(zone_index);		
-		strcpy	(zone_name,smsbuffer+8);		
+		char zone_cmd[40] = {0};
+		char zone_index[5] = {0};
+		char zone_name[16] = {0};
+		strlcpy(zone_cmd, smsbuffer, sizeof(zone_cmd));
+		char* token = strtok(zone_cmd, "=,");
+		token = strtok(nullptr, "=,");
+		if (token == nullptr) return ret_value;
+		strlcpy(zone_index, token, sizeof(zone_index));
+		token = strtok(nullptr, "=,");
+		if (token == nullptr) return ret_value;
+		token = strtok(nullptr, "");
+		if (token == nullptr) return ret_value;
+		strlcpy(zone_name, token, sizeof(zone_name));
+		uint8_t zone_index_int = atoi(zone_index);
 		set_device_name(zone_index_int, zone_name);
 		Serial.printf_P(PSTR("**zone renaming**\n"));
 		if (Invoker==GSM_MODULE)
@@ -113,7 +121,8 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		}
 	}	
 	
-	if (strncmp_P(smsbuffer,PSTR("Zone="),4)==0)// "Zone=03,EXIT,0";
+	if (strncmp(smsbuffer, UniversalCmd::kZonePrefix, sizeof(UniversalCmd::kZonePrefix) - 1)==0 &&
+		strstr(smsbuffer, UniversalCmd::kZoneNameTag) == nullptr)
 	{
 		ret_value = 1;
 		 set_zone_param(smsbuffer);
@@ -122,7 +131,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		 strcpy_P(reply_buff,PSTR("OK"));
 		 creatSMS(reply_buff,2,0);
 	}
-	if (strncmp("Status?",smsbuffer,7)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kSysStatus, sizeof(UniversalCmd::kSysStatus) - 1)==0)
 	{
 		ret_value = 1;
 		char msg[200] = {0};
@@ -169,7 +178,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		Serial.println(msg);
 		
 	}
-	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
+	if (strncmp(smsbuffer, UniversalCmd::kArmHome, sizeof(UniversalCmd::kArmHome) - 1)==0)
 	{
 		ret_value = 1;
 		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
@@ -179,18 +188,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 #endif       
 		
 	}
-	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
-	{
-		ret_value = 1;
-		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-		myAlarm_pannel.set_system_state(SYS1_IDEAL,Invoker,user_id);
-#ifdef MQTT_OK
-		publish_system_state("ARMED","info/mode",true);
-#endif       
-		
-	}
-	
-	else if(strncmp_P(smsbuffer,PSTR("Disarm"),6)==0){
+	else if(strncmp(smsbuffer, UniversalCmd::kArmDisarm, sizeof(UniversalCmd::kArmDisarm) - 1)==0){
 		ret_value = 1;	
 		eCurrent_state=DEACTIVE;
 		myAlarm_pannel.set_system_state(DEACTIVE,Invoker,user_id);
@@ -200,13 +198,13 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 	}
 	
-	else if(strncmp("Panic",smsbuffer,5)==0)
+	else if(strncmp(smsbuffer, UniversalCmd::kArmPanic, sizeof(UniversalCmd::kArmPanic) - 1)==0)
 	{
 		ret_value =1;
 		myAlarm_pannel.set_system_state(PANIC,Invoker,user_id);
 	}
 
-	else if(strncmp("Alarm_call",smsbuffer,10)==0)
+	else if(strncmp(smsbuffer, UniversalCmd::kArmAlarm, sizeof(UniversalCmd::kArmAlarm) - 1)==0)
 	{
 		ret_value =1;
 		//myAlarm_pannel.set_system_state(PANIC,Invoker,user_id);
@@ -216,7 +214,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 #endif   
 	}
 	
-	else if(strncmp("Number",smsbuffer,6)==0)//Number=1,+94714427691
+	else if(strncmp(smsbuffer, UniversalCmd::kPhoneSet, sizeof(UniversalCmd::kPhoneSet) - 1)==0)
 	{
 		ret_value = 1;
 		//check access
@@ -224,7 +222,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 		 char number[25];
 		 memset(number,'\0',25);
-		 strcpy(number,smsbuffer+7);
+		 strcpy(number, smsbuffer + (sizeof(UniversalCmd::kPhoneSet) - 1));
 		 char *index_str = strtok(number, ",");
 		 if (index_str == NULL) {
 			 Serial.println(F("Error: Invalid input string."));
@@ -290,7 +288,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 		//sms_broad_cast_request=true;
 	}
-	else if(strncmp_P(smsbuffer,PSTR("SMS number="),10)==0){// set sms number eg: Sms number=01,1
+	else if(strncmp(smsbuffer, UniversalCmd::kPhoneSms, sizeof(UniversalCmd::kPhoneSms) - 1)==0){
 		ret_value = 1;
 		//check access
 		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0);}
@@ -324,7 +322,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			creatSMS(buffer,2,0);
 		}
 	}
-	else if(strncmp_P(smsbuffer,PSTR("CALL number="),11)==0){// set call number
+	else if(strncmp(smsbuffer, UniversalCmd::kPhoneCall, sizeof(UniversalCmd::kPhoneCall) - 1)==0){
 		ret_value = 1;
 		//check access
 		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
@@ -360,17 +358,17 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	}
 	
 	
-	else if(strncmp("eerstm2",smsbuffer,7)==0){//remote B
+	else if(strncmp(smsbuffer, UniversalCmd::kRfLearnB, sizeof(UniversalCmd::kRfLearnB) - 1)==0){
 		
 		
 	}
-	else if (strncmp("RID=", smsbuffer, 4) == 0) {//remote B
+	else if (strncmp(smsbuffer, UniversalCmd::kRfId, sizeof(UniversalCmd::kRfId) - 1) == 0) {
 	ret_value = 1;
 	//RFbaster(smsbuffer);
 	//send_rfid_state_update_to_mqtt(smsbuffer);
 	}
 	
-	else if(strncmp("eerstm1",smsbuffer,7)==0){//remote B
+	else if(strncmp(smsbuffer, UniversalCmd::kSysReset, sizeof(UniversalCmd::kSysReset) - 1)==0){
 		ret_value = 1;
 		//check access
 		//if (sys_data.cli_access_level<2){ creatSMS("Unauthorized action",3); return; }
@@ -379,12 +377,12 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 	}
 	
-	else if (strncmp("infor=",smsbuffer,6)==0)//request infor
+	else if (strncmp(smsbuffer, UniversalCmd::kInfoPrefix, sizeof(UniversalCmd::kInfoPrefix) - 1)==0)
 	{
 		
 		
 	}	
-	else if (strncmp_P(smsbuffer,PSTR("Entry delay="),12)==0)
+	else if (strncmp(smsbuffer, UniversalCmd::kCfgEntryDelay, sizeof(UniversalCmd::kCfgEntryDelay) - 1)==0)
 	{
 		ret_value = 1;
 		//check access
@@ -392,7 +390,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 		char zone_index[10];
 		
-		strlcpy(zone_index,smsbuffer+12,3);
+		strlcpy(zone_index, smsbuffer + (sizeof(UniversalCmd::kCfgEntryDelay) - 1), 3);
 		int entry_delay_int = atoi(zone_index);
 		systemConfig.entry_delay_time = entry_delay_int;
 		Serial.print("Entry delay:");
@@ -406,14 +404,14 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			creatSMS(buffer,2,0);
 		}
 	}
-	else if (strncmp(smsbuffer,PSTR("Exit delay="),11)==0)
+	else if (strncmp(smsbuffer, UniversalCmd::kCfgExitDelay, sizeof(UniversalCmd::kCfgExitDelay) - 1)==0)
 	{
 		ret_value = 1;
 		//check access
 		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
 		
 		char zone_index[10];
-		strlcpy(zone_index,smsbuffer+11,3);
+		strlcpy(zone_index, smsbuffer + (sizeof(UniversalCmd::kCfgExitDelay) - 1), 3);
 		int exit_delay_int = atoi(zone_index);
 		systemConfig.exit_delay_time = exit_delay_int;
 		Serial.print(F("Exit delay:"));
@@ -428,72 +426,45 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		}
 	}
 	
+	else if (strncmp(smsbuffer, UniversalCmd::kOutputPrefix, sizeof(UniversalCmd::kOutputPrefix) - 1)==0)
+	{
+		ret_value = 1;
+		char out_buffer[20] = {0};
+		strlcpy(out_buffer, smsbuffer + (sizeof(UniversalCmd::kOutputPrefix) - 1), sizeof(out_buffer));
+		char* out_index_str = strtok(out_buffer, ",");
+		char* out_state_str = strtok(nullptr, ",");
+		if ((out_index_str == nullptr) || (out_state_str == nullptr)) {
+			return 0;
+		}
 
-	else if (strncmp("Relay 2 off",smsbuffer,10)==0)
-	{
-		ret_value = 1;
-		//check access
-		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
-		//Relay_A.Activate(2000);
+		const int out_index = atoi(out_index_str);
+		const bool turn_on = (out_state_str[0] == '1');
 		char buffer[25];
-		strcpy_P(buffer,PSTR("Relay 2 off OK"));
-		creatSMS(buffer,2,0);
+		memset(buffer, 0, sizeof(buffer));
+
+		if (out_index == 2) {
+			strcpy_P(buffer, turn_on ? PSTR("Relay 2 on OK") : PSTR("Relay 2 off OK"));
+			creatSMS(buffer,2,0);
 #ifdef MQTT_OK
-		publish_system_state("off","cmd/relay2/status", true);
+			publish_system_state(turn_on ? "on" : "off","cmd/relay2/status", true);
 #endif
 #ifdef GSM_MINI_BOARD_V3
-		digitalWrite(RELAY_OUT_B,HIGH);
+			digitalWrite(RELAY_OUT_B, turn_on ? LOW : HIGH);
 #endif
-	}
-	else if (strncmp("Relay 2 on",smsbuffer,10)==0)
-	{
-		ret_value = 1;
-		//check access
-		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
-		//Relay_A.Activate(2000);
-		char buffer[25];
-		strcpy_P(buffer,PSTR("Relay 2 on OK"));
-		creatSMS(buffer,2,0);
+		} else if (out_index == 1) {
+			strcpy_P(buffer, turn_on ? PSTR("Relay 1 on OK") : PSTR("Relay 1 off OK"));
+			creatSMS(buffer,2,0);
 #ifdef MQTT_OK
-		publish_system_state("on","cmd/relay2/status", true);
+			publish_system_state(turn_on ? "on" : "off","cmd/relay1/status", true);
 #endif
 #ifdef GSM_MINI_BOARD_V3
-		digitalWrite(RELAY_OUT_B,LOW);
+			digitalWrite(RELAY_OUT_A, turn_on ? LOW : HIGH);
 #endif
+		} else {
+			ret_value = 0;
+		}
 	}
-	else if (strncmp("Relay 1 on",smsbuffer,10)==0)
-	{
-		ret_value = 1;
-		//check access
-		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
-		//relay_B_activate();
-		char buffer[25];
-		strcpy_P(buffer,PSTR("Relay 1 on OK"));
-		creatSMS(buffer,2,0);
-#ifdef MQTT_OK
-		publish_system_state("on","cmd/relay1/status", true);
-#endif
-#ifdef GSM_MINI_BOARD_V3
-		digitalWrite(RELAY_OUT_A,LOW);
-#endif
-	}
-	else if (strncmp("Relay 1 off",smsbuffer,10)==0)
-	{
-		ret_value = 1;
-		//check access
-		//if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
-		//relay_B_deactivate();char buffer[5];
-		char buffer[25];
-		strcpy_P(buffer,PSTR("Relay 1 off OK"));
-		creatSMS(buffer,2,0);
-#ifdef MQTT_OK
-		publish_system_state("off","cmd/relay1/status", true);
-#endif
-#ifdef GSM_MINI_BOARD_V3
-		digitalWrite(RELAY_OUT_A,HIGH);
-#endif
-	}
-	else if (strncmp("Power?",smsbuffer,6)==0)
+	else if (strncmp(smsbuffer, UniversalCmd::kPowerQuery, sizeof(UniversalCmd::kPowerQuery) - 1)==0)
 	{
 		ret_value = 1;
 		creat_power_sms(systemConfig.ac_power);
@@ -501,17 +472,17 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		// 		if (sys_data.cli_access_level<2){ creatSMS("Unauthorized action",3); return; }
 		// 		relay_B_deactivate();
 	}
-	else if (strncmp("chime1",smsbuffer,6)==0)
+	else if (strncmp(smsbuffer, UniversalCmd::kBuzzChime, sizeof(UniversalCmd::kBuzzChime) - 1)==0)
 	{
 		ret_value = 1;
 		xEventGroupSetBits(EventRTOS_buzzer,    TASK_3_BIT );
 		
 	}
-	else if (strncmp("siren=",smsbuffer,6)==0)
+	else if (strncmp(smsbuffer, UniversalCmd::kSirenPrefix, sizeof(UniversalCmd::kSirenPrefix) - 1)==0)
 	{
 		ret_value = 1;
 		char zone_index[10];
-		strlcpy(zone_index,smsbuffer+6,2);
+		strlcpy(zone_index, smsbuffer + (sizeof(UniversalCmd::kSirenPrefix) - 1), 2);
 		
 		uint8_t state = atoi(zone_index);
 	

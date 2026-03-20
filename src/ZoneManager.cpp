@@ -168,12 +168,12 @@ bool ZoneManager::setPerimeter(uint8_t z, bool v, bool saveNow)
 
 bool ZoneManager::setExitDelay(uint8_t z, bool v, bool saveNow)
 {
-    return setStateBit(z, DS_ENTRY_DELAY, v, saveNow);
+    return setStateBit(z, DS_EXIT_DELAY, v, saveNow);
 }
 
 bool ZoneManager::setEntryDelay(uint8_t z, bool v, bool saveNow)
 {
-    return setStateBit(z, DS_EXIT_DELAY, v, saveNow);
+    return setStateBit(z, DS_ENTRY_DELAY, v, saveNow);
 }
 
 

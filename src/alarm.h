@@ -64,7 +64,7 @@ public:
 
     // Alarm processing blocks
     void alarm_process_wired(uint8_t zone);
-    void alarm_process_wired_24H(uint8_t zone);
+    void alarm_process_wired_24H();
     void chime_sound();
 
     // Zone index mapping helper
@@ -106,28 +106,30 @@ public:
     uint8_t set_call_back_sms_loop_status(_callbackFunctionType4 pFn);
     void set_fn_alarm_bell_time_out(_callbackFunctionType4 pFn);
     void set_fn_save_event_info(_callbackFunctionType9 pFn);
+    void set_fn_get_rfid(_callbackFunctionType10 pFn);
+    void set_fn_get_remote_id(_callbackFunctionType5 pFn);
+    void set_fn_set_remote_id(_callbackFunctionType6 pFn);
+    void set_fn_set_rfid(_callbackFunctionType6 pFn);
 
+    // ---- Zone configuration / metadata API ----
+    void set_sensor_name(uint8_t sensor_index, const char* sensor_name);
+    void set_sensor_bypassed(uint8_t sensor_index, bool state);
+    void set_sensor_24H(uint8_t sensor_index, bool state);
+    void set_sensor_en_de(uint8_t sensor_index, bool state);
+    void set_sensor_entry(uint8_t sensor_index, bool state);
+    void set_sensor_exit(uint8_t sensor_index, bool state);
+    void clear_entry_zone();
+    void clear_exit_zone();
 
-    // // ---- Zone configuration / metadata API ----
-    // // These now talk to ZoneManager instead of directly owning persistent storage.
-    // void set_sensor_name(uint8_t sensor_index, char* sensor_name);
-    // void set_sensor_bypassed(uint8_t sensor_index, bool state);
-    // void set_sensor_24H(uint8_t sensor_index, bool state);
-    // void set_sensor_en_de(uint8_t sensor_index, bool state);
-    // void set_sensor_entry(uint8_t sensor_index, bool state);
-    // void set_sensor_exit(uint8_t sensor_index, bool state);
-     void clear_entry_zone();
-     void clear_exit_zone();
-
-    // bool is_sensor_enable(uint8_t index);
-    // bool is_sensor_bypass(uint8_t index);
-    // bool is_sensor_available(uint8_t index);
-    // bool is_sensor_ready(uint8_t zone);
-    // bool is_sensor_24h(uint8_t zone);
-    // bool is_sensor_RF(uint8_t zone);
-    // bool is_sensor_exit_zone(uint8_t zone);
-    // bool is_sensor_entry_zone(uint8_t zone);
-    // char* get_sensor_name(uint8_t index);
+    bool is_sensor_enable(uint8_t index);
+    bool is_sensor_bypass(uint8_t index);
+    bool is_sensor_available(uint8_t index);
+    bool is_sensor_ready(uint8_t zone);
+    bool is_sensor_24h(uint8_t zone);
+    bool is_sensor_RF(uint8_t zone);
+    bool is_sensor_exit_zone(uint8_t zone);
+    bool is_sensor_entry_zone(uint8_t zone);
+    char* get_sensor_name(uint8_t index);
 
     int8_t get_exit_zone_availablity();
     int8_t get_entry_zone_availablity();
@@ -152,20 +154,26 @@ public:
 
 private:
     // Convenience access to the borrowed zone array
-    inline bool zoneIndexValid(uint8_t index) const { return (pAny_sensor_array != nullptr) && (index < TOTAL_DEVICES); }
+    inline bool zoneIndexValid(uint8_t index) const { return index < TOTAL_DEVICES; }
 
     // Internal runtime helpers
     void enable_only_closed_sensors_as_it_is();
     void clear_all_sensors_alarm_state();
+    void sync_zone_manager_to_engine();
+    bool zoneIsOpen(uint8_t index) const;
+    bool zoneIsAvailable(uint8_t index) const;
+    bool zoneIsEnabled(uint8_t index) const;
+    bool zoneIsAlarmed(uint8_t index) const;
+    void setZoneOpen(uint8_t index, bool isOpen);
+    void setZoneAvailable(uint8_t index, bool isAvailable);
+    void setZoneEnabled(uint8_t index, bool isEnabled);
+    void setZoneAlarmed(uint8_t index, bool isAlarmed);
+    bool getZoneBitValue(uint8_t bit_mask, uint8_t index) const;
 
 private:
     // Dependencies
     ZoneManager* pZoneManager;
     ZoneEngine*  pZoneEngine;
-
-    // Borrowed pointer to ZoneManager-owned array.
-    // Kept so original alarm logic can stay mostly unchanged.
-    MY_SENS* pAny_sensor_array;
 
     // Arm mode / state machine
     eARM_Mode  eArm_mode;
@@ -211,6 +219,7 @@ private:
     // Runtime scratch state
     bool     rf_id_rx_updated;
     char     recived_rf_id[10];
+    char     zone_name_cache[TOTAL_DEVICES][DEVICE_NAME_MAX_LENGTH + 1];
     bool     last_update_sensor_state;
     int8_t   last_update_sensor_index;
     eInvoking_source _invorking_device;
@@ -226,6 +235,11 @@ private:
     bool perimeter_only;
     bool Timer_RF_zone_reactive_en;
     bool Timer_alarm_clear_delay_en;
+    bool zone_open[TOTAL_DEVICES];
+    bool zone_available[TOTAL_DEVICES];
+    bool zone_enabled[TOTAL_DEVICES];
+    bool zone_alarm[TOTAL_DEVICES];
+    uint32_t zone_last_alarm_ms[TOTAL_DEVICES];
 
     TimerSW Timer_exit_delay;
     TimerSW Timer_RF_zone_reactive_delay;

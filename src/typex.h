@@ -76,6 +76,7 @@ typedef struct systemConfig{
 
 #define DEVICE_NAME_MAX_LENGTH 10// my door
 #define TOTAL_DEVICES 48
+constexpr uint8_t ZONE_COUNT = TOTAL_DEVICES;
 #define RF_DEVICE_START_INDEX 0
 typedef struct sensorAtribute{
 	uint8_t device_state;	

@@ -2,6 +2,28 @@
 
 #include "ZoneManager.h"
 
+#ifdef BIT_MASK_ENTRY_DELAY
+#undef BIT_MASK_ENTRY_DELAY
+#endif
+#ifdef BIT_MASK_EXIT_DELAY
+#undef BIT_MASK_EXIT_DELAY
+#endif
+#ifdef BIT_MASK_BYPASSED
+#undef BIT_MASK_BYPASSED
+#endif
+#ifdef BIT_MASK_RF
+#undef BIT_MASK_RF
+#endif
+#ifdef BIT_MASK_PERIMETER
+#undef BIT_MASK_PERIMETER
+#endif
+#ifdef BIT_MASK_24H
+#undef BIT_MASK_24H
+#endif
+#ifdef BIT_MASK_SILENT
+#undef BIT_MASK_SILENT
+#endif
+
 
 
 // -----------------------------------------------------------------------------
@@ -11,7 +33,6 @@
 ALARM::ALARM()
     : pZoneManager(nullptr),
       pZoneEngine(nullptr),
-      pAny_sensor_array(nullptr),
       eArm_mode(USER_SELECT),
       sensor_state_updated_to_be_processd(false),
       _eCurrunt_state(BEGING),
@@ -60,11 +81,19 @@ ALARM::ALARM()
       Timer_alarm_clear_delay_en(false),
       Timer_exit_delay_interval(0),
       Timer_entry_delay_interval(0),
-      Timer_alarm_relay_time_out(0) {}
+      Timer_alarm_relay_time_out(0) {
+    memset(zone_name_cache, 0, sizeof(zone_name_cache));
+    memset(zone_open, 0, sizeof(zone_open));
+    memset(zone_available, 0, sizeof(zone_available));
+    memset(zone_enabled, 0, sizeof(zone_enabled));
+    memset(zone_alarm, 0, sizeof(zone_alarm));
+    memset(zone_last_alarm_ms, 0, sizeof(zone_last_alarm_ms));
+}
       
 void ALARM::attachZoneManager(ZoneManager* zm) {
     pZoneManager = zm;
-    pAny_sensor_array = (pZoneManager != nullptr) ? pZoneManager->zones() : nullptr;
+    pZoneEngine = &zoneEngine;
+    sync_zone_manager_to_engine();
 }
 
 
@@ -140,8 +169,12 @@ void ALARM::clear_exit_zone() {
         pZoneManager->setExitDelay(i, false, false);
     }
     pZoneManager->save();
-    pAny_sensor_array = pZoneManager->zones();
     sync_zone_manager_to_engine();
+}
+
+void ALARM::sync_zone_manager_to_engine() {
+    if ((pZoneManager == nullptr) || (pZoneEngine == nullptr)) return;
+    pZoneManager->syncToEngine(*pZoneEngine);
 }
 
 void ALARM::clear_entry_zone() {
@@ -150,8 +183,65 @@ void ALARM::clear_entry_zone() {
         pZoneManager->setEntryDelay(i, false, false);
     }
     pZoneManager->save();
-    pAny_sensor_array = pZoneManager->zones();
     sync_zone_manager_to_engine();
+}
+
+void ALARM::set_sensor_name(uint8_t sensor_index, const char* sensor_name) {
+    if (!zoneIndexValid(sensor_index) || (pZoneManager == nullptr) || (sensor_name == nullptr)) return;
+    pZoneManager->setName(sensor_index, sensor_name);
+}
+
+void ALARM::set_sensor_bypassed(uint8_t sensor_index, bool state) {
+    if (!zoneIndexValid(sensor_index) || (pZoneManager == nullptr)) return;
+    pZoneManager->setBypassed(sensor_index, state);
+    sync_zone_manager_to_engine();
+}
+
+void ALARM::set_sensor_24H(uint8_t sensor_index, bool state) {
+    if (!zoneIndexValid(sensor_index) || (pZoneManager == nullptr)) return;
+    pZoneManager->set24h(sensor_index, state);
+    sync_zone_manager_to_engine();
+}
+
+void ALARM::set_sensor_en_de(uint8_t sensor_index, bool state) {
+    if (!zoneIndexValid(sensor_index)) return;
+    setZoneEnabled(sensor_index, state);
+}
+
+void ALARM::set_sensor_entry(uint8_t sensor_index, bool state) {
+    if (!zoneIndexValid(sensor_index) || (pZoneManager == nullptr)) return;
+    pZoneManager->setEntryDelay(sensor_index, state);
+    sync_zone_manager_to_engine();
+}
+
+void ALARM::set_sensor_exit(uint8_t sensor_index, bool state) {
+    if (!zoneIndexValid(sensor_index) || (pZoneManager == nullptr)) return;
+    pZoneManager->setExitDelay(sensor_index, state);
+    sync_zone_manager_to_engine();
+}
+
+bool ALARM::is_sensor_enable(uint8_t index) { return zoneIndexValid(index) && zoneIsEnabled(index); }
+bool ALARM::is_sensor_bypass(uint8_t index) { return zoneIndexValid(index) && (pZoneManager != nullptr) && pZoneManager->isBypassed(index); }
+bool ALARM::is_sensor_available(uint8_t index) { return zoneIndexValid(index) && zoneIsAvailable(index); }
+bool ALARM::is_sensor_24h(uint8_t zone) { return zoneIndexValid(zone) && (pZoneManager != nullptr) && pZoneManager->is24h(zone); }
+bool ALARM::is_sensor_RF(uint8_t zone) { return zoneIndexValid(zone) && (pZoneManager != nullptr) && pZoneManager->isRF(zone); }
+bool ALARM::is_sensor_exit_zone(uint8_t zone) { return zoneIndexValid(zone) && (pZoneManager != nullptr) && pZoneManager->isExitDelay(zone); }
+bool ALARM::is_sensor_entry_zone(uint8_t zone) { return zoneIndexValid(zone) && (pZoneManager != nullptr) && pZoneManager->isEntryDelay(zone); }
+
+bool ALARM::is_sensor_ready(uint8_t zone) {
+    if (!zoneIndexValid(zone)) return false;
+    if ((pZoneManager != nullptr) && pZoneManager->isRF(zone)) return true;
+    return !zoneIsOpen(zone) || ((pZoneManager != nullptr) && pZoneManager->isBypassed(zone));
+}
+
+char* ALARM::get_sensor_name(uint8_t index) {
+    if (!zoneIndexValid(index)) return nullptr;
+
+    zone_name_cache[index][0] = '\0';
+    if ((pZoneManager != nullptr) && pZoneManager->getName(index, zone_name_cache[index], sizeof(zone_name_cache[index]))) {
+        return zone_name_cache[index];
+    }
+    return zone_name_cache[index];
 }
 
 
@@ -210,11 +300,21 @@ void ALARM::Universal_zone_state_update(uint8_t zone_index) {
         return;
     }
 
-    if (zone >= TOTAL_DEVICES) {
-        return;
+    last_update_sensor_index = zone_index;
+
+    const ZoneState state = zoneEngine.getState(zone_index);
+    if (state == ZS_OPEN) {
+        setZoneOpen(zone_index, true);
+        setZoneAvailable(zone_index, true);
+    } else if (state == ZS_CLOSE) {
+        setZoneOpen(zone_index, false);
+        setZoneAvailable(zone_index, true);
+    } else {
+        setZoneOpen(zone_index, false);
+        setZoneAvailable(zone_index, false);
     }
 
-    last_update_sensor_index = zone;
+    last_update_sensor_state = (state == ZS_OPEN);
     sensor_state_updated_to_be_processd = true;
 }
 
@@ -223,16 +323,17 @@ void ALARM::Universal_zone_state_update(uint8_t zone_index) {
 // -----------------------------------------------------------------------------
 
 void ALARM::watcher() {
-    if (pAny_sensor_array == nullptr) return;
+    if ((pZoneManager == nullptr) || (pZoneEngine == nullptr)) return;
 
     // RF zone reactive timer
     if (Timer_RF_zone_reactive_en && Timer_RF_zone_reactive_delay.Timer_run()) {
         Timer_RF_zone_reactive_en = false;
         for (uint8_t index = 0; index < TOTAL_DEVICES; index++) {
             if (pZoneManager->isRF(index)) {
-                pAny_sensor_array[index].device_state &= ~(1 << BIT_MASK_LAST_STATE);
-                pAny_sensor_array[index].device_state &= ~(1 << BIT_MASK_ALARM);
-                pAny_sensor_array[index].device_state |= (1 << BIT_MASK_ENABLE);
+                setZoneOpen(index, false);
+                setZoneAlarmed(index, false);
+                setZoneEnabled(index, true);
+                setZoneAvailable(index, true);
                 if (fn_set_rf_zone_re_enable != nullptr) fn_set_rf_zone_re_enable(index);
                 Serial.println(F("RF zone Reactivated"));
             }
@@ -347,14 +448,14 @@ void ALARM::watcher() {
 
             if (sensor_state_updated_to_be_processd) {
                 sensor_state_updated_to_be_processd = false;
-                alarm_process_wired();
+                alarm_process_wired(last_update_sensor_index);
             }
 
             if (_exit_delay_timer_en && Timer_exit_delay.Timer_run()) {
                 _exit_delay_timer_en = false;
 
                 for (int index = 0; index < TOTAL_DEVICES; index++) {
-                    if (pZoneManager->isExitDelay(index) && (pAny_sensor_array[index].device_state & (1 << BIT_MASK_LAST_STATE))) {
+                    if (pZoneManager->isExitDelay(index) && zoneIsOpen(index)) {
                         Serial.print(F("sensor exit delay>"));
                         Serial.println(index);
                         if (fn_alarm_notify != nullptr) fn_alarm_notify(index);
@@ -372,7 +473,7 @@ void ALARM::watcher() {
                 if (Timer_entry_delay.Timer_run()) {
                     _entry_delay_timer_en = false;
                     for (int index = 0; index < TOTAL_DEVICES; index++) {
-                        if (pAny_sensor_array[index].device_state & (1 << BIT_MASK_ALARM)) {
+                        if (zoneIsAlarmed(index)) {
                             Timer_RF_zone_reactive_en = true;
                             if (fn_alarm_notify != nullptr) fn_alarm_notify(index);
                             _eCurrunt_state = ALARM_CALLING;
@@ -402,7 +503,7 @@ void ALARM::watcher() {
 
             if (sensor_state_updated_to_be_processd) {
                 sensor_state_updated_to_be_processd = false;
-                alarm_process_wired();
+                alarm_process_wired(last_update_sensor_index);
             }
         } break;
     }
@@ -413,39 +514,38 @@ void ALARM::watcher() {
 // -----------------------------------------------------------------------------
 
 void ALARM::enable_only_closed_sensors_as_it_is() {
-    if (pAny_sensor_array == nullptr) return;
+    if (pZoneManager == nullptr) return;
 
     for (int scanning_index = 0; scanning_index < TOTAL_DEVICES; scanning_index++) {
         Serial.printf_P(PSTR("Zone ID>>%d "), scanning_index);
 
-        if (pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_BYPASSED)) {
+        if (pZoneManager->isBypassed(scanning_index)) {
             Serial.println(F("BYPASSED"));
             continue;
         }
 
-        if (pAny_sensor_array[scanning_index].device_type & (1 << BIT_MASK_RF)) {
+        if (pZoneManager->isRF(scanning_index)) {
             Serial.print(F("RF_ZONE."));
-        } else if (!(pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_AVAILABLE))) {
+        } else if (!zoneIsAvailable(scanning_index)) {
             Serial.println(F("UNAVAILABLE."));
             continue;
         }
 
-        if (pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_LAST_STATE)) {
-            pAny_sensor_array[scanning_index].device_state &= ~(1 << BIT_MASK_ENABLE);
+        if (zoneIsOpen(scanning_index)) {
+            setZoneEnabled(scanning_index, false);
             Serial.println(F("DISABLE"));
         } else {
-            pAny_sensor_array[scanning_index].device_state |= (1 << BIT_MASK_ENABLE);
+            setZoneEnabled(scanning_index, true);
             Serial.println(F("ENABLE"));
         }
     }
 }
 
 int8_t ALARM::is_system_ready_to_arm() {
-    if (pAny_sensor_array == nullptr) return -1;
+    if (pZoneManager == nullptr) return -1;
 
     for (int i = 0; i < TOTAL_DEVICES; i++) {
-        if ((pAny_sensor_array[i].device_state & (1 << BIT_MASK_LAST_STATE)) &&
-            !(pAny_sensor_array[i].device_state & (1 << BIT_MASK_BYPASSED))) {
+        if (zoneIsOpen(i) && !pZoneManager->isBypassed(i)) {
             return i;
         }
     }
@@ -453,28 +553,26 @@ int8_t ALARM::is_system_ready_to_arm() {
 }
 
 void ALARM::clear_all_sensors_alarm_state() {
-    if (pAny_sensor_array == nullptr) return;
-
     Serial.println(F("All sensors alarm clear"));
     for (int i = 0; i < TOTAL_DEVICES; i++) {
-        pAny_sensor_array[i].device_state &= ~(1 << BIT_MASK_ALARM);
+        setZoneAlarmed(i, false);
     }
 }
 
 void ALARM::alarm_process_wired_24H() {
     if (!zoneIndexValid(last_update_sensor_index)) return;
 
-    if (pAny_sensor_array[last_update_sensor_index].device_state & (1 << BIT_MASK_BYPASSED)) {
+    if ((pZoneManager != nullptr) && pZoneManager->isBypassed(last_update_sensor_index)) {
         return;
     }
 
-    if ((pAny_sensor_array[last_update_sensor_index].device_state & (1 << BIT_MASK_LAST_STATE)) &&
-        (pAny_sensor_array[last_update_sensor_index].device_type & (1 << BIT_MASK_24H))) {
-        pAny_sensor_array[last_update_sensor_index].last_updated_time_stamp = millis();
-        pAny_sensor_array[last_update_sensor_index].device_state |= (1 << BIT_MASK_ALARM);
+    if (zoneIsOpen(last_update_sensor_index) &&
+        (pZoneManager != nullptr) && pZoneManager->is24h(last_update_sensor_index)) {
+        zone_last_alarm_ms[last_update_sensor_index] = millis();
+        setZoneAlarmed(last_update_sensor_index, true);
         if (fn_alarm_notify != nullptr) fn_alarm_notify(last_update_sensor_index);
         _eCurrunt_state = ALARM_CALLING;
-    } else if (pAny_sensor_array[last_update_sensor_index].device_state & (1 << BIT_MASK_LAST_STATE)) {
+    } else if (zoneIsOpen(last_update_sensor_index)) {
         if (fn_chime_zone_notify != nullptr) fn_chime_zone_notify("", last_update_sensor_index);
     }
 }
@@ -488,32 +586,30 @@ void ALARM::any_zone_bitmask_parameter_to_bytes(uint8_t bit_mask,
                                                 uint8_t& zone24_31,
                                                 uint8_t& zone32_39,
                                                 uint8_t& zone40_47) {
-    if (pAny_sensor_array == nullptr) return;
-
     uint8_t bit_mask_a = 0, bit_mask_b = 0, bit_mask_c = 0, bit_mask_d = 0, bit_mask_e = 0, bit_mask_f = 0;
     for (uint8_t index = 0; index < 48; index++) {
         if ((0 <= index) && (index < 8)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone0_7 |= (1 << bit_mask_a);
+            if (getZoneBitValue(bit_mask, index)) zone0_7 |= (1 << bit_mask_a);
             else zone0_7 &= ~(1 << bit_mask_a);
             bit_mask_a++;
         } else if ((8 <= index) && (index < 16)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone8_15 |= (1 << bit_mask_b);
+            if (getZoneBitValue(bit_mask, index)) zone8_15 |= (1 << bit_mask_b);
             else zone8_15 &= ~(1 << bit_mask_b);
             bit_mask_b++;
         } else if ((16 <= index) && (index < 24)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone16_23 |= (1 << bit_mask_c);
+            if (getZoneBitValue(bit_mask, index)) zone16_23 |= (1 << bit_mask_c);
             else zone16_23 &= ~(1 << bit_mask_c);
             bit_mask_c++;
         } else if ((24 <= index) && (index < 32)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone24_31 |= (1 << bit_mask_d);
+            if (getZoneBitValue(bit_mask, index)) zone24_31 |= (1 << bit_mask_d);
             else zone24_31 &= ~(1 << bit_mask_d);
             bit_mask_d++;
         } else if ((32 <= index) && (index < 40)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone32_39 |= (1 << bit_mask_e);
+            if (getZoneBitValue(bit_mask, index)) zone32_39 |= (1 << bit_mask_e);
             else zone32_39 &= ~(1 << bit_mask_e);
             bit_mask_e++;
         } else if ((40 <= index) && (index < 48)) {
-            if (pAny_sensor_array[index].device_state & (1 << bit_mask)) zone40_47 |= (1 << bit_mask_f);
+            if (getZoneBitValue(bit_mask, index)) zone40_47 |= (1 << bit_mask_f);
             else zone40_47 &= ~(1 << bit_mask_f);
             bit_mask_f++;
         }
@@ -524,20 +620,20 @@ void ALARM::chime_sound() {
     uint8_t scanning_index = last_update_sensor_index;
     if (!zoneIndexValid(scanning_index)) return;
 
-    if (pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_BYPASSED)) return;
+    if ((pZoneManager != nullptr) && pZoneManager->isBypassed(scanning_index)) return;
 
-    if (!(pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_AVAILABLE))) {
-        if (!(pAny_sensor_array[scanning_index].device_type & (1 << BIT_MASK_RF))) {
+    if (!zoneIsAvailable(scanning_index)) {
+        if ((pZoneManager == nullptr) || !pZoneManager->isRF(scanning_index)) {
             return;
         }
     }
 
-    if (!(pAny_sensor_array[scanning_index].device_type & (1 << BIT_MASK_SILENT))) {
+    if ((pZoneManager == nullptr) || !pZoneManager->isSilent(scanning_index)) {
         Serial.println(F("NO CHIME"));
         return;
     }
 
-    if (pAny_sensor_array[scanning_index].device_state & (1 << BIT_MASK_LAST_STATE)) {
+    if (zoneIsOpen(scanning_index)) {
         if (fn_chime_sound != nullptr) fn_chime_sound();
     }
 }
@@ -561,7 +657,7 @@ void ALARM::alarm_process_wired(uint8_t zone) {
 
     bool alarm_enable = false;
 
-    ZoneState state = gZoneEngine.getState(zone);
+    ZoneState state = zoneEngine.getState(zone);
 
     if (state == ZS_OPEN) {
         process_open_sensor(zone, alarm_enable);
@@ -575,16 +671,14 @@ void ALARM::alarm_process_wired(uint8_t zone) {
 }
 
 bool ALARM::is_sensor_skipped(uint8_t index) {
-    auto& sensor = pAny_sensor_array[index];
-
-    if (sensor.device_state & (1 << BIT_MASK_BYPASSED)) {
+    if ((pZoneManager != nullptr) && pZoneManager->isBypassed(index)) {
         LOG_PRINTLN(F("BYPASSED"));
         return true;
     }
 
-    if (sensor.device_type & (1 << BIT_MASK_RF)) {
+    if ((pZoneManager != nullptr) && pZoneManager->isRF(index)) {
         LOG_PRINT(F("RF_ZONE."));
-    } else if (!(sensor.device_state & (1 << BIT_MASK_AVAILABLE))) {
+    } else if (!zoneIsAvailable(index)) {
         LOG_PRINTLN(F("N/A."));
         return true;
     }
@@ -593,14 +687,12 @@ bool ALARM::is_sensor_skipped(uint8_t index) {
 }
 
 void ALARM::process_open_sensor(uint8_t index, bool& alarm_enable) {
-    auto& sensor = pAny_sensor_array[index];
-
     LOG_PRINT(F(">>OPEND"));
 
-    const bool is_enabled = (sensor.device_state & (1 << BIT_MASK_ENABLE)) != 0;
-    const bool is_alarm   = (sensor.device_state & (1 << BIT_MASK_ALARM)) != 0;
-    const bool is_entry   = (sensor.device_state & (1 << BIT_MASK_ENTRY_DELAY)) != 0;
-    const bool is_exit    = (sensor.device_state & (1 << BIT_MASK_EXIT_DELAY)) != 0;
+    const bool is_enabled = zoneIsEnabled(index);
+    const bool is_alarm   = zoneIsAlarmed(index);
+    const bool is_entry   = (pZoneManager != nullptr) && pZoneManager->isEntryDelay(index);
+    const bool is_exit    = (pZoneManager != nullptr) && pZoneManager->isExitDelay(index);
 
     if (!is_enabled) {
         LOG_PRINTLN(F(">>>DISABLED/"));
@@ -612,7 +704,7 @@ void ALARM::process_open_sensor(uint8_t index, bool& alarm_enable) {
     if (!is_entry && !is_exit) {
         LOG_PRINT(F("ENTRY-NO/EXIT-NO"));
         if (!is_alarm) {
-            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            setZoneAlarmed(index, true);
             LOG_PRINT(F(">NO PREV ALARM - ALARM ENABLED"));
             alarm_enable = true;
         } else {
@@ -622,7 +714,7 @@ void ALARM::process_open_sensor(uint8_t index, bool& alarm_enable) {
         LOG_PRINT(F("ENTRY-YES/EXIT-YES"));
         if (!_exit_delay_timer_en && !_entry_delay_timer_en) {
             LOG_PRINTLN(F("ENTRY_TIMER_ACTIVATED"));
-            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            setZoneAlarmed(index, true);
             _entry_delay_timer_en = true;
             if (fn_entry_delay_timer_start != nullptr) fn_entry_delay_timer_start();
             Timer_entry_delay.previousMillis = millis();
@@ -634,13 +726,13 @@ void ALARM::process_open_sensor(uint8_t index, bool& alarm_enable) {
         if (!is_alarm) {
             if (!_entry_delay_timer_en) {
                 LOG_PRINTLN(F("ENTRY_TIMER_ACTIVATED"));
-                sensor.device_state |= (1 << BIT_MASK_ALARM);
+                setZoneAlarmed(index, true);
                 _entry_delay_timer_en = true;
                 Timer_entry_delay.previousMillis = millis();
             }
             if (_exit_delay_timer_en) {
                 LOG_PRINTLN(F("entry delay only zone trigger when exit delay timer running"));
-                sensor.device_state |= (1 << BIT_MASK_ALARM);
+                setZoneAlarmed(index, true);
                 alarm_enable = true;
             }
         } else {
@@ -650,20 +742,18 @@ void ALARM::process_open_sensor(uint8_t index, bool& alarm_enable) {
         LOG_PRINT(F("ENTRY-NO/EXIT-YES"));
         if (!is_alarm && !_exit_delay_timer_en) {
             LOG_PRINTLN(F("exit delay only zone triggered (no timer running)"));
-            sensor.device_state |= (1 << BIT_MASK_ALARM);
+            setZoneAlarmed(index, true);
             alarm_enable = true;
         }
     }
 }
 
 void ALARM::process_closed_sensor(uint8_t index) {
-    auto& sensor = pAny_sensor_array[index];
-
     LOG_PRINT(F(">>CLOSED"));
     LOG_PRINTLN(F(">>>will be enabled if arm mode is AS_ITIS_NO_BYPASS"));
 
     if (eArm_mode == AS_ITIS_NO_BYPASS) {
-        sensor.device_state |= (1 << BIT_MASK_ENABLE);
+        setZoneEnabled(index, true);
         LOG_PRINTLN(F("ENABLED"));
 
         if (is_system_ready_to_arm() != -1) {
@@ -675,18 +765,16 @@ void ALARM::process_closed_sensor(uint8_t index) {
 }
 
 void ALARM::handle_alarm_trigger(uint8_t index) {
-    auto& sensor = pAny_sensor_array[index];
-
-    sensor.last_updated_time_stamp = millis();
+    zone_last_alarm_ms[index] = millis();
     _eCurrunt_state = ALARM_CALLING;
     _Timer_alarm_relay_time_out = false;
     Timer_alarm_relay.previousMillis = millis();
 
-    sensor.device_state |= (1 << BIT_MASK_ALARM);
+    setZoneAlarmed(index, true);
     if (fn_alarm_notify != nullptr) fn_alarm_notify(index);
 
     if (perimeter_only) {
-        if (sensor.device_type & (1 << BIT_MASK_PERIMETER)) {
+        if ((pZoneManager != nullptr) && pZoneManager->isPerimeter(index)) {
             LOG_PRINT(F("alarm detected perimeter only>> "));
             Timer_alarm_clear_delay.interval = 10000;
         } else {
@@ -700,6 +788,65 @@ void ALARM::handle_alarm_trigger(uint8_t index) {
 
     Timer_alarm_clear_delay.previousMillis = millis();
     Timer_alarm_clear_delay_en = true;
+}
+
+bool ALARM::zoneIsOpen(uint8_t index) const {
+    return zoneIndexValid(index) && zone_open[index];
+}
+
+bool ALARM::zoneIsAvailable(uint8_t index) const {
+    return zoneIndexValid(index) && zone_available[index];
+}
+
+bool ALARM::zoneIsEnabled(uint8_t index) const {
+    return zoneIndexValid(index) && zone_enabled[index];
+}
+
+bool ALARM::zoneIsAlarmed(uint8_t index) const {
+    return zoneIndexValid(index) && zone_alarm[index];
+}
+
+void ALARM::setZoneOpen(uint8_t index, bool isOpen) {
+    if (!zoneIndexValid(index)) return;
+    zone_open[index] = isOpen;
+}
+
+void ALARM::setZoneAvailable(uint8_t index, bool isAvailable) {
+    if (!zoneIndexValid(index)) return;
+    zone_available[index] = isAvailable;
+}
+
+void ALARM::setZoneEnabled(uint8_t index, bool isEnabled) {
+    if (!zoneIndexValid(index)) return;
+    zone_enabled[index] = isEnabled;
+}
+
+void ALARM::setZoneAlarmed(uint8_t index, bool isAlarmed) {
+    if (!zoneIndexValid(index)) return;
+    zone_alarm[index] = isAlarmed;
+}
+
+bool ALARM::getZoneBitValue(uint8_t bit_mask, uint8_t index) const {
+    if (!zoneIndexValid(index)) return false;
+
+    switch (bit_mask) {
+        case BIT_MASK_EXIT_DELAY:
+            return (pZoneManager != nullptr) && pZoneManager->isExitDelay(index);
+        case BIT_MASK_ENTRY_DELAY:
+            return (pZoneManager != nullptr) && pZoneManager->isEntryDelay(index);
+        case BIT_MASK_ENABLE:
+            return zone_enabled[index];
+        case BIT_MASK_BYPASSED:
+            return (pZoneManager != nullptr) && pZoneManager->isBypassed(index);
+        case BIT_MASK_ALARM:
+            return zone_alarm[index];
+        case BIT_MASK_LAST_STATE:
+            return zone_open[index];
+        case BIT_MASK_AVAILABLE:
+            return zone_available[index];
+        default:
+            return false;
+    }
 }
 
 // -----------------------------------------------------------------------------

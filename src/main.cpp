@@ -43,6 +43,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #endif
 
 #include "zone_engine.h"
+#include "ZoneManager.h"
 #include "providers/prov_gpio_readable.h"
 #include "providers/prov_ads1115_readable.h"
 #include "providers/prov_rf_ev1527_readable.h"
@@ -601,6 +602,7 @@ void printLocalTime(){
 
 void eeprom_save(){configSave();}
 void eeprom_load(uint8_t mode){ configLoad(mode);
+	myAlarm_pannel.attachZoneManager(&gZoneManager);
 	myAlarm_pannel.set_entry_delay_timer_interval(systemConfig.entry_delay_time);
 	myAlarm_pannel.set_exit_delay_timer_interval(systemConfig.exit_delay_time);
 	myAlarm_pannel.set_bell_time_timer_interval(systemConfig.bell_time_out);

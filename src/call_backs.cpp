@@ -4,10 +4,14 @@
 
 
 //NEW_SMS SMS_to_be_sent_FIXDMEM[SMS_STRCUT_MAX_MGS];
+// Shared scratch buffers used by legacy callback helpers that return pointers.
+// These are reused across calls, so callers must consume the returned data immediately.
 USER_REMOTE_INFO STRUCT_user_remote_infor;
 GSM_CONTACTS_INFO STRUCT_GSM_contact_infor;
 SENS_INFO STRUCT_sens_infor;
 
+// Invoked when ALARM enters the "calling / notify contacts" phase.
+// This function only kicks the GSM/LCD side effects; ALARM owns the state machine.
 uint8_t call_back_alarm_Calling(){
 	uint8_t ret_val = 1;	
 	//if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
@@ -75,9 +79,8 @@ uint8_t call_back_alarm_bell_time_out(){
 	
 	return 0;
 }
-
-
-
+// Hardware / UX side effects for a disarm transition.
+// Keeps output pins, buzzer/siren tasks, and user notifications in sync with ALARM state.
 void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
 	/*systemConfig.last_system_state= DEACTIVE;
 	eeprom_save();*/
@@ -122,6 +125,7 @@ void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_inv
 	
 }
 
+// Hardware / UX side effects for a successful arm transition.
 void call_back_ARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
 	/*systemConfig.last_system_state= SYS1_IDEAL;
 	eeprom_save();*/
@@ -342,6 +346,11 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 	return 0;
 }
 
+// Alarm notification fan-out:
+// - publish mode update
+// - trigger buzzer / siren tasks
+// - create SMS text
+// - push a short zone string to the LCD/message buffer
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
 	publish_system_state("TRIGGERD","info/mode",true);	
@@ -381,8 +390,8 @@ void _call_back_rf_zone_re_enable(uint8_t zone){
 #endif
 	
 }
-
-
+// Zone names are still loaded from the legacy SPIFFS JSON shards.
+// A safe fallback name is returned if the file, JSON, or "n" field is missing.
 char* get_device_name(uint8_t device_index){
 
 	File fileToReadx;
@@ -403,11 +412,22 @@ else{
 	strcpy(STRUCT_sens_infor.device_name,"invalie");
 	return STRUCT_sens_infor.device_name;
 }
-	
-	
+
+	memset(STRUCT_sens_infor.device_name, '\0', sizeof(STRUCT_sens_infor.device_name));
+	snprintf(STRUCT_sens_infor.device_name, sizeof(STRUCT_sens_infor.device_name), "Zone%02u", device_index);
+
+	if(!fileToReadx){
+		Serial.println(F("zone file open failed"));
+		return STRUCT_sens_infor.device_name;
+	}
+
 	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-	deserializeJson(docx,  fileToReadx);
+	DeserializationError err = deserializeJson(docx,  fileToReadx);
 	fileToReadx.close();
+	if (err) {
+		Serial.println(F("zone json parse failed"));
+		return STRUCT_sens_infor.device_name;
+	}
 	char buff[100];
 	memset(buff, '\0', 100);
 
@@ -419,13 +439,18 @@ else{
 		}
 		
 		const char *zone_name = docx[buff]["n"];
+		if (zone_name == nullptr || zone_name[0] == '\0') {
+			return STRUCT_sens_infor.device_name;
+		}
 		
-		strcpy(STRUCT_sens_infor.device_name,zone_name);
+		strlcpy(STRUCT_sens_infor.device_name, zone_name, sizeof(STRUCT_sens_infor.device_name));
 		
 		return STRUCT_sens_infor.device_name;
 		
 	
 }
+
+// Writes the human-readable zone name back to the legacy JSON store.
 void set_device_name(uint8_t device_index, const char* device_name){
 
 	File fileToReadx;
@@ -785,7 +810,8 @@ void set_remote_RFID(uint8_t device_index, const char* rf_id){
 	
 	//serializeJsonPretty(docx, Serial);
 }
-
+// Parses the legacy zone command format and updates one persisted zone attribute.
+// Expected format: "ZONE=03,EXIT,0"
 byte set_zone_param(const char* smsbuffer){
 	 //char smsbuffer[] = "Zone=03,EXIT,0";
 		 char buffer[50] = {0};
@@ -1042,6 +1068,8 @@ void save_event_info(uint8_t event_type_id, uint8_t user_id, char* event_time, c
 
 
 
+// Central callback wiring between ALARM and the rest of the firmware.
+// Keep this list aligned with alarm.h/alarm.cpp whenever callback signatures change.
 void setup_call_backs(){
 
 	myAlarm_pannel.set_fn_arm(call_back_ARM);
