@@ -1,30 +1,38 @@
 #include "msg_store.h"
 
 xQueueHandle msgQueue;
+
+static void buildMessageFilePath(int fileIndex, char* out, size_t outSize) {
+    snprintf(out, outSize, "%s%d%s", FILE_PREFIX, fileIndex, FILE_EXTENSION);
+}
+
 // Function to save message
 void saveMessageToSPIFFSV3(JsonDocument& msg) {
-    uint32_t file_size;
+    uint32_t file_size = 0;
     // Initialize SPIFFS if not already initialized
     if (!SPIFFS.begin(true)) {
-        Serial.println("Failed to mount SPIFFS");
+        Serial.println(F("Failed to mount SPIFFS"));
         return;
     }
 
     // Get the next available file index
     int fileIndex = getNextFileIndex();
-    String currentFileName = FILE_PREFIX + String(fileIndex) + FILE_EXTENSION;
+    char currentFileName[32];
+    buildMessageFilePath(fileIndex, currentFileName, sizeof(currentFileName));
 
     // Check if the current file exists and its size
     File file = SPIFFS.open(currentFileName, FILE_READ);
-    String jsonString = "[]"; // Default empty array in case the file is empty
+    DynamicJsonDocument doc(2096);
     if (file) {
-        jsonString = file.readString();  // Read existing messages from the file
         file_size = file.size();
+        if (file_size > 0) {
+            DeserializationError err = deserializeJson(doc, file);
+            if (err) {
+                doc.clear();
+            }
+        }
         file.close();
     }
-
-    DynamicJsonDocument doc(2096); // Adjust size as needed
-    deserializeJson(doc, jsonString);
 
     // Create or get the "msg" array
     JsonArray array = doc["msg"];
@@ -44,7 +52,7 @@ void saveMessageToSPIFFSV3(JsonDocument& msg) {
     // Save the updated JSON document back to SPIFFS (in the new file if necessary)
     file = SPIFFS.open(currentFileName, FILE_WRITE);
     if (!file) {
-        Serial.println("Failed to open file for writing");
+        Serial.println(F("Failed to open file for writing"));
         return;
     }
     
@@ -55,19 +63,20 @@ void saveMessageToSPIFFSV3(JsonDocument& msg) {
     if (file_size > MAX_FILE_SIZE) {
         // If file size exceeds 4KB, increment the file index and create a new file
         fileIndex++;
-        Serial.println("go to next file");
+        Serial.println(F("go to next file"));
         saveFileIndex(fileIndex);  // Save the new file index
         //currentFileName = FILE_PREFIX + String(fileIndex) + FILE_EXTENSION;
     }
 
-    Serial.println("Message saved to SPIFFS: " + currentFileName);
+    Serial.print(F("Message saved to SPIFFS: "));
+    Serial.println(currentFileName);
 }
 
 
-bool sendNetworkMessage(const String &msg, char* topic){
+bool sendNetworkMessage(const char* msg, const char* topic){
     
-    Serial.printf_P(PSTR("send stored msg:%s"),msg.c_str());
-    if ( client.publish(topic, msg.c_str())) {
+    Serial.printf_P(PSTR("send stored msg:%s"), msg);
+    if (client.publish(topic, msg)) {
         Serial.println(F("ok"));
         return false;
     } else {
@@ -83,10 +92,12 @@ uint8_t getNextFileIndex() {
     File file = SPIFFS.open(FILE_INDEX_PATH, FILE_READ);
     
     if (file) {
-        String indexStr = file.readString();
+        char indexStr[12] = {0};
+        const size_t n = file.readBytes(indexStr, sizeof(indexStr) - 1);
+        indexStr[n] = '\0';
         file.close();
-        if (indexStr.length() > 0) {
-            fileIndex = indexStr.toInt();  // Read the last file index
+        if (indexStr[0] != '\0') {
+            fileIndex = atoi(indexStr);
         }
     }
     
@@ -112,9 +123,16 @@ bool processOfflineMessagesV2() {
 
     int fileIndex = 1; // Start from messages_1.json
     bool processed_result = true;
+    uint8_t mac[6];
+    char device_id_macStr[18];
+    char topic[50];
+    uint16_t msg_no = 0;
+    WiFi.macAddress(mac);
+    sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     while (true) {
-        String currentFileName = FILE_PREFIX + String(fileIndex) + FILE_EXTENSION;
+        char currentFileName[32];
+        buildMessageFilePath(fileIndex, currentFileName, sizeof(currentFileName));
         // Check if the file exists
         if (!SPIFFS.exists(currentFileName)) {
             Serial.println(F("No more files to process."));
@@ -137,13 +155,9 @@ bool processOfflineMessagesV2() {
             continue;      // Skip processing the current empty file
         }
 
-        String jsonString = file.readString();
-        Serial.printf_P(PSTR("MSG_HDLE-FILE %d CONT: %s \n"),fileIndex,jsonString.c_str());
-       
-        file.close();  // Close the file after reading
-
         DynamicJsonDocument doc(4096); // Adjust size as needed
-        DeserializationError error = deserializeJson(doc, jsonString);
+        DeserializationError error = deserializeJson(doc, file);
+        file.close();
         if (error) {
             Serial.println(F("Failed to parse saved messages"));
             continue;  // Skip this file and move to the next one
@@ -155,14 +169,14 @@ bool processOfflineMessagesV2() {
         // Iterate through each message and try to send it
         for (JsonArray::iterator it = stored_msgs.begin(); it != stored_msgs.end(); ++it) {
             JsonObject msg = (*it).as<JsonObject>();
-            String serializedMsg;
-            serializeJson(msg, serializedMsg);
+            char serializedMsg[MAX_MSG_SIZE] = {0};
+            serializeJson(msg, serializedMsg, sizeof(serializedMsg));
 
-            Serial.printf_P(PSTR("MSG_HDLE-NOW SEND: %s \n"),serializedMsg.c_str());
-            Serial.println(serializedMsg);
+            Serial.printf_P(PSTR("MSG_HDLE-NOW SEND: %s \n"), serializedMsg);
 
             // Send each message over the network
-            if (!sendNetworkMessage(serializedMsg)) {  // Assumes sendNetworkMessage() function is available
+            snprintf(topic, sizeof(topic), "blackwire/%s/log/msg%u", device_id_macStr, msg_no++);
+            if (!sendNetworkMessage(serializedMsg, topic)) {
                 // If sending ok, remove the message from the array
                 stored_msgs.remove(it);
             } else {
@@ -192,7 +206,7 @@ bool processOfflineMessagesV2() {
 
 bool readLastNMessagesToQueue(int numMessages) {
     if (!SPIFFS.begin(true)) {
-        Serial.println("Failed to mount SPIFFS");
+        Serial.println(F("Failed to mount SPIFFS"));
         return false;
     }
 
@@ -202,35 +216,34 @@ bool readLastNMessagesToQueue(int numMessages) {
     bool result = true;
 
     while (messagesRead < numMessages) {
-        Serial.println("loop");
-        String currentFileName = FILE_PREFIX + String(fileIndex) + FILE_EXTENSION;
+        Serial.println(F("loop"));
+        char currentFileName[32];
+        buildMessageFilePath(fileIndex, currentFileName, sizeof(currentFileName));
 
         if (!SPIFFS.exists(currentFileName)) {
-            Serial.println("No more files to process.");
+            Serial.println(F("No more files to process."));
             break;  // No more files, exit the loop
         }
 
         File file = SPIFFS.open(currentFileName, FILE_READ);
         if (!file) {
-            Serial.println("Failed to open file for reading");
+            Serial.println(F("Failed to open file for reading"));
             result = false;
             break;
         }
 
-        String jsonString = file.readString();
-        file.close();  // Close the file after reading
-
-        // Check if the file is empty
-        if (jsonString.isEmpty()) {
+        if (file.size() == 0) {
+            file.close();
             Serial.printf("File %s is empty, going to the previous file...\n", currentFileName);
             fileIndex--;  // Go to the previous file
             continue;  // Skip processing this empty file
         }
 
         DynamicJsonDocument doc(4096);
-        DeserializationError error = deserializeJson(doc, jsonString);
+        DeserializationError error = deserializeJson(doc, file);
+        file.close();
         if (error) {
-            Serial.println("Failed to parse saved messages");
+            Serial.println(F("Failed to parse saved messages"));
             continue;  // Skip this file and move to the next one
         }
 
@@ -240,12 +253,12 @@ bool readLastNMessagesToQueue(int numMessages) {
         // Process the last `numMessages` messages from this file
         for (int i = numStoredMsgs - 1; i >= 0 && messagesRead < numMessages; --i) {
             JsonObject msg = stored_msgs[i].as<JsonObject>();
-            String serializedMsg;
-            serializeJson(msg, serializedMsg);
+            char serializedMsg[MAX_MSG_SIZE] = {0};
+            serializeJson(msg, serializedMsg, sizeof(serializedMsg));
 
             // Enqueue the message to FreeRTOS queue
-            if (xQueueSend(msgQueue, serializedMsg.c_str(), portMAX_DELAY) != pdPASS) {
-                Serial.println("Failed to enqueue message");
+            if (xQueueSend(msgQueue, serializedMsg, portMAX_DELAY) != pdPASS) {
+                Serial.println(F("Failed to enqueue message"));
                 result = false;
                 break;
             }
@@ -261,7 +274,7 @@ bool readLastNMessagesToQueue(int numMessages) {
         // Move to the previous file
         fileIndex--;  
         if (fileIndex < 1) {
-            Serial.println("Reached the first file. No more messages.");
+            Serial.println(F("Reached the first file. No more messages."));
             break;  // Reached the first file, stop
         }
     }
@@ -289,7 +302,7 @@ void processMessagesFromQueue() {
             // Process the message (e.g., send over the network or do something else)
             Serial.printf_P(PSTR("Processing message %d: %s\n"), msg_no, msg);
             sprintf_P(topic,PSTR("blackwire/%s/log/msg%d"),device_id_macStr,msg_no);
-            sendNetworkMessage(String(msg),topic);
+            sendNetworkMessage(msg, topic);
             msg_no++;
         }
         else{
@@ -302,9 +315,9 @@ void processMessagesFromQueue() {
 void initMsgQueue() {
     msgQueue = xQueueCreate(10, MAX_MSG_SIZE);  // Create a queue that can hold 10 messages of size MAX_MSG_SIZE
     if (msgQueue == NULL) {
-        Serial.println("Failed to create queue");
+        Serial.println(F("Failed to create queue"));
     } else {
-        Serial.println("Queue created successfully");
+        Serial.println(F("Queue created successfully"));
     }
 }
 

@@ -8,39 +8,43 @@
 
 
 #include "config_manager.h"
+#include "mqtt_brokerx.h"
 
-
-bool getJson_key_char(const char* path, const char* jkey, char*buffer, uint32_t size){
-	 File fileToRead = SPIFFS.open(path);
-	 if (!fileToRead)
-	 {
-		 Serial.println(F("no file found reset eeprom"));
-		 return false;
-	 }
-	 
-	 DynamicJsonDocument doc(2048);
-	 deserializeJson(doc,  fileToRead);	 
-	 const char* json_key = doc["sysconf"][jkey];
-	 Serial.printf(PSTR("%s:%s\n"),jkey,json_key);
-	 strcpy(buffer,json_key);
-	 fileToRead.close();
-	 return true;
+static JsonObject get_config_root(JsonDocument& doc) {
+  return doc.as<JsonObject>();
 }
 
-bool getJson_key_int(const char* path, const char* jkey, uint32_t *number){
-	 File fileToRead = SPIFFS.open(path);
-	 if (!fileToRead)
-	 {
-		 Serial.println(F("no file found reset eeprom"));
-		 return false;
-	 }	 
-	 DynamicJsonDocument doc(2048);
-	 deserializeJson(doc,  fileToRead);	 
-	 fileToRead.close();
-	
-        *number = doc["sysconf"][jkey];
-		Serial.printf(PSTR("%s:%s\n"),jkey,number);
-        return true;    
+
+bool getJson_key_char(const char* path, const char* jkey, char* buffer, uint32_t size) {
+  File fileToRead = SPIFFS.open(path);
+  if (!fileToRead) {
+    Serial.printf("getJson_key_char: file not found: %s\n", path);
+    return false;
+  }
+  DynamicJsonDocument doc(2048);
+  deserializeJson(doc, fileToRead);
+  fileToRead.close();
+  // Use safe fallback — key may be absent from config
+  JsonObject cfg = get_config_root(doc);
+  const char* value = cfg[jkey] | "";
+  strlcpy(buffer, value, size);
+  Serial.printf("config read  %s = \"%s\"\n", jkey, buffer);
+  return true;
+}
+
+bool getJson_key_int(const char* path, const char* jkey, uint32_t* number) {
+  File fileToRead = SPIFFS.open(path);
+  if (!fileToRead) {
+    Serial.printf("getJson_key_int: file not found: %s\n", path);
+    return false;
+  }
+  DynamicJsonDocument doc(2048);
+  deserializeJson(doc, fileToRead);
+  fileToRead.close();
+  JsonObject cfg = get_config_root(doc);
+  *number = cfg[jkey] | (uint32_t)0;
+  Serial.printf("config read  %s = %lu\n", jkey, (unsigned long)*number);
+  return true;
 }
 
 bool setJson_key_bool(const char* path, const char* jkey, bool state) {
@@ -63,7 +67,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     }
 
     // Set the JSON key to the new state
-    doc["sysconf"][jkey] = state;
+    doc[jkey] = state;
 
     Serial.println(F("Saving config..."));
 
@@ -117,11 +121,11 @@ void configLoad(uint8_t mode)
         // Load user database
         // -------------------------------------------------
 
-        File usersFile = SPIFFS.open("/personx.json", "r");
+        File usersFile = SPIFFS.open("/users.json", "r");
 
         if (!usersFile) {
 #ifdef _DEBUG
-            Serial.println(F("Failed to open /personx.json"));
+            Serial.println(F("Failed to open /users.json"));
 #endif
             break;
         }
@@ -139,18 +143,9 @@ void configLoad(uint8_t mode)
             break;
         }
 
-        JsonObject usersObj = usersDoc["users"].as<JsonObject>();
-
-        if (usersObj.isNull()) {
-#ifdef _DEBUG
-            Serial.println(F("Invalid format: missing users object"));
-#endif
-            break;
-        }
-
 #ifdef _DEBUG
         Serial.println(F("Loaded users:"));
-        serializeJsonPretty(usersObj, Serial);
+        serializeJsonPretty(usersDoc, Serial);
         Serial.println();
 #endif
 
@@ -179,30 +174,62 @@ void configLoad(uint8_t mode)
         fileToRead.close();
 
         if (err) {
-            Serial.println(F("config.json parse error"));
+            Serial.printf("config.json parse error: %s\n", err.c_str());
             break;
         }
 
-        JsonObject sys = doc["sysconf"];
+        Serial.println(F("config.json raw content:"));
+        serializeJsonPretty(doc, Serial);
+        Serial.println();
+
+        JsonObject cfg = get_config_root(doc);
+        if (cfg.isNull()) {
+            Serial.println(F("config.json missing config/sysconf object"));
+            break;
+        }
+
+        // -------------------------------------------------
+        // Version and timestamp
+        // -------------------------------------------------
+        systemConfig.config_ver        = cfg["ver"]       | cfg["version"]   | (uint32_t)0;
+        systemConfig.config_updated_ts = cfg["updatedTs"] | cfg["updatedAt"] | (uint64_t)0;
 
         // -------------------------------------------------
         // System parameters
         // -------------------------------------------------
-
-        systemConfig.battery_charging_en   = sys["battery_charging_en"];
-        systemConfig.bell_time_out         = sys["bell_time_out"];
-        systemConfig.beep_time_out         = sys["beep_time_out"];
-        systemConfig.siren_en              = sys["siren_en"];
-        systemConfig.beep_en               = sys["beep_en"];
-        systemConfig.cli_access_level      = sys["cli_access_level"];
-        systemConfig.entry_delay_time      = sys["entry_delay_time"];
-        systemConfig.exit_delay_time       = sys["exit_delay_time"];
-        systemConfig.sensor_debounce_time  = sys["debounce_time"];
-        systemConfig.wifi_sta_en           = sys["wifi_sta_en"];
-        systemConfig.mqtt_en               = sys["mqtt_en"];
-        systemConfig.call_attempts         = sys["call_attempts"];
-        systemConfig.call_en               = sys["call_en"];
-        systemConfig.wifiap_en             = sys["wifiap_en"];
+        systemConfig.entry_delay_time     = cfg["enDelay"]        | (uint8_t)0;
+        systemConfig.exit_delay_time      = cfg["xtDelay"]        | (uint8_t)0;
+        systemConfig.bell_time_out        = cfg["bellTout"]       | (uint16_t)0;
+        systemConfig.beep_time_out        = cfg["beepTout"]       | (uint16_t)0;
+        systemConfig.sensor_debounce_time = cfg["debTm"]          | (uint8_t)0;
+        systemConfig.siren_en             = cfg["bellEn"]         | cfg["siren_en"]      | false;
+        systemConfig.beep_en              = cfg["beepEn"]         | cfg["beep_en"]       | false;
+        systemConfig.call_en              = cfg["callEn"]         | cfg["call_en"]       | false;
+        systemConfig.call_attempts        = cfg["callAtmpt"]      | cfg["call_attempts"] | (uint8_t)0;
+        systemConfig.mqtt_en              = cfg["mqttEn"]      | cfg["mqtt_en"]           | false;
+        systemConfig.cli_access_level     = cfg["cliLevel"]    | cfg["cli_access_level"]  | (uint8_t)0;
+        systemConfig.wifi_sta_en          = cfg["wstaEn"]      | cfg["wifi_sta_en"]        | false;
+        systemConfig.wifiap_en            = cfg["wapEn"]       | cfg["wifiap_en"]          | false;
+        strlcpy(systemConfig.inst_no,  cfg["instNo"]  | "", sizeof(systemConfig.inst_no));
+        strlcpy(systemConfig.inst_pas, cfg["instPas"] | "", sizeof(systemConfig.inst_pas));
+        strlcpy(systemConfig.wifissid_ap,     cfg["wapssid"]        | "", sizeof(systemConfig.wifissid_ap));
+        strlcpy(systemConfig.wifipass_ap,     cfg["wapPw"]          | "", sizeof(systemConfig.wifipass_ap));
+        strlcpy(systemConfig.last_sms_sender, cfg["lastSender"] | cfg["last_sms_sender"] | "", sizeof(systemConfig.last_sms_sender));
+        // Local MQTT credentials — only used when MQTT_SECURE is NOT defined
+        strlcpy(systemConfig.mqtt_server, cfg["mqttServer"] | "", sizeof(systemConfig.mqtt_server));
+        systemConfig.mqtt_port = cfg["mqttPort"] | (uint16_t)1883;
+        strlcpy(systemConfig.mqtt_user,   cfg["mqttUser"]   | "", sizeof(systemConfig.mqtt_user));
+        strlcpy(systemConfig.mqtt_pass,   cfg["mqttPass"]   | "", sizeof(systemConfig.mqtt_pass));
+        // Entry / exit delay feature flags
+        systemConfig.et_en   = cfg["etEn"]   | true;
+        systemConfig.et_beep = cfg["etBeep"] | true;
+        systemConfig.xt_en   = cfg["xtEn"]   | true;
+        systemConfig.xt_beep = cfg["xtBeep"] | true;
+        // Boot arm state
+        strlcpy(systemConfig.sys_mode, cfg["sysMode"] | "disarm", sizeof(systemConfig.sys_mode));
+#ifdef CUSTOM_NETWORK_CONFIG
+        strlcpy(systemConfig.wbssid, cfg["wbssid"] | "", sizeof(systemConfig.wbssid));
+#endif
 
 #ifdef GSM_PULSEX_IOT_BOARD
         bool reset_pin_state = true;
@@ -214,52 +241,28 @@ void configLoad(uint8_t mode)
         // Determine system mode
         // -------------------------------------------------
 
-        if ( systemConfig.wifiap_en == true)   // your forced CONFIG_MODE logic
-        {
-            strcpy(systemConfig.installer_pass, "admin");
-            Serial.println(F("Installer password default"));
+        // -------------------------------------------------
+        // Determine system mode and load WiFi credentials
+        // -------------------------------------------------
+        // Always load WiFi credentials — needed for configSave() to not overwrite with empty
+        strlcpy(systemConfig.wifissid_sta, cfg["wssid"]  | cfg["wifissid_sta"] | "", sizeof(systemConfig.wifissid_sta));
+        strlcpy(systemConfig.wifipass,     cfg["wstaPw"] | cfg["wifipass"]     | "", sizeof(systemConfig.wifipass));
+
+#ifdef FORCE_SYS_MODE
+        system_mode = (eSYS_MODE)(FORCE_SYS_MODE);
+        Serial.println(F("[FORCE_SYS_MODE] compile-time mode override active"));
+#else
+        if (systemConfig.wifiap_en){
             system_mode = CONFIG_MODE;
+            Serial.println(F("AP mode enabled -> CONFIG_MODE"));
+        } else if (systemConfig.wifi_sta_en) {
+            system_mode = NOMAL_MODE_WIFI;
+            Serial.println(F("WiFi credentials loaded -> NOMAL_MODE_WIFI"));
+        } else {
+            system_mode = NOMAL_MODE_NO_WIFI;
+            Serial.println(F("WiFi disabled -> NOMAL_MODE_NO_WIFI"));
         }
-        else
-        {
-            if (systemConfig.wifi_sta_en)
-            {
-                const char* ssid = sys["wifissid_sta"];
-                const char* pass = sys["wifipass"];
-
-                strcpy(systemConfig.wifissid_sta, ssid);
-                strcpy(systemConfig.wifipass, pass);
-
-                const char* installerPW = sys["installer_pass"];
-                strcpy(systemConfig.installer_pass, installerPW);
-
-                system_mode = NOMAL_MODE_WIFI;
-
-                Serial.println(F("WiFi credentials loaded"));
-            }
-            else
-            {
-                system_mode = NOMAL_MODE_NO_WIFI;
-            }
-        }
-
-        // -------------------------------------------------
-        // Restore last system state
-        // -------------------------------------------------
-
-        memset(systemConfig.last_sms_sender, '\0', 15);
-        strcpy(systemConfig.last_sms_sender, sys["last_sms_sender"]);
-
-        const char* lastState = sys["last_system_state"];
-
-        if (strncmp("Home arm", lastState, 8) == 0) {
-            systemConfig.last_system_state = SYS1_IDEAL;
-        }
-        else if (strncmp("Disarm", lastState, 6) == 0) {
-            systemConfig.last_system_state = DEACTIVE;
-        }
-
-        systemConfig.last_system_state = SYS1_IDEAL;
+#endif
 
 #ifdef _DEBUG
         Serial.println(F("Loaded config.json"));
@@ -270,6 +273,9 @@ void configLoad(uint8_t mode)
         // -------------------------------------------------
         // Load zones
         // -------------------------------------------------
+
+        Serial.println(F("Loading cfgIndex..."));
+        mqtt_load_cfg_index();
 
         Serial.println(F("Loading zone database..."));
 
@@ -297,7 +303,7 @@ void configLoad(uint8_t mode)
         // Load users
         // -------------------------------------------------
 
-        File usersFile = SPIFFS.open("/personx.json");
+        File usersFile = SPIFFS.open("/users.json");
 
         if (usersFile) {
             DynamicJsonDocument usersDoc(JSON_DOC_SIZE_USER_DATA);
@@ -325,7 +331,7 @@ void configLoad(uint8_t mode)
             deserializeJson(docx, cfg);
             cfg.close();
 
-            docx["sysconf"]["wifiap_en"] = false;
+            docx["wapEn"] = false;
 
             File out = SPIFFS.open("/config.json", FILE_WRITE);
             serializeJson(docx, out);
@@ -350,27 +356,48 @@ void configReset(){
 
 void configSave(){
 	DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
-	
-	doc["battery_charging_en"] = systemConfig.battery_charging_en;
-	doc["bell_time_out"] = systemConfig.bell_time_out;
-	doc["cli_access_level"] = systemConfig.cli_access_level;
-	doc["entry_delay_time"] = systemConfig.entry_delay_time;
-	doc["exit_delay_time"] = systemConfig.exit_delay_time;
-	doc["last_sms_sender"] = systemConfig.last_sms_sender;
-	doc["last_system_state"] = systemConfig.last_system_state;
-	doc["installer_pass"]= systemConfig.installer_pass;
-	
-	
+
+	doc["ver"]       = systemConfig.config_ver;
+	doc["updatedTs"] = systemConfig.config_updated_ts;
+	doc["enDelay"]   = systemConfig.entry_delay_time;
+	doc["xtDelay"]   = systemConfig.exit_delay_time;
+	doc["bellTout"]  = systemConfig.bell_time_out;
+	doc["beepTout"]  = systemConfig.beep_time_out;
+	doc["debTm"]     = systemConfig.sensor_debounce_time;
+	doc["bellEn"]    = systemConfig.siren_en;
+	doc["beepEn"]    = systemConfig.beep_en;
+	doc["callEn"]    = systemConfig.call_en;
+	doc["callAtmpt"] = systemConfig.call_attempts;
+	doc["cliLevel"]  = systemConfig.cli_access_level;
+	doc["lastSender"]      = systemConfig.last_sms_sender;
+	doc["instNo"]  = systemConfig.inst_no;
+	doc["instPas"] = systemConfig.inst_pas;
+	doc["wstaEn"]    = systemConfig.wifi_sta_en;
+	doc["wapEn"]     = systemConfig.wifiap_en;
+	doc["wssid"]     = systemConfig.wifissid_sta;
+	doc["wapssid"]   = systemConfig.wifissid_ap;
+	doc["wstaPw"]    = systemConfig.wifipass;
+	doc["wapPw"]     = systemConfig.wifipass_ap;
+	doc["mqttEn"]     = systemConfig.mqtt_en;
+	doc["mqttServer"] = systemConfig.mqtt_server;
+	doc["mqttPort"]   = systemConfig.mqtt_port;
+	doc["mqttUser"]   = systemConfig.mqtt_user;
+	doc["mqttPass"]   = systemConfig.mqtt_pass;
+	doc["etEn"]       = systemConfig.et_en;
+	doc["etBeep"]     = systemConfig.et_beep;
+	doc["xtEn"]       = systemConfig.xt_en;
+	doc["xtBeep"]     = systemConfig.xt_beep;
+	doc["sysMode"]    = systemConfig.sys_mode;
+#ifdef CUSTOM_NETWORK_CONFIG
+	doc["wbssid"]     = systemConfig.wbssid;
+#endif
+
 	File fileToWrite = SPIFFS.open("/config.json", FILE_WRITE);
-	
-	serializeJson(doc,  fileToWrite);
-	
-	Serial.println("save config....................");
-	serializeJsonPretty(doc, Serial);
-	
+	serializeJson(doc, fileToWrite);
 	fileToWrite.close();
-	
-	
+
+	Serial.println(F("configSave done"));
+	serializeJsonPretty(doc, Serial);
 }
 
 

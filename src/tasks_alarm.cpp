@@ -9,7 +9,8 @@
 
 
 extern bool stringComplete_at_serial0;
-extern String inputString;
+extern char inputString[];
+extern size_t inputStringLen;
 extern eInvoking_source last_invorker;
 
 // Your alarm panel instance
@@ -99,8 +100,9 @@ void Task1code(void *parameter)
     if (stringComplete_at_serial0)
     {
       stringComplete_at_serial0 = false;
-      universal_event_hadler(inputString.c_str(), last_invorker, 0);
-      inputString = "";
+      universal_event_hadler(inputString, last_invorker, 0);
+      inputString[0] = '\0';
+      inputStringLen = 0;
     }
 
     // ------------------------------------------------------------
@@ -146,8 +148,8 @@ void Task4code_gsm_ctrl(void *parameter)
 
 // Convenience: create the tasks with your existing stack/prio/core choices.
 void startAlarmTasks(){
-  xTaskCreatePinnedToCore(Task1code,      "Task1",  5000,  nullptr, 1, &Task1,     0);
-  xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,  nullptr, 4, &Task4,     1);
-  xTaskCreatePinnedToCore(Task2code_sms,  "Task2", 10000,  nullptr, 2, &Task2_sms, 1);
+  xTaskCreatePinnedToCore(Task1code,      "Task1",  4096,  nullptr, 1, &Task1,     0);
+  xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",4096,  nullptr, 4, &Task4,     1);
+  xTaskCreatePinnedToCore(Task2code_sms,  "Task2", 6144,  nullptr, 2, &Task2_sms, 1);
 
 }

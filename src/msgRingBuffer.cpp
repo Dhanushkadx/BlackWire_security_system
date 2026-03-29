@@ -6,10 +6,10 @@ QueueHandle_t smsQueue = NULL;
 void initSMSQueuex() {
     smsQueue = xQueueCreate(SMS_QUEUE_LENGTH, sizeof(SMS_t));
     if (smsQueue == NULL) {
-    Serial.println("Failed to create SMS queue!");
+    Serial.println(F("Failed to create SMS queue!"));
 }
     else {
-        Serial.println("SMS queue created successfully.");
+        Serial.println(F("SMS queue created successfully."));
     }
 }
 

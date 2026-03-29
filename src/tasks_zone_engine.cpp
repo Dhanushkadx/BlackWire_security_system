@@ -36,7 +36,7 @@ void zoneEngineTask(void *parameter)
   {
     if (rawPop(e, portMAX_DELAY))
     {
-      Serial.println("Raw event popped");
+      Serial.println(F("Raw event popped"));
       zoneEngine.onRaw(e);
     }
   }
@@ -57,7 +57,7 @@ void zoneTickTask(void *parameter)
 // ------------------- Task creator -------------------
 void startZoneEngineTasks()
 {
-  xTaskCreatePinnedToCore(pollTask,       "poll", 4096, nullptr, 3, nullptr, 1);
-  xTaskCreatePinnedToCore(zoneEngineTask, "zone", 4096, nullptr, 4, nullptr, 1);
+  xTaskCreatePinnedToCore(pollTask,       "poll", 3072, nullptr, 3, nullptr, 1);
+  xTaskCreatePinnedToCore(zoneEngineTask, "zone", 3072, nullptr, 4, nullptr, 1);
   xTaskCreatePinnedToCore(zoneTickTask,   "tick", 3072, nullptr, 2, nullptr, 1);
 }

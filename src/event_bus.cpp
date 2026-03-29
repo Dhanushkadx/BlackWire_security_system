@@ -11,7 +11,7 @@ bool eventBusInit(uint16_t rawDepth, uint16_t zoneDepth) {
 
 bool rawPush(const RawInputEvent& e) {
   if (!qRaw) return false;
-  Serial.println("Pushing raw event");
+  Serial.println(F("Pushing raw event"));
   return xQueueSend(qRaw, &e, 0) == pdTRUE;
 }
 

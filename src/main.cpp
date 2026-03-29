@@ -38,6 +38,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "pixel_blink_module.h"
 #include "OTA.h"
 #include "event_bus.h"
+#include "utility.h"
 #ifdef MQTT_OK
 #include "mqtt_brokerx.h"
 #endif
@@ -182,8 +183,9 @@ bool rf_id_automatic_clr_timer_en= true;
 EVENT_INFO STRUCT_event_infor;
 MY_SENS any_sensor_array[TOTAL_DEVICES];
 systemConfigTypedef_struct systemConfig;
-//String inputString;
-String inputString = "";         // a string to hold incoming data
+static constexpr size_t SERIAL_INPUT_BUFFER_SIZE = 128;
+char inputString[SERIAL_INPUT_BUFFER_SIZE] = {0};
+size_t inputStringLen = 0;
 boolean stringComplete_at_serial0 = false;  // whether the string is complete
 unsigned long prev_RFID=0;
 
@@ -325,7 +327,6 @@ switch (system_mode) {
 		if (Timer_mqtt_breath.Timer_run()) {
             publish_network_info();
 			publish_health_info(12.5, 5);
-            //send_all_zone_states_mqtt();
             Timer_mqtt_breath.previousMillis = millis();
         }
 #endif
@@ -388,7 +389,7 @@ void init_timersSW(){
 }
 
 void init_zoneEventbus(){
-  eventBusInit(96, 96);
+  eventBusInit(32, 32);
   zoneEngine.begin();
   // Example: make RF zones momentary (auto close after 800ms)
   ZoneConfig zc;
@@ -451,15 +452,15 @@ void setup()
    
 	// Initialize SPIFFS
 	if(!SPIFFS.begin(true)){
-		Serial.println("Error mounting SPIFFS");
+		Serial.println(F("Error mounting SPIFFS"));
 		return;
 	}
 	//eeprom_reset();
 	eeprom_load(0);
-	setup_mqtt(); 
 	//setup_sensor_settings();
 	//system_mode = CONFIG_MODE;
-	if((system_mode==CONFIG_MODE)||(systemConfig.wifiap_en)){
+  const bool portalMode = ((system_mode==CONFIG_MODE)||(systemConfig.wifiap_en));
+  if(portalMode){
 		setup_web_server_with_AP();
 	}
 	else if(system_mode==NOMAL_MODE_WIFI){
@@ -478,8 +479,7 @@ void setup()
 #endif
 	}
 	else if(system_mode==NOMAL_MODE_NO_WIFI){//
-	Serial.println(F("NO WiFi mode"));
-	mqtt_enable = false;
+			mqtt_enable = false;
 	}
 
 	setup_call_backs();
@@ -487,7 +487,15 @@ void setup()
 	//gsm_init();
 #endif
   myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-  myAlarm_pannel.set_system_state(DEACTIVE,SYSTEM_ITSELF,0);
+  myAlarm_pannel.set_system_state(DEACTIVE, SYSTEM_ITSELF, 0);
+  // Power-restore grace period: if last state was armed, re-arm after 30s
+  if (systemConfig.sys_mode[0] != '\0' && strcmp(systemConfig.sys_mode, "disarm") != 0) {
+    extern TimerSW g_restore_timer; extern bool g_restore_pending;
+    g_restore_pending = true;
+    g_restore_timer.interval = 30000;
+    g_restore_timer.previousMillis = millis();
+    Serial.printf("[boot] last mode=%s, re-arm in 30s\n", systemConfig.sys_mode);
+  }
   mySwitch.enableReceive(digitalPinToInterrupt(PIN_RF433MH));  // Receiver on interrupt 0 => that is pin #2*/
   /* initialize binary semaphore */
   xBinarySemaphore = xSemaphoreCreateBinary();
@@ -515,8 +523,11 @@ void setup()
  initSMSQueuex();
  init_zoneEventbus();
  setupZoneBroadcasting();
- wsTxAttach(&ws);
- wsTxBegin(16, 4096, 3);  // queue depth, stack words, priority
+ startBroadcastTasks();
+  if (portalMode) {
+    wsTxAttach(&ws);
+    wsTxBegin(8, 3072, 3);
+  }
  // Init queue + start tasks
  rf433_init();
 
@@ -531,9 +542,9 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	startIoTasks();
 	rf433_start_tasks();
 
-	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
-	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
+	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",3072,NULL,3,&Task3,0);
+	xTaskCreatePinnedToCore(Task7code,"Task7",3072,NULL,5,&Task7,1);
+	xTaskCreatePinnedToCore(Task8code,"Task8",8192,NULL,1,&Task8,0);
 	
 	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
 
@@ -545,15 +556,35 @@ xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 	vTaskSuspend(Task2_sms);
 }
 
+TimerSW g_restore_timer;
+bool    g_restore_pending = false;
+
 void loop()
 {
-	if(system_mode==NOMAL_MODE_WIFI){ 
+	// Power-restore: re-arm after 30s grace period
+	if (g_restore_pending && g_restore_timer.Timer_run()) {
+		g_restore_pending = false;
+		if (strcmp(systemConfig.sys_mode, "away") == 0) {
+			myAlarm_pannel.set_arm_mode(AS_ITIS_BYPASS);
+		} else {
+			myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
+		}
+		myAlarm_pannel.set_system_state(SYS2_IDEAL, SYSTEM_ITSELF, 0);
+		Serial.printf("[boot] re-armed -> %s\n", systemConfig.sys_mode);
+	}
+	// Debounced sysMode flash write (1 min stable)
+	sysmode_save_tick();
+
+	if(system_mode==NOMAL_MODE_WIFI){
 		if(Timer_websocket_update.Timer_run()){
 			Timer_websocket_update.previousMillis = millis(); 
 			//notifyClients_pageInfo();//**************************************** */
 			//printStackUsage(mainTaskHandle);	
 			//printStackUsage(Task9);
-			Serial.printf_P(PSTR("Free Heap:%d \n"),ESP.getFreeHeap());
+	#ifdef _DEBUG
+		debug_print_timestamp();
+		Serial.printf("Free Heap: %u bytes\n", ESP.getFreeHeap());
+#endif
 		}
 			cleanClients();
 }
@@ -564,30 +595,30 @@ delay(1000);
 void printLocalTime(){
 	struct tm timeinfo;
 	if(!getLocalTime(&timeinfo)){
-		Serial.println("Failed to obtain time");
+		Serial.println(F("Failed to obtain time"));
 		return;
 	}
 	
 #ifdef _DEBUG
 	Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-	Serial.print("Day of week: ");
+	Serial.print(F("Day of week: "));
 	Serial.println(&timeinfo, "%A");
-	Serial.print("Month: ");
+	Serial.print(F("Month: "));
 	Serial.println(&timeinfo, "%B");
-	Serial.print("Day of Month: ");
+	Serial.print(F("Day of Month: "));
 	Serial.println(&timeinfo, "%d");
-	Serial.print("Year: ");
+	Serial.print(F("Year: "));
 	Serial.println(&timeinfo, "%Y");
-	Serial.print("Hour: ");
+	Serial.print(F("Hour: "));
 	Serial.println(&timeinfo, "%H");
-	Serial.print("Hour (12 hour format): ");
+	Serial.print(F("Hour (12 hour format): "));
 	Serial.println(&timeinfo, "%I");
-	Serial.print("Minute: ");
+	Serial.print(F("Minute: "));
 	Serial.println(&timeinfo, "%M");
-	Serial.print("Second: ");
+	Serial.print(F("Second: "));
 	Serial.println(&timeinfo, "%S");
 
-	Serial.println("Time variables");
+	Serial.println(F("Time variables"));
 	char timeHour[3];
 	strftime(timeHour,3, "%H", &timeinfo);
 	Serial.println(timeHour);
@@ -603,8 +634,8 @@ void printLocalTime(){
 void eeprom_save(){configSave();}
 void eeprom_load(uint8_t mode){ configLoad(mode);
 	myAlarm_pannel.attachZoneManager(&gZoneManager);
-	myAlarm_pannel.set_entry_delay_timer_interval(systemConfig.entry_delay_time);
-	myAlarm_pannel.set_exit_delay_timer_interval(systemConfig.exit_delay_time);
+	myAlarm_pannel.set_entry_delay_timer_interval(systemConfig.et_en ? systemConfig.entry_delay_time : 0);
+	myAlarm_pannel.set_exit_delay_timer_interval(systemConfig.xt_en  ? systemConfig.exit_delay_time  : 0);
 	myAlarm_pannel.set_bell_time_timer_interval(systemConfig.bell_time_out);
  }
 void eeprom_reset(){configReset(); configLoad(0);}
@@ -618,17 +649,15 @@ void eeprom_reset(){configReset(); configLoad(0);}
 void serialEventRun() {
 	
 	while (Serial.available()) {
-		// get the new byte:
 		char inChar = (char)Serial.read();
-		// add it to the inputString:
-		if (inChar != '\n')
-		inputString += inChar;
-		// if the incoming character is a newline, set a flag
-		// so the main loop can do something about it:
+		if (inChar != '\n') {
+			if (inputStringLen < (SERIAL_INPUT_BUFFER_SIZE - 1)) {
+				inputString[inputStringLen++] = inChar;
+				inputString[inputStringLen] = '\0';
+			}
+		}
 		if (inChar == '\n') {
 			stringComplete_at_serial0 = true;
-			// update invoker
-			//invoker_rec();			
 		}
 	}
 	
@@ -639,14 +668,14 @@ void serialEventRun() {
 
 
 void invoker_rec(){
-	int index_result = inputString.indexOf(">");
+	char* index_result = strchr(inputString, '>');
 
-	if (index_result!=-1){
-		char invorker_id_char[2] = "";
-		strlcpy(invorker_id_char,inputString.c_str(),2);
+	if (index_result != nullptr){
+		char invorker_id_char[3] = {0};
+		strlcpy(invorker_id_char, inputString, sizeof(invorker_id_char));
 		uint8_t invoker_id = atoi(invorker_id_char);	
-		//remove invoker header;
-		inputString.remove(0,2);	
+		memmove(inputString, inputString + 2, strlen(inputString + 2) + 1);
+		inputStringLen = strlen(inputString);
 		
 		switch (invoker_id)
 
@@ -829,10 +858,18 @@ void Power_detect_loop() {
 			Serial.println(F("Power on!"));
 			systemConfig.ac_power = true;
 			creat_power_sms(true);
+#ifdef MQTT_OK
+			mqtt_publish_power_event(true);
+			mqtt_publish_telemetry();
+#endif
 			} else {
 			Serial.println(F("Power off!"));
 			creat_power_sms(false);
 			systemConfig.ac_power=false;
+#ifdef MQTT_OK
+			mqtt_publish_power_event(false);
+			mqtt_publish_telemetry();
+#endif
 		}
 	}
 	

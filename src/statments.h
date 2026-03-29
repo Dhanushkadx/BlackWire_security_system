@@ -119,7 +119,7 @@ char lcd_time[17];
 #define JSON_DOC_SIZE_DEVICE_DATA 6144
 #define JSON_DOC_SIZE_ZONE_DATA 2048
 #define JSON_DOC_SIZE_USER_DATA 2048
-#define JSON_DOC_SIZE_CONFIG_DATA 1024
+#define JSON_DOC_SIZE_CONFIG_DATA 2048
 extern unsigned long try_time;
 
 

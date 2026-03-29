@@ -41,7 +41,7 @@ void ZoneEngine::onRaw(const RawInputEvent& e){
   ZoneRuntime& r = z[e.zone];
   if(r.cfg.bypass){
     // Bypassed zones still track raw, but do not generate OPEN events
-    Serial.println("Bypassed zone event");
+    Serial.println(F("Bypassed zone event"));
     r.raw_level = e.level;
     r.last_raw_change_ms = e.t_ms;
     // keep state CLOSE unless FAULT
@@ -52,7 +52,7 @@ void ZoneEngine::onRaw(const RawInputEvent& e){
 
   // If fault flag, go FAULT immediately
   if(e.flags & RAWF_FAULT){
-    Serial.println("Fault event");
+    Serial.println(F("Fault event"));
     r.raw_level = e.level;
     r.last_raw_change_ms = e.t_ms;
     emitIfChanged(e.zone, ZS_FAULT, e.t_ms);
@@ -61,23 +61,23 @@ void ZoneEngine::onRaw(const RawInputEvent& e){
 
   // Raw edge?
   if(e.level != r.raw_level){
-    Serial.println("Raw level changed");
+    Serial.println(F("Raw level changed"));
     r.raw_level = e.level;
     r.last_raw_change_ms = e.t_ms;
   }
 
   // Debounce: only accept stable change if raw has stayed same for debounce_ms
   if(r.raw_level != r.stable_level){
-    Serial.println("Checking debounce");
+    Serial.println(F("Checking debounce"));
     uint32_t dt = e.t_ms - r.last_raw_change_ms;
     if(dt >= r.cfg.debounce_ms){
-      Serial.println("Debounce passed, updating stable level");
+      Serial.println(F("Debounce passed, updating stable level"));
       r.stable_level = r.raw_level;
       r.last_stable_change_ms = e.t_ms;
 
       // Momentary: if configured and we got OPEN, schedule auto-close
       if(r.cfg.momentary_hold_ms > 0 && r.stable_level == 1){
-        Serial.println("Scheduling momentary auto-close");
+        Serial.println(F("Scheduling momentary auto-close"));
         r.momentary_until_ms = e.t_ms + r.cfg.momentary_hold_ms;
       }
       Serial.printf("Emitting state change: zone %u, level %u\n", e.zone, r.stable_level);

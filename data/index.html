@@ -704,6 +704,12 @@
       
       // Remote learning (remotes page)
       
+      document.getElementById("btnRemRead")?.addEventListener("click", () => {
+        const slot = currentRemotesSlot();
+        setRemotesStatus(`Reading slot ${slot}…`);
+        remoteCmd("rm_read_slot", String(slot), null);
+      });
+
       document.getElementById("btnRemScan")?.addEventListener("click", () => {
         const slot = document.getElementById("remSlotSel")?.value;
         remoteCmd("rem_scan", slot, null);
@@ -822,6 +828,15 @@
             const z = document.getElementById("rfidInput");
             if (z) z.value = msg.scan_rfid;
           }
+        }
+        // rm_read_slot response
+        if (msg.page === "remotes" && msg.code !== undefined) {
+          const el = document.getElementById("remCodeInput");
+          const slot = msg.slot || currentRemotesSlot();
+          const code = String(msg.code || "");
+          if (el) el.value = code;
+          remState.slots[slot] = code;
+          setRemotesStatus(code ? `Slot ${slot}: ${code}` : `Slot ${slot}: empty`);
         }
         return;
       }
@@ -947,85 +962,84 @@
     // SYSTEM PAGE
     // =====================================================================
     function renderSys(sys){
-      // Map to your current config.json sysconf keys
-      // (These inputs mirror your old index.html)
-      setVal("sys_entry_delay_time", sys.entry_delay_time);
-      setChecked("sys_et_en", !!sys.et_en);
-      setChecked("sys_et_beep", !!sys.et_beep);
+      const mqttCard = document.getElementById("card_mqtt");
+      if (mqttCard) mqttCard.style.display = sys.mqttSecure ? "none" : "";
+      setVal("sys_entry_delay_time", sys.enDelay);
+      setChecked("sys_et_en",   !!sys.etEn);
+      setChecked("sys_et_beep", !!sys.etBeep);
 
-      setVal("sys_exit_delay_time", sys.exit_delay_time);
-      setChecked("sys_xt_en", !!sys.xt_en);
-      setChecked("sys_xt_beep", !!sys.xt_beep);
+      setVal("sys_exit_delay_time", sys.xtDelay);
+      setChecked("sys_xt_en",   !!sys.xtEn);
+      setChecked("sys_xt_beep", !!sys.xtBeep);
 
-      setVal("sys_beep_time_out", sys.beep_time_out);
-      setChecked("sys_beep_en", !!sys.beep_en);
+      setVal("sys_beep_time_out", sys.beepTout);
+      setChecked("sys_beep_en",  !!sys.beepEn);
 
-      setVal("sys_bell_time_out", sys.bell_time_out);
-      setChecked("sys_siren_en", !!sys.siren_en);
+      setVal("sys_bell_time_out", sys.bellTout);
+      setChecked("sys_siren_en", !!sys.bellEn);
 
-      setVal("sys_call_attempts", sys.call_attempts);
-      setChecked("sys_call_en", !!sys.call_en);
+      setVal("sys_call_attempts", sys.callAtmpt);
+      setChecked("sys_call_en",  !!sys.callEn);
 
-      setVal("sys_wifissid_sta", sys.wifissid_sta);
-      setChecked("sys_wifi_sta_en", !!sys.wifi_sta_en);
-      setVal("sys_wifipass", sys.wifipass);
+      setVal("sys_wifissid_sta",    sys.wssid);
+      setChecked("sys_wifi_sta_en", !!sys.wstaEn);
+      setMaskedPw("sys_wifipass",   sys.wstaPw);
 
-      setVal("sys_mqtt_server", sys.mqtt_server);
-      setChecked("sys_mqtt_en", !!sys.mqtt_en);
-      setVal("sys_mqtt_port", sys.mqtt_port);
-      setVal("sys_mqtt_user", sys.mqtt_user);
-      setVal("sys_mqtt_pass", sys.mqtt_pass);
+      setVal("sys_mqtt_server", sys.mqttServer);
+      setChecked("sys_mqtt_en", !!sys.mqttEn);
+      setVal("sys_mqtt_port",   sys.mqttPort);
+      setVal("sys_mqtt_user",   sys.mqttUser);
+      setMaskedPw("sys_mqtt_pass",  sys.mqttPass);
 
-      setVal("sys_installer_no", sys.installer_no);
-      setVal("sys_installer_pass", sys.installer_pass);
+      setVal("sys_installer_no",    sys.instNo);
+      setMaskedPw("sys_installer_pass", sys.instPas);
 
-      // helpful
-      setVal("sys_debounce_time", sys.debounce_time);
-      setVal("sys_cli_access_level", sys.cli_access_level);
-      setVal("sys_last_sms_sender", sys.last_sms_sender);
-      setVal("sys_last_system_state", sys.last_system_state);
+      setVal("sys_debounce_time",   sys.debTm);
+      setVal("sys_cli_access_level", sys.cliLevel);
+      setVal("sys_last_sms_sender",  sys.lastSender);
     }
 
     function onSaveSys(){
       const sysconf = {
-        entry_delay_time: getVal("sys_entry_delay_time"),
-        et_en: getChecked("sys_et_en"),
-        et_beep: getChecked("sys_et_beep"),
+        enDelay:  getVal("sys_entry_delay_time"),
+        etEn:     getChecked("sys_et_en"),
+        etBeep:   getChecked("sys_et_beep"),
 
-        exit_delay_time: getVal("sys_exit_delay_time"),
-        xt_en: getChecked("sys_xt_en"),
-        xt_beep: getChecked("sys_xt_beep"),
+        xtDelay:  getVal("sys_exit_delay_time"),
+        xtEn:     getChecked("sys_xt_en"),
+        xtBeep:   getChecked("sys_xt_beep"),
 
-        beep_time_out: getVal("sys_beep_time_out"),
-        beep_en: getChecked("sys_beep_en"),
+        beepTout: getVal("sys_beep_time_out"),
+        beepEn:   getChecked("sys_beep_en"),
 
-        bell_time_out: getVal("sys_bell_time_out"),
-        siren_en: getChecked("sys_siren_en"),
+        bellTout: getVal("sys_bell_time_out"),
+        bellEn:   getChecked("sys_siren_en"),
 
-        call_attempts: getVal("sys_call_attempts"),
-        call_en: getChecked("sys_call_en"),
+        callAtmpt: getVal("sys_call_attempts"),
+        callEn:    getChecked("sys_call_en"),
 
-        wifissid_sta: getVal("sys_wifissid_sta"),
-        wifi_sta_en: getChecked("sys_wifi_sta_en"),
-        wifipass: getVal("sys_wifipass"),
+        wssid:   getVal("sys_wifissid_sta"),
+        wstaEn:  getChecked("sys_wifi_sta_en"),
 
-        mqtt_server: getVal("sys_mqtt_server"),
-        mqtt_en: getChecked("sys_mqtt_en"),
-        mqtt_port: getVal("sys_mqtt_port"),
-        mqtt_user: getVal("sys_mqtt_user"),
-        mqtt_pass: getVal("sys_mqtt_pass"),
+        mqttServer: getVal("sys_mqtt_server"),
+        mqttEn:     getChecked("sys_mqtt_en"),
+        mqttPort:   getVal("sys_mqtt_port"),
+        mqttUser:   getVal("sys_mqtt_user"),
 
-        installer_no: getVal("sys_installer_no"),
-        installer_pass: getVal("sys_installer_pass"),
+        instNo:  getVal("sys_installer_no"),
 
-        // optional/advanced
-        debounce_time: getVal("sys_debounce_time"),
-        cli_access_level: getVal("sys_cli_access_level"),
-
-        // keep these if your firmware expects them
-        last_sms_sender: getVal("sys_last_sms_sender"),
-        last_system_state: getVal("sys_last_system_state"),
+        debTm:    getVal("sys_debounce_time"),
+        cliLevel: getVal("sys_cli_access_level"),
+        lastSender: getVal("sys_last_sms_sender"),
       };
+
+      // Only send passwords if user actually changed them (not **** placeholder)
+      const wstaPw  = getPwVal("sys_wifipass");
+      const mqttPass = getPwVal("sys_mqtt_pass");
+      const instPas  = getPwVal("sys_installer_pass");
+      if (wstaPw  !== undefined) sysconf.wstaPw  = wstaPw;
+      if (mqttPass !== undefined) sysconf.mqttPass = mqttPass;
+      if (instPas  !== undefined) sysconf.instPas  = instPas;
 
       const ok = wsSend({action:"set", page:"sys", sysconf});
       if (ok) toast("Saving…", "System config sent. Waiting for OK…", "warn");
@@ -1269,18 +1283,18 @@
 
     function renderContacts(users){
       // Expect users length 8 (P1..P8)
-      // Each can be: {name, number, sms, call, active, remID}
+      // Each can be: {nm, tp, smsEn, callEn, en, remID}
       const n = Math.min(users.length, 8);
       for (let i=1; i<=n; i++){
         const u = users[i-1] || {};
-        setVal(`c_name_${i}`, u.name || "");
-        setVal(`c_num_${i}`, u.number || "");
+        setVal(`c_name_${i}`, u.nm || "");
+        setVal(`c_num_${i}`, u.tp || "");
         setVal(`c_rem_${i}`, u.remID || "");
 
         // accept bool or "0"/"1"
-        setChecked(`c_sms_${i}`,  boolish(u.sms));
-        setChecked(`c_call_${i}`, boolish(u.call));
-        setChecked(`c_active_${i}`, boolish(u.active));
+        setChecked(`c_sms_${i}`,  boolish(u.smsEn));
+        setChecked(`c_call_${i}`, boolish(u.callEn));
+        setChecked(`c_active_${i}`, boolish(u.en));
       }
     }
 
@@ -1288,12 +1302,12 @@
       const users = [];
       for (let i=1; i<=8; i++){
         users.push({
-          name: getVal(`c_name_${i}`) || "",
-          number: getVal(`c_num_${i}`) || "",
+          nm: getVal(`c_name_${i}`) || "",
+          tp: getVal(`c_num_${i}`) || "",
           remID: getVal(`c_rem_${i}`) || "",
-          sms: getChecked(`c_sms_${i}`),
-          call: getChecked(`c_call_${i}`),
-          active: getChecked(`c_active_${i}`)
+          smsEn: getChecked(`c_sms_${i}`),
+          callEn: getChecked(`c_call_${i}`),
+          en: getChecked(`c_active_${i}`)
         });
       }
       const ok = wsSend({action:"set", page:"contacts", users});
@@ -1527,6 +1541,17 @@
       if (!el) return;
       el.value = (v == null) ? "" : String(v);
     }
+    function setMaskedPw(id, v){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = (v && String(v).length > 0) ? "****" : "";
+    }
+    function getPwVal(id){
+      const el = document.getElementById(id);
+      if (!el) return undefined;
+      const v = el.value;
+      return (v === "" || v === "****") ? undefined : v;
+    }
     function getVal(id){
       const el = document.getElementById(id);
       if (!el) return "";
@@ -1676,27 +1701,34 @@
 
             <div class="card" style="margin-top: 12px;">
               <div class="card-header">
-                <h2>Wi-Fi & MQTT</h2>
-                <div class="hint">STA + MQTT settings</div>
+                <h2>Wi-Fi</h2>
+                <div class="hint">STA credentials</div>
               </div>
               <div class="card-body">
                 <div class="row">
                   <div class="field">
                     <label for="sys_wifissid_sta">Wi-Fi SSID (STA)</label>
-                    <input type="text" id="sys_wifissid_sta" />
+                    <input type="text" id="sys_wifissid_sta" autocomplete="off" />
                   </div>
                   <div class="checks">
                     <label class="check"><input type="checkbox" id="sys_wifi_sta_en" /> Enable STA</label>
                   </div>
                 </div>
-
                 <div class="row">
                   <div class="field">
                     <label for="sys_wifipass">Wi-Fi Password</label>
-                    <input type="password" id="sys_wifipass" />
+                    <input type="password" id="sys_wifipass" autocomplete="new-password" />
                   </div>
                 </div>
+              </div>
+            </div>
 
+            <div id="card_mqtt" class="card" style="margin-top: 12px;">
+              <div class="card-header">
+                <h2>MQTT</h2>
+                <div class="hint">Local broker settings</div>
+              </div>
+              <div class="card-body">
                 <div class="row">
                   <div class="field">
                     <label for="sys_mqtt_server">MQTT Server</label>
@@ -1706,7 +1738,6 @@
                     <label class="check"><input type="checkbox" id="sys_mqtt_en" /> Enable MQTT</label>
                   </div>
                 </div>
-
                 <div class="row">
                   <div class="field" style="min-width: 180px; max-width: 240px;">
                     <label for="sys_mqtt_port">Port</label>
@@ -1718,7 +1749,7 @@
                   </div>
                   <div class="field">
                     <label for="sys_mqtt_pass">Password</label>
-                    <input type="password" id="sys_mqtt_pass" />
+                    <input type="password" id="sys_mqtt_pass" autocomplete="new-password" />
                   </div>
                 </div>
               </div>
@@ -1737,7 +1768,7 @@
                   </div>
                   <div class="field">
                     <label for="sys_installer_pass">Installer Code</label>
-                    <input type="password" id="sys_installer_pass" />
+                    <input type="password" id="sys_installer_pass" autocomplete="new-password" />
                   </div>
                 </div>
               </div>
@@ -1964,6 +1995,7 @@
                 <div class="hint" id="remotesHint" style="margin-bottom:10px;"></div>
 
                 <div class="btnbar" style="justify-content:flex-start;">
+                  <button class="btn" id="btnRemRead"  type="button">Read</button>
                   <button class="btn" id="btnRemScan" type="button">Scan</button>
                   <button class="btn primary" id="btnRemLearn" type="button">Learn</button>
                   <button class="btn danger" id="btnRemClear" type="button">Clear</button>

@@ -38,7 +38,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		//processOfflineMessagesV2();
 		readLastNMessagesToQueue(10);
 		processMessagesFromQueue();
-		Serial.println("loop2 exit");
+		Serial.println(F("loop2 exit"));
 		
 	}
 	if (strncmp(smsbuffer, UniversalCmd::kSysReboot, sizeof(UniversalCmd::kSysReboot) - 1)==0)
@@ -135,13 +135,14 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	{
 		ret_value = 1;
 		char msg[200] = {0};
-		String ipAddress = WiFi.localIP().toString();
-  		String macAddress = WiFi.macAddress();
-  		int32_t rssi = WiFi.RSSI();
-		int8_t gsmrssi =  getSignal_strength();
-		String wifiStatus;
-		(!WiFi.isConnected())?wifiStatus = "offline": wifiStatus = "online";
-  		sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nWiFi RSSI:%d dBm\nGSM SIG:%d\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress.c_str(), macAddress.c_str(), rssi,gsmrssi);
+		char ipAddress[16];
+		WiFi.localIP().toString().toCharArray(ipAddress, sizeof(ipAddress));
+		char macAddress[18];
+		WiFi.macAddress().toCharArray(macAddress, sizeof(macAddress));
+		int32_t rssi = WiFi.RSSI();
+		int8_t gsmrssi = getSignal_strength();
+		const char* wifiStatus = WiFi.isConnected() ? "online" : "offline";
+		sprintf(msg, "WiFi:%s\nSSID:%s\nPW:%s\nIP:%s\nMAC:%s\nWiFi RSSI:%d dBm\nGSM SIG:%d\n",wifiStatus,systemConfig.wifissid_sta,systemConfig.wifipass, ipAddress, macAddress, rssi,gsmrssi);
 		//get time from esp32
 			struct tm timeinfo = rtc.getTimeStruct();
 
@@ -184,7 +185,8 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
 		myAlarm_pannel.set_system_state(SYS1_IDEAL,Invoker,user_id);
 #ifdef MQTT_OK
-		publish_system_state("ARMED","info/mode",true);
+		mqtt_publish_latest_attributes();
+		mqtt_publish_telemetry();
 #endif       
 		
 	}
@@ -193,7 +195,8 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		eCurrent_state=DEACTIVE;
 		myAlarm_pannel.set_system_state(DEACTIVE,Invoker,user_id);
 #ifdef MQTT_OK
-		publish_system_state("DISARMED","info/mode",true);
+		mqtt_publish_latest_attributes();
+		mqtt_publish_telemetry();
 #endif        
 		
 	}
@@ -210,7 +213,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		//myAlarm_pannel.set_system_state(PANIC,Invoker,user_id);
 		myAlarm_pannel.set_system_state(ALARM_CALLING,WEB,0);
 #ifdef MQTT_OK
-		publish_system_state("ALARM","info/mode",true);
+		mqtt_publish_alarm_event("alarm_triggered", -1, "panic", "panic");
+		mqtt_publish_latest_attributes();
+		mqtt_publish_telemetry();
 #endif   
 	}
 	
@@ -393,7 +398,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		strlcpy(zone_index, smsbuffer + (sizeof(UniversalCmd::kCfgEntryDelay) - 1), 3);
 		int entry_delay_int = atoi(zone_index);
 		systemConfig.entry_delay_time = entry_delay_int;
-		Serial.print("Entry delay:");
+		Serial.print(F("Entry delay:"));
 		Serial.println(entry_delay_int);
 		myAlarm_pannel.set_entry_delay_timer_interval(entry_delay_int);
 		eeprom_save();
@@ -446,7 +451,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			strcpy_P(buffer, turn_on ? PSTR("Relay 2 on OK") : PSTR("Relay 2 off OK"));
 			creatSMS(buffer,2,0);
 #ifdef MQTT_OK
-			publish_system_state(turn_on ? "on" : "off","cmd/relay2/status", true);
+			mqtt_publish_latest_attributes();
 #endif
 #ifdef GSM_MINI_BOARD_V3
 			digitalWrite(RELAY_OUT_B, turn_on ? LOW : HIGH);
@@ -455,7 +460,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			strcpy_P(buffer, turn_on ? PSTR("Relay 1 on OK") : PSTR("Relay 1 off OK"));
 			creatSMS(buffer,2,0);
 #ifdef MQTT_OK
-			publish_system_state(turn_on ? "on" : "off","cmd/relay1/status", true);
+			mqtt_publish_latest_attributes();
 #endif
 #ifdef GSM_MINI_BOARD_V3
 			digitalWrite(RELAY_OUT_A, turn_on ? LOW : HIGH);

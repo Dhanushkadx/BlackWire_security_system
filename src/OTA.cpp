@@ -34,13 +34,13 @@ String fetchLatestVersion() {
 
 
 bool startOTAUpdate(WiFiClient* client, int contentLength) {
-  Serial.println("Initializing update...");
+  Serial.println(F("Initializing update..."));
   if (!Update.begin(contentLength)) {
     Serial.printf("Update begin failed: %s\n", Update.errorString());
     return false;
   }
 
-  Serial.println("Writing firmware...");
+  Serial.println(F("Writing firmware..."));
   size_t written = 0;
   int progress = 0;
   int lastProgress = 0;
@@ -67,14 +67,14 @@ bool startOTAUpdate(WiFiClient* client, int contentLength) {
     }
     // Check for timeout
     if (millis() - lastDataTime > timeoutDuration) {
-      Serial.println("Timeout: No data received for too long. Aborting update...");
+      Serial.println(F("Timeout: No data received for too long. Aborting update..."));
       Update.abort();
       return false;
     }
 
     yield();
   }
-  Serial.println("\nWriting complete");
+  Serial.println(F("\nWriting complete"));
 
   if (written != contentLength) {
     Serial.printf("Error: Write incomplete. Expected %d but got %d bytes\n", contentLength, written);
@@ -87,7 +87,7 @@ bool startOTAUpdate(WiFiClient* client, int contentLength) {
     return false;
   }
 
-  Serial.println("Update successfully completed");
+  Serial.println(F("Update successfully completed"));
   return true;
 }
 
@@ -106,14 +106,14 @@ void downloadAndApplyFirmware(const char* firmwareUrl) {
     if (contentLength > 0) {
       WiFiClient* stream = http.getStreamPtr();
       if (startOTAUpdate(stream, contentLength)) {
-        Serial.println("OTA update successful, restarting...");
+        Serial.println(F("OTA update successful, restarting..."));
         delay(2000);
         ESP.restart();
       } else {
-        Serial.println("OTA update failed");
+        Serial.println(F("OTA update failed"));
       }
     } else {
-      Serial.println("Invalid firmware size");
+      Serial.println(F("Invalid firmware size"));
     }
   } else {
     Serial.printf("Failed to fetch firmware. HTTP code: %d\n", httpCode);
@@ -122,16 +122,16 @@ void downloadAndApplyFirmware(const char* firmwareUrl) {
 }
 
 void checkForFirmwareUpdate() {
-  Serial.println("Checking for firmware update...");
+  Serial.println(F("Checking for firmware update..."));
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected");
+    Serial.println(F("WiFi not connected"));
     return;
   }
 
   // Step 1: Fetch the latest version from GitHub
   String latestVersion = fetchLatestVersion();
   if (latestVersion == "") {
-    Serial.println("Failed to fetch latest version");
+    Serial.println(F("Failed to fetch latest version"));
     return;
   }
 
@@ -140,22 +140,22 @@ void checkForFirmwareUpdate() {
 
   // Step 2: Compare versions
   if (latestVersion != currentFirmwareVersion) {
-    Serial.println("New firmware available. Starting OTA update...");
+    Serial.println(F("New firmware available. Starting OTA update..."));
     downloadAndApplyFirmware(firmwareUrl);
   } else {
-    Serial.println("Device is up to date.");
+    Serial.println(F("Device is up to date."));
   }
 
 }
 
 void connectToWiFi() {
-  Serial.print("Connecting to WiFi");
+  Serial.print(F("Connecting to WiFi"));
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.print(".");
+    Serial.print(F("."));
   }
-  Serial.println("\nWiFi connected");
+  Serial.println(F("\nWiFi connected"));
   Serial.println("IP address: " + WiFi.localIP().toString());
 }
 
@@ -164,10 +164,10 @@ void connectToWiFi() {
 void setup_http() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\nStarting ESP32 OTA Update");
+  Serial.println(F("\nStarting ESP32 OTA Update"));
 
   connectToWiFi();
-  Serial.println("Device is ready.");
+  Serial.println(F("Device is ready."));
   Serial.println("Current Firmware Version: " + String(currentFirmwareVersion));
   checkForFirmwareUpdate();
 }
@@ -177,7 +177,7 @@ void downloadAndApplySPIFFS(const char* spiffsUrl) {
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-  Serial.println("Downloading SPIFFS image...");
+  Serial.println(F("Downloading SPIFFS image..."));
   http.begin(spiffsUrl);
 
   int httpCode = http.GET();
@@ -191,14 +191,14 @@ void downloadAndApplySPIFFS(const char* spiffsUrl) {
       WiFiClient* stream = http.getStreamPtr();
 
       if (startSPIFFSOTAUpdate(stream, contentLength)) {
-        Serial.println("SPIFFS OTA done. Rebooting...");
+        Serial.println(F("SPIFFS OTA done. Rebooting..."));
         delay(2000);
         ESP.restart();   // recommended
       } else {
-        Serial.println("SPIFFS OTA failed");
+        Serial.println(F("SPIFFS OTA failed"));
       }
     } else {
-      Serial.println("Invalid SPIFFS image size");
+      Serial.println(F("Invalid SPIFFS image size"));
     }
   } else {
     Serial.printf("Failed to download SPIFFS image. HTTP code: %d\n", httpCode);
@@ -208,14 +208,14 @@ void downloadAndApplySPIFFS(const char* spiffsUrl) {
 }
 
 bool startSPIFFSOTAUpdate(WiFiClient* client, int contentLength) {
-  Serial.println("Initializing SPIFFS update...");
+  Serial.println(F("Initializing SPIFFS update..."));
 
   if (!Update.begin(contentLength, U_SPIFFS)) {
     Serial.printf("SPIFFS Update begin failed: %s\n", Update.errorString());
     return false;
   }
 
-  Serial.println("Writing SPIFFS image...");
+  Serial.println(F("Writing SPIFFS image..."));
   size_t written = 0;
   int progress = 0;
   int lastProgress = 0;
@@ -242,7 +242,7 @@ bool startSPIFFSOTAUpdate(WiFiClient* client, int contentLength) {
     }
 
     if (millis() - lastDataTime > timeoutDuration) {
-      Serial.println("Timeout: SPIFFS OTA stalled. Aborting...");
+      Serial.println(F("Timeout: SPIFFS OTA stalled. Aborting..."));
       Update.abort();
       return false;
     }
@@ -250,7 +250,7 @@ bool startSPIFFSOTAUpdate(WiFiClient* client, int contentLength) {
     yield();
   }
 
-  Serial.println("SPIFFS write complete");
+  Serial.println(F("SPIFFS write complete"));
 
   if (written != contentLength) {
     Serial.printf("SPIFFS write incomplete (%d / %d)\n", written, contentLength);
@@ -263,7 +263,7 @@ bool startSPIFFSOTAUpdate(WiFiClient* client, int contentLength) {
     return false;
   }
 
-  Serial.println("SPIFFS OTA successful");
+  Serial.println(F("SPIFFS OTA successful"));
   return true;
 }
 

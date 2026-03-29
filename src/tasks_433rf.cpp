@@ -136,7 +136,7 @@ static bool rfRemoteHandleCode(uint32_t code)
 {
   int8_t user = -1;
   int8_t cmd  = remcode_u32(code, &user);
-
+  Serial.printf("[RF] code=%lu cmd=%d user=%d\n", (unsigned long)code, (int)cmd, (int)user);
   if (cmd == -1 || user == -1) return false;
 
   switch (cmd)
@@ -145,7 +145,9 @@ static bool rfRemoteHandleCode(uint32_t code)
       myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
       myAlarm_pannel.set_system_state(SYS1_IDEAL, RF, user);
 #ifdef MQTT_OK
-      publish_system_state("ARMED", "info/mode", true);
+      mqtt_publish_state_action_event("arm", (uint8_t)user, RF);
+      mqtt_publish_latest_attributes();
+      mqtt_publish_telemetry();
 #endif
       break;
 
@@ -153,7 +155,9 @@ static bool rfRemoteHandleCode(uint32_t code)
       myAlarm_pannel.set_system_state(DEACTIVE, RF, user);
       eCurrent_state = DEACTIVE;
 #ifdef MQTT_OK
-      publish_system_state("DISARMED", "info/mode", true);
+      mqtt_publish_state_action_event("disarm", (uint8_t)user, RF);
+      mqtt_publish_latest_attributes();
+      mqtt_publish_telemetry();
 #endif
       break;
 
@@ -163,7 +167,11 @@ static bool rfRemoteHandleCode(uint32_t code)
 
     case 4: // PANIC
       myAlarm_pannel.set_system_state(ALARM_CALLING, RF, user);
-      // TODO: enqueue panic sms / siren bits etc (non-blocking)
+#ifdef MQTT_OK
+      mqtt_publish_alarm_event("alarm_triggered", -1, "panic", "panic");
+      mqtt_publish_latest_attributes();
+      mqtt_publish_telemetry();
+#endif
       break;
   }
 

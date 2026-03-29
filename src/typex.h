@@ -13,6 +13,12 @@
 
 enum eSYS_MODE{CONFIG_MODE, NOMAL_MODE_WIFI, NOMAL_MODE_NO_WIFI};
 
+// Compile-time force mode values — use with build flag: -D FORCE_SYS_MODE=N
+// Example in platformio.ini: build_flags = ... -D FORCE_SYS_MODE=FORCE_MODE_CONFIG
+#define FORCE_MODE_CONFIG    0   // CONFIG_MODE
+#define FORCE_MODE_WIFI      1   // NOMAL_MODE_WIFI
+#define FORCE_MODE_NO_WIFI   2   // NOMAL_MODE_NO_WIFI
+
 typedef enum eLCD_state{BEGING_LCD,
 	KEY_PAD_INPUT,
 	SYSTEM_ARM,
@@ -57,21 +63,36 @@ typedef struct systemConfig{
 	bool beep_en;
 	bool siren_en;
 	eMain_state last_system_state;
-	char wifissid_ap[25]; //":"dxdxdxdxdx",
+	char wifissid_ap[25];  //":"dxdxdxdxdx",
 	char wifissid_sta[25]; //":"dxdxdxdxdx",
-	char wifipass[25]; //": "xxxxxxxxxx",
+	char wifipass[25];     //": "xxxxxxxxxx",  (STA password)
+	char wifipass_ap[25];  // AP password (wapPw in config)
 	bool wifi_sta_en;
 	bool wifiap_en;
 	bool mqtt_en;
 	uint8_t call_attempts;//": 2,
 	boolean call_en;  //": true,
-	char  installer_no[25];  //":"000000000000",
-	char installer_pass[25];   //":"000000",
+	char inst_no[25];
+	char inst_pas[25];
 	bool gsm_module_enable;
-	//boolean power_notify;
-	//uint8_t alarm_call_delay;
-	//uint8_t event_index;
-	
+	// Entry / exit delay feature flags
+	bool et_en;    // entry delay enabled
+	bool et_beep;  // beep during entry delay
+	bool xt_en;    // exit delay enabled
+	bool xt_beep;  // beep during exit delay
+	// Boot arm state — "disarm" / "arm" / "away"
+	char sys_mode[10];
+#ifdef CUSTOM_NETWORK_CONFIG
+	char wbssid[18]; // target AP MAC e.g. "84:AF:EC:11:22:33"
+#endif
+	// Local (non-secure) MQTT — ignored when MQTT_SECURE is defined
+	char mqtt_server[64];
+	uint16_t mqtt_port;
+	char mqtt_user[32];
+	char mqtt_pass[32];
+	uint32_t config_ver;
+	uint64_t config_updated_ts;
+
 } systemConfigTypedef_struct;
 
 #define DEVICE_NAME_MAX_LENGTH 10// my door
@@ -106,13 +127,11 @@ enum device_state_attri{
 };
 
 typedef struct creat_new_sms {
-	String msg_content;
-	//char msg_content[159]; 
-	//char* msg_content;
+	char msg_content[160];
 	uint8_t type; //group sms-1, privet reply-2, notification phones only-3
 // 	uint8_t event_id; //Event ID may be Alarm-1, Command Execution
  	uint8_t contact_id;// if the sms is a privet reply we must remember sender number
-	String number;
+	char number[20];
 }NEW_SMS, *PNEW_SMS;
 
 //int sms_broadcast_index=0;

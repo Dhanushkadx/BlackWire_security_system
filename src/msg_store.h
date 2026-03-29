@@ -21,7 +21,7 @@ extern PubSubClient client;
 extern xQueueHandle msgQueue;  // Declare a FreeRTOS queue to hold messages
 
 // Define maximum size for the message (adjust as needed)
-#define MAX_MSG_SIZE 512
+#define MAX_MSG_SIZE 384
 // Function Declarations
 
 /**
@@ -50,6 +50,6 @@ bool processOfflineMessagesV2();
  * @param msg The JSON message to be sent.
  * @return true if the message was sent successfully, false otherwise.
  */
-bool sendNetworkMessage(const String &msg);
+bool sendNetworkMessage(const char* msg, const char* topic);
 
 #endif // OFFLINEMESSAGEHANDLER_H

@@ -1,7 +1,28 @@
 
 
 #include "call_backs.h"
+#include "TimerSW.h"
+#include "config_manager.h"
 
+// --- Debounced sysMode flash save ---
+// On every arm/disarm: update sys_mode in RAM and restart this timer.
+// Only writes to flash after state is stable for 1 minute.
+static TimerSW g_sysmode_timer;
+static bool    g_sysmode_dirty = false;
+
+void sysmode_mark_dirty() {
+    g_sysmode_dirty = true;
+    g_sysmode_timer.previousMillis = millis();
+    g_sysmode_timer.interval = 60000; // 1 minute
+}
+
+void sysmode_save_tick() {
+    if (g_sysmode_dirty && g_sysmode_timer.Timer_run()) {
+        g_sysmode_dirty = false;
+        configSave();
+        Serial.println(F("[sysmode] stable 1min -> saved to flash"));
+    }
+}
 
 //NEW_SMS SMS_to_be_sent_FIXDMEM[SMS_STRCUT_MAX_MGS];
 // Shared scratch buffers used by legacy callback helpers that return pointers.
@@ -56,6 +77,11 @@ uint8_t call_back_sms_loop_status_check(){
 
 void call_back_alarm_snoozed(){
 	 xEventGroupSetBits(EventRTOS_lcd,    TASK_1_BIT );
+#ifdef MQTT_OK
+	 mqtt_publish_alarm_event("alarm_cleared", -1, "restore", nullptr);
+	 mqtt_publish_latest_attributes();
+	 mqtt_publish_telemetry();
+#endif
 	/*Current_caller_state=0;
 	alarm_calling_index=0;
 
@@ -82,8 +108,9 @@ uint8_t call_back_alarm_bell_time_out(){
 // Hardware / UX side effects for a disarm transition.
 // Keeps output pins, buzzer/siren tasks, and user notifications in sync with ALARM state.
 void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
-	/*systemConfig.last_system_state= DEACTIVE;
-	eeprom_save();*/
+	(void)_msg;
+	strlcpy(systemConfig.sys_mode, "disarm", sizeof(systemConfig.sys_mode));
+	sysmode_mark_dirty();
 	//time update from GSM
 	//Event log update;
 	Timer_battery_charge.previousMillis = millis();
@@ -122,13 +149,21 @@ void call_back_DISARM(uint8_t user, const char* _msg, eInvoking_source _last_inv
 	uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,    TASK_2_BIT );
 	#endif
 
+#ifdef MQTT_OK
+	mqtt_publish_state_action_event("disarm", user, _last_invoker);
+	mqtt_publish_latest_attributes();
+	mqtt_publish_telemetry();
+#endif
+
 	
 }
 
 // Hardware / UX side effects for a successful arm transition.
 void call_back_ARM(uint8_t user, const char* _msg, eInvoking_source _last_invoker){
-	/*systemConfig.last_system_state= SYS1_IDEAL;
-	eeprom_save();*/
+	(void)_msg;
+	const char* mode = (myAlarm_pannel.get_arm_mode() == AS_ITIS_BYPASS) ? "away" : "arm";
+	strlcpy(systemConfig.sys_mode, mode, sizeof(systemConfig.sys_mode));
+	sysmode_mark_dirty();
 	//Event log update;
 	/*char time_buffer[25];
 	gsm.getNetwork_time(time_buffer);*/
@@ -150,6 +185,13 @@ void call_back_ARM(uint8_t user, const char* _msg, eInvoking_source _last_invoke
 	// set event for lcd
 	EventBits_t uxBits_lcd;	
 	uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,    TASK_1_BIT );
+
+#ifdef MQTT_OK
+	const char* eventName = (myAlarm_pannel.get_arm_mode() == AS_ITIS_BYPASS) ? "away" : "arm";
+	mqtt_publish_state_action_event(eventName, user, _last_invoker);
+	mqtt_publish_latest_attributes();
+	mqtt_publish_telemetry();
+#endif
 }
 
 void call_back_system_is_not_ready(){
@@ -242,7 +284,7 @@ void call_back_arm_can_not_be_done(){
 
 void call_back_Exit_delay_timer_start(){
 	// set event for lcd
-	Serial.println(">>>>>>>>>>>>>>>exit timer on");
+	Serial.println(F(">>>>>>>>>>>>>>>exit timer on"));
 	EventBits_t uxBits_lcd;
 	
 	uxBits_lcd = xEventGroupSetBits(EventRTOS_lcd,    TASK_4_BIT );
@@ -353,7 +395,6 @@ bool call_back_Exit_delay_time_out(const char* srt ,int index){
 // - push a short zone string to the LCD/message buffer
 void call_back_alarm_notify(uint8_t alarm_zone){
 	//activate buzzer and alarm relay.
-	publish_system_state("TRIGGERD","info/mode",true);	
 	//**we do not activate buzzer here as it will not trigger when remote panic
 	if(systemConfig.beep_en){xEventGroupSetBits(EventRTOS_buzzer,    TASK_2_BIT );}
 	if(systemConfig.siren_en){xEventGroupSetBits(EventRTOS_siren,    TASK_2_BIT );}
@@ -381,12 +422,17 @@ void call_back_alarm_notify(uint8_t alarm_zone){
 					/* . */
 				}
 
+#ifdef MQTT_OK
+	mqtt_publish_alarm_event("alarm_triggered", alarm_zone, "zone_open", "intrusion");
+	mqtt_publish_latest_attributes();
+	mqtt_publish_telemetry();
+#endif
 }
 
 void _call_back_rf_zone_re_enable(uint8_t zone){
 
 #ifdef MQTT_OK
-				send_sensor_state_update_to_mqtt(zone,0);		
+				mqtt_publish_zone_event(zone, false);		
 #endif
 	
 }
@@ -474,7 +520,7 @@ void set_device_name(uint8_t device_index, const char* device_name){
 	}
 
 	 if(!fileToReadx){
-		 Serial.println("? failed to open directory");
+		 Serial.println(F("? failed to open directory"));
 		 return;
 	 }
 
@@ -568,7 +614,7 @@ char* get_device_RFID(uint8_t device_index){
 	File fileToReadx;	
 	fileToReadx = SPIFFS.open("/rfid.json");
 	 if(!fileToReadx){
-		 Serial.println("? failed to open directory");
+		 Serial.println(F("? failed to open directory"));
 		 return nullptr;
 	 }
 	
@@ -606,7 +652,7 @@ void set_device_RFID(uint8_t device_index, const char* rf_id){
 	File fileToReadx;
 	fileToReadx = SPIFFS.open("/rfid.json");
 	 if(!fileToReadx){
-		 Serial.println("? failed to open directory");
+		 Serial.println(F("? failed to open directory"));
 		 return;
 	 }
 
@@ -639,7 +685,7 @@ void set_device_RFID(uint8_t device_index, const char* rf_id){
 	File fileToWritex;
 	fileToWritex = SPIFFS.open("/rfid.json",FILE_WRITE);
 	if(!fileToWritex){
-		Serial.println("? failed to open directory");
+		Serial.println(F("? failed to open directory"));
 		return;
 	}
 	serializeJson(docx, fileToWritex);
@@ -648,167 +694,61 @@ void set_device_RFID(uint8_t device_index, const char* rf_id){
 }
 
 int8_t comp_User_id(const char *number){
-	
+
 	int8_t ret = -1;
-	
-	File fileToReadx = SPIFFS.open("/personx.json");
+
+	File fileToReadx = SPIFFS.open("/users.json");
 	if(!fileToReadx){
-		Serial.println(F("? failed to open directory"));
+		Serial.println(F("? failed to open users.json"));
 		return ret;
 	}
 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(docx,  fileToReadx);
-	char buff[25];
-	for (int user_index = 1; user_index < 9; user_index++)
-	{
-		memset(buff, '\0', 25);
-		sprintf(buff, "P%d", user_index);
-		const char* user_number_strord = docx[buff]["number"];
-		//if (user_number_strord!=NULL)
-		if (phone_number_validat(user_number_strord))
-		{			
-			if (strncmp(number, user_number_strord, 12) == 0) {//+94714427691
-				ret = user_index;
+	deserializeJson(docx, fileToReadx);
+	fileToReadx.close();
+	JsonArray arr = docx.as<JsonArray>();
+	for (int i = 0; i < (int)arr.size(); i++) {
+		const char* user_number_strord = arr[i]["tp"];
+		if (phone_number_validat(user_number_strord)) {
+			if (strncmp(number, user_number_strord, 12) == 0) {
+				ret = (int8_t)(i + 1);  // 1-based user id
 				break;
 			}
 		}
-		
 	}
 	return ret;
-	
 }
 
 int8_t comp_remote_RFID(uint32_t rxBase, uint8_t cmdBits)
 {
-
-  File file = SPIFFS.open("/personx.json", "r");
-  if (!file) {
-    Serial.println(F("Failed to open personx.json"));
-    return -1;
-  }
-
-  DynamicJsonDocument doc(JSON_DOC_SIZE_USER_DATA);
-  DeserializationError err = deserializeJson(doc, file);
-  file.close();
-
-  if (err) {
-    Serial.print(F("JSON parse failed: "));
-    Serial.println(err.c_str());
-    return -1;
-  }
-
-  JsonObject users = doc["users"].as<JsonObject>();
-  if (users.isNull()) {
-    Serial.println(F("Invalid JSON: 'users' missing or not object"));
-    return -1;
-  }
-
-  // Iterate: P1, P2, ...
-  for (JsonPair kv : users) {
-    const char* key = kv.key().c_str();           // "P1"
-    JsonObject user = kv.value().as<JsonObject>();
-
-    uint32_t storedFull = user["remID"] | 0UL;
-    if (storedFull == 0) continue;
-
-    uint32_t storedBase = storedFull >> cmdBits;
-
-    if (storedBase == rxBase) {
-      Serial.printf("Remote matched %s\n", key);
-
-      // If you need numeric id: "P2" -> 2
-      int idNum = 0;
-      if (key[0] == 'P') idNum = atoi(key + 1);
-      return (int8_t)idNum;   // or return something else you prefer
+  // remotes.bin (RemoteStorage) is indexed 0-7, matching user array index 0-7.
+  // baseCode stored in RemoteStorage is already the base (command bits stripped).
+  const RemoteStorage::RemoteRec* rems = RemoteStorage::data();
+  for (uint8_t i = 0; i < RemoteStorage::count(); i++) {
+    if (rems[i].enabled && rems[i].baseCode != 0 && rems[i].baseCode == rxBase) {
+      Serial.printf("Remote matched slot %d\n", i);
+      return (int8_t)(i + 1);  // 1-based user id
     }
   }
-
   return -1;
 }
 
-// int8_t comp_remote_RFID(uint32_t rx_rf_id_uint, uint8_t command_length){
-// 	int8_t ret = -1;
-// 	char stored_rf_id_char[25];
-// 	memset(stored_rf_id_char,'\0', 25);
-// 	Serial.printf_P(PSTR("compare rem rfid > received:%u, command length:%d\n"),rx_rf_id_uint,command_length);
-// 	File fileToReadx = SPIFFS.open("/personx.json");
-// 	 if(!fileToReadx){
-// 		 Serial.println(F("? failed to open directory"));
-// 		 return ret;
-// 	}	
-// 	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
-// 	deserializeJson(docx,  fileToReadx);
-// 	char buff[25];
-// 	for (int user_index = 1; user_index < 9; user_index++)
-// 	{
-// 		memset(buff, '\0', 25);		
-// 	    sprintf(buff, "P%d", user_index);
-// 		const char* remRf_id = docx[buff]["remID"];
-// 		Serial.println(remRf_id);
-// 			if (remRf_id!=NULL)
-// 			{
-// 				uint32_t stored_rf_id_uint = strtoul(remRf_id, NULL, 10);
-// 				uint32_t split_rem_command = stored_rf_id_uint >> command_length;
-				
-// 				if (split_rem_command == rx_rf_id_uint) {
-// 					ret = user_index;
-// 					Serial.printf_P(PSTR("remote rfid matched for user %d"),user_index);
-// 					break;
-// 				}
-// 				Serial.printf_P(PSTR("compare rem rfid for user %d > received:%u, stored:%u, split command:%u\n"),user_index,rx_rf_id_uint,stored_rf_id_uint,split_rem_command);
-// 			}
-		
-// 	}
-// 		return ret;	
-// }
-
 char* get_remote_RFID(uint8_t device_index){
-	
-	File fileToReadx = SPIFFS.open("/personx.json");	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
-	deserializeJson(docx,  fileToReadx);
-	char buff[25];	
-	memset(buff, '\0', 25);
-	sprintf(buff, "P%d", device_index);	
-	const char *remote_rfid = docx[buff]["remID"];	
-	if (remote_rfid!=NULL)
-	{
-		strcpy(STRUCT_user_remote_infor.remote_rf_id,remote_rfid);
+	// device_index is 1-based; RemoteStorage slots are 0-based
+	uint32_t code = RemoteStorage::getBaseCode(device_index - 1);
+	if (code != 0) {
+		snprintf(STRUCT_user_remote_infor.remote_rf_id,
+		         sizeof(STRUCT_user_remote_infor.remote_rf_id),
+		         "%lu", (unsigned long)code);
+	} else {
+		strcpy(STRUCT_user_remote_infor.remote_rf_id, "-1");
 	}
-	else{
-		strcpy(STRUCT_user_remote_infor.remote_rf_id,"-1");
-	}
-	return STRUCT_user_remote_infor.remote_rf_id;	
+	return STRUCT_user_remote_infor.remote_rf_id;
 }
 
 void set_remote_RFID(uint8_t device_index, const char* rf_id){
-	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_DEVICE_DATA);
-
-	File fileToRead = SPIFFS.open("/personx.json");
-	 if(!fileToRead){
-		 Serial.println(F("? failed to open directory"));
-		 return;
-	 }
-
-	deserializeJson(docx, fileToRead);
-	fileToRead.close();	
-	char buff[25];
-	memset(buff, '\0', 25);	
-	sprintf(buff, "P%d", device_index);
-	Serial.print(F("set remote id"));
-	Serial.println(buff);
-	docx[buff]["remID"] = rf_id;	
-	
-	File fileToWritex = SPIFFS.open("/personx.json",FILE_WRITE);
-	if(!fileToWritex){
-		Serial.println(F("? failed to open directory"));
-		return;
-	}
-	serializeJson(docx, fileToWritex);
-	fileToWritex.close();
-	
-	//serializeJsonPretty(docx, Serial);
+	// device_index is 1-based; RemoteStorage slots are 0-based
+	Serial.printf("set remote id slot %d\n", device_index - 1);
+	RemoteStorage::learnFromCodeStr(device_index - 1, rf_id);
 }
 // Parses the legacy zone command format and updates one persisted zone attribute.
 // Expected format: "ZONE=03,EXIT,0"
@@ -912,51 +852,39 @@ byte set_zone_param(const char* smsbuffer){
 		
 }
 
-char* get_GSM_number(uint8_t gsm_number_index){// strat from 
-		File fileToReadx = SPIFFS.open("/personx.json");
-		
-		DynamicJsonDocument docx(2048);
-		DeserializationError err = deserializeJson(docx,  fileToReadx);
-		if (err) {
-			Serial.print(F("deserializeJson() failed: "));
-			Serial.println(err.c_str());
-		}
-		
-		char buff[20];		
-		memset(buff, '\0', 20);		
-		sprintf(buff, "P%d", gsm_number_index);		
-		const char *gsm_number = docx[buff]["number"];	
-		
-		if (gsm_number!=nullptr)
-		{
-			strcpy(STRUCT_GSM_contact_infor.number,gsm_number);
-		}
-		else{
-			strcpy(STRUCT_GSM_contact_infor.number,"-1");
-		}
-		return STRUCT_GSM_contact_infor.number;
-	
-	
+char* get_GSM_number(uint8_t gsm_number_index){
+	File fileToReadx = SPIFFS.open("/users.json");
+	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
+	DeserializationError err = deserializeJson(docx, fileToReadx);
+	fileToReadx.close();
+	if (err) {
+		Serial.print(F("get_GSM_number parse failed: "));
+		Serial.println(err.c_str());
+	}
+	// gsm_number_index is 1-based; array is 0-based
+	const char *gsm_number = docx[gsm_number_index - 1]["tp"];
+	if (gsm_number != nullptr) {
+		strcpy(STRUCT_GSM_contact_infor.number, gsm_number);
+	} else {
+		strcpy(STRUCT_GSM_contact_infor.number, "-1");
+	}
+	return STRUCT_GSM_contact_infor.number;
 }
 
 void set_GSM_number(uint8_t gsm_number_index, const char* gsm_number){
-	
-	DynamicJsonDocument docx(JSON_DOC_SIZE_DEVICE_DATA);
-	File fileToRead = SPIFFS.open("/personx.json");
-	 if(!fileToRead){
-		 Serial.println(F("? failed to open directory"));
-		 return;
-	 }
+	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
+	File fileToRead = SPIFFS.open("/users.json");
+	if (!fileToRead) {
+		Serial.println(F("? failed to open users.json"));
+		return;
+	}
 	deserializeJson(docx, fileToRead);
-	fileToRead.close();	
-	char buff[20];
-	memset(buff, '\0', 20);
-	
-		sprintf(buff, "P%d", gsm_number_index);
-		docx[buff]["number"] = gsm_number;		
-	File fileToWritex = SPIFFS.open("/personx.json",FILE_WRITE);
-	if(!fileToWritex){
-		Serial.println(F("? failed to open directory"));
+	fileToRead.close();
+	// gsm_number_index is 1-based; array is 0-based
+	docx[gsm_number_index - 1]["tp"] = gsm_number;
+	File fileToWritex = SPIFFS.open("/users.json", FILE_WRITE);
+	if (!fileToWritex) {
+		Serial.println(F("? failed to write users.json"));
 		return;
 	}
 	serializeJson(docx, fileToWritex);
@@ -964,25 +892,12 @@ void set_GSM_number(uint8_t gsm_number_index, const char* gsm_number){
 }
 
 bool get_is_GSM_number_call(uint8_t gsm_number_index){
-	//Serial.print("millis A");
-	//Serial.println(millis());
-	File fileToReadx = SPIFFS.open("/personx.json");
-	DynamicJsonDocument docx(2048);
-	DeserializationError err = deserializeJson(docx,  fileToReadx);
-	if (err) {
-		Serial.print(F("deserializeJson() failed: "));
-		Serial.println(err.c_str());
-		
-	}
-	
-	char buff[20];
-	memset(buff, '\0', 20);
-	sprintf(buff, "P%d", gsm_number_index);
-	bool call_en = docx[buff]["call"];
-	//Serial.print("millis B");
-	//Serial.println(millis());
-	return call_en;
-	
+	File fileToReadx = SPIFFS.open("/users.json");
+	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
+	deserializeJson(docx, fileToReadx);
+	fileToReadx.close();
+	// gsm_number_index is 1-based; array is 0-based
+	return docx[gsm_number_index - 1]["callEn"] | false;
 }
 
 void set_GSM_number_is_call(uint8_t gsm_number_index, bool call_en){
@@ -994,25 +909,12 @@ void set_GSM_number_is_call(uint8_t gsm_number_index, bool call_en){
 }
 
 bool get_is_GSM_number_sms(uint8_t gsm_number_index){
-	//Serial.print("millis A");
-	//Serial.println(millis());
-	File fileToReadx = SPIFFS.open("/personx.json");
-	DynamicJsonDocument docx(2048);
-	DeserializationError err = deserializeJson(docx,  fileToReadx);
-	if (err) {
-		Serial.print(F("deserializeJson() failed: "));
-		Serial.println(err.c_str());
-		
-	}
-	
-	char buff[20];
-	memset(buff, '\0', 20);
-	sprintf(buff, "P%d", gsm_number_index);
-	bool sms_en = docx[buff]["sms"];
-	//Serial.print("millis B");
-	//Serial.println(millis());
-	return sms_en;
-	
+	File fileToReadx = SPIFFS.open("/users.json");
+	DynamicJsonDocument docx(JSON_DOC_SIZE_USER_DATA);
+	deserializeJson(docx, fileToReadx);
+	fileToReadx.close();
+	// gsm_number_index is 1-based; array is 0-based
+	return docx[gsm_number_index - 1]["smsEn"] | false;
 }
 
 void set_GSM_number_security_level(uint8_t gsm_number_index, uint8_t security_level){
@@ -1126,17 +1028,6 @@ void onMqtt_connection(){
   	pixel.startBlink(colour, 100, 1000, 255);
 #endif
 	publish_system_startup_msg();
-	// for(uint8_t index = 0; index<4; index++){
-	// 	send_sensor_state_update_to_mqtt(index,digitalRead(GPIO_array[index].GPIOpin));
-	// }
-	
-	if(myAlarm_pannel.get_system_state()!=DEACTIVE){
-		 publish_system_state("ARMED","info/mode",true);
-		
-	}
-	else{
-		publish_system_state("DISARMED","info/mode",true);
-	}
 
 }
 

@@ -1,24 +1,10 @@
 #include "tasks_broadcasting.h"
-
-// ------------------- Extern globals from main -------------------
 #ifdef MQTT_OK
-extern xQueueHandle xQueue_mqtt_Qhdlr;
-// If your MQTT TX task already reads a queue, we can push zone IDs into it.
-// Replace this with YOUR existing MQTT TX queue type:
-//extern QueueHandle_t qMqttTx;   // <-- you already have something like this
+#include "mqtt_brokerx.h"
 #endif
 
 QueueHandle_t qZoneBroadcast = nullptr;
 ZoneCacheItem gZoneCache[ZONE_COUNT] = {};
-
-// ------------------- Task1: Broadcasting zone events-------------------
-
-// Example: send just a zone id to mqtt tx task
-static inline void mqttNotifyZoneDirty(uint8_t zone)
-{
-  // Non-blocking: if full, MQTT task can still publish later via full snapshot
-  xQueueSend(xQueue_mqtt_Qhdlr, &zone, 0);
-}
 
 void TaskBroadcastRouter(void *parameter)
 {
@@ -40,8 +26,9 @@ void TaskBroadcastRouter(void *parameter)
     gZoneCache[bz.zone].ts_ms = bz.ts_ms;
     gZoneCache[bz.zone].dirty = true;
 
-    // Fanout: notify MQTT task (and later CAN/Modbus tasks the same way)
-    mqttNotifyZoneDirty(bz.zone);
+#ifdef MQTT_OK
+    mqtt_publish_zone_event(bz.zone, bz.state != 0);
+#endif
 
     // TODO later:
     // canNotifyZoneDirty(bz.zone);
@@ -54,10 +41,10 @@ void TaskBroadcastRouter(void *parameter)
 void startBroadcastTasks()
 {
   // Keep your same stack sizes / priorities / core pinning
-  xTaskCreatePinnedToCore(TaskBroadcastRouter, "bcast", 4096, nullptr, 2, nullptr, 1);
+  xTaskCreatePinnedToCore(TaskBroadcastRouter, "bcast", 3072, nullptr, 2, nullptr, 1);
 }
 
 void setupZoneBroadcasting() {
-  qZoneBroadcast = xQueueCreate(64, sizeof(ZoneBroadcast)); // 64 is usually enough
+  qZoneBroadcast = xQueueCreate(32, sizeof(ZoneBroadcast));
 if (!qZoneBroadcast) Serial.println(F("qZoneBroadcast create failed"));
 }

@@ -81,4 +81,8 @@ void setup_call_backs();
 
 void onMqtt_connection();
 void onMqtt_disconnection();
+// Debounced sysMode flash save — call from main loop()
+void sysmode_save_tick();
+// Mark sysMode dirty (restarts 1-min debounce timer)
+void sysmode_mark_dirty();
 #endif

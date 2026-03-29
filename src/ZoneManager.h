@@ -16,6 +16,7 @@ public:
         DT_RF,
         DT_SILENT,
         DT_PERIMETER,
+        DT_CHIME,
     };
 
     enum DeviceStateBit : uint8_t {
@@ -72,6 +73,8 @@ public:
 
     bool setExitDelay(uint8_t z, bool v, bool saveNow = true);
     bool setEntryDelay(uint8_t z, bool v, bool saveNow = true);
+    bool isChime(uint8_t z) const { return getTypeBit(z, DT_CHIME); }
+    bool setChime(uint8_t z, bool v, bool saveNow = true) { return setTypeBit(z, DT_CHIME, v, saveNow); }
 
     // Save explicitly
     bool save();

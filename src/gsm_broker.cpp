@@ -1,5 +1,6 @@
 
 #include "gsm_broker.h"
+#include <sys/time.h>
 char Module_IMEI_p[] PROGMEM = "868428042211700";//868428042211700
 HardwareSerial *fonaSerial = &Serial2;
 GSM_stateMachineStates eCurruntGSM_state = GSM_INIT, ePrevGSM_state = GSM_SMS_SUSPENDING;
@@ -21,6 +22,11 @@ uint8_t alarm_calling_index=1;
 bool sms_hdrl_suspend=false;
 
 uint8_t Current_caller_state = 0;
+
+static bool system_time_ready()
+{
+	return time(nullptr) > 1700000000;
+}
 
 void getEMIE(char* buffer, uint8_t size) {
 	if (fona.getIMEI(buffer)) {
@@ -538,7 +544,7 @@ void gsm_manager(){
 				releaseMutex_GSM();					
 										
 				}
-				if(timesync_need){
+				if(timesync_need && !system_time_ready()){
 				waitForMutex_GSM();
 						if(setTime_from_gsm()){
 							Serial.println(F("Time set from GSM"));
@@ -548,6 +554,8 @@ void gsm_manager(){
 							Serial.println(F("Failed to set time from GSM"));
 						}
 				releaseMutex_GSM();		
+					} else if (system_time_ready()) {
+						timesync_need = false;
 					}
 					
 
@@ -1332,14 +1340,15 @@ void setESP32_rtc(char *timeChars)
     t.tm_sec  = second;
 
     // Convert SIM800 local → epoch (local)
-    time_t epoch = mktime(&t);
+    time_t epochLocal = mktime(&t);
+    time_t epochUtc = epochLocal - (tzMinutes * 60);
 
-   
-	
-    rtc.setTime(epoch, 0);        // set directly
+    struct timeval tv = {};
+    tv.tv_sec = epochUtc;
+    tv.tv_usec = 0;
+    settimeofday(&tv, nullptr);
 
-    // Set ESP32 RTC
-    rtc.setTime(epoch, 0);
-	Serial.println(F("RTC set from GSM"));
+    rtc.setTime(epochUtc, 0);
+	Serial.printf("RTC/system time set from GSM, epoch=%ld\n", (long)epochUtc);
 
 }
