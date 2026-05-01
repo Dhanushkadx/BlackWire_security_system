@@ -1,4 +1,6 @@
 #include "ZoneManager.h"
+#include "mapping/zone_map.h"
+#include "pinsx.h"
 
 ZoneManager gZoneManager;   // GLOBAL SINGLE OBJECT
 
@@ -6,8 +8,9 @@ bool ZoneManager::begin(fs::FS& fs, const char* path)
 {
     _fs = &fs;
     _path = path;
+    _wasReinitialized = false;
 
-    bool ok = ZoneStorage::loadOrInit(*_fs, _path, _zones, MAX_ZONES);
+    bool ok = ZoneStorage::loadOrInit(*_fs, _path, _zones, MAX_ZONES, &_wasReinitialized);
     clearRuntimeBits();
     return ok;
 }
@@ -71,9 +74,28 @@ bool ZoneManager::setName(uint8_t z, const char* name)
     return ZoneStorage::setName(*_fs, _path, z, name, _zones, MAX_ZONES);
 }
 
+void ZoneManager::printNames() const
+{
+    Serial.println(F("[ZONE] --- Zone name table ---"));
+    char nameBuf[ZONE_NAME_LEN];
+    for (uint8_t i = 0; i < MAX_ZONES; i++) {
+        nameBuf[0] = '\0';
+        ZoneStorage::getName(*_fs, _path, i, nameBuf, sizeof(nameBuf), MAX_ZONES);
+        Serial.printf("[ZONE] Z%02u: %s\n", (unsigned)i, nameBuf[0] ? nameBuf : "(default)");
+    }
+    Serial.println(F("[ZONE] --- end ---"));
+}
+
 bool ZoneManager::save()
 {
     return ZoneStorage::savePreserveNames(*_fs, _path, _zones, MAX_ZONES);
+}
+
+bool ZoneManager::saveWithBlockNames(uint8_t base, const char (*blockNames)[ZONE_NAME_LEN],
+                                     const bool* hasName, uint8_t blockSize)
+{
+    return ZoneStorage::savePreserveNamesWithOverride(*_fs, _path, _zones, MAX_ZONES,
+                                                      base, blockSize, blockNames, hasName);
 }
 
 void ZoneManager::syncToEngine(ZoneEngine& eng) const
@@ -85,7 +107,7 @@ void ZoneManager::syncToEngine(ZoneEngine& eng) const
         cfg.is24h  = (_zones[i].device_type  & mask(DT_24H)) != 0;
         cfg.chime  = (_zones[i].device_type  & mask(DT_PERIMETER)) != 0;
         cfg.debounce_ms = 50;
-        cfg.momentary_hold_ms = (_zones[i].device_type & mask(DT_RF)) ? 200 : 0;
+        cfg.momentary_hold_ms = isZoneRF(i) ? RF_MOMENTARY_HOLD_MS : 0;
 
         eng.setConfig(i, cfg);
     }

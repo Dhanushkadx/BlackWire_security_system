@@ -1,5 +1,6 @@
 
 #include "gsm_broker.h"
+#include "mapping/zone_map.h"
 #include <sys/time.h>
 char Module_IMEI_p[] PROGMEM = "868428042211700";//868428042211700
 HardwareSerial *fonaSerial = &Serial2;
@@ -13,6 +14,8 @@ bool request_from_sim800 = false;
 bool thisIs_Restart = true;
 bool gsm_init_done = false;
 bool gsm_available = false;
+bool gsm_sim_ok    = false;
+bool gsm_net_ok    = false;
 bool timesync_need = true;
 uint8_t gsmsignal_rssi;
 // Use this for FONA 800 and 808s
@@ -89,8 +92,10 @@ uint8_t gsm_init(){
 	 // Check SIM card presence
     if (!fona.isSIMInserted()) {
         Serial.println(F("NO SIM!"));
+        gsm_sim_ok = false;
         return NO_SIM;
     }
+    gsm_sim_ok = true;
     Serial.println(F("SIM READY."));	 
 	 
 #ifdef GSM_MODULE_AUTH
@@ -505,31 +510,37 @@ void gsm_manager(){
 				releaseMutex_GSM();
 				if (network_status == 0) {
 					Serial.println(F("Network Status: Not registered"));
-					
+					gsm_net_ok = false;
+
 				} else if (network_status == 2) {
 					Serial.println(F("Network Status: Searching for network"));
+					gsm_net_ok = false;
 					xEventGroupSetBits(EventRTOS_gsmled,    TASK_2_BIT );// gsm no network
 			 		return; // Wait for network to be ready
-					
+
 				} else if (network_status == 3) {
 					Serial.println(F("Network Status: Registration denied"));
+					gsm_net_ok = false;
 					eCurruntGSM_state = GSM_INIT;
 					xEventGroupSetBits(EventRTOS_gsmled,    TASK_3_BIT );// gsm no network
 					return; // Wait for network to be ready
-					
+
 				} else if (network_status == 4) {
 					Serial.println(F("Network Status: Unknown"));
+					gsm_net_ok = false;
 					eCurruntGSM_state = GSM_INIT;
 					xEventGroupSetBits(EventRTOS_gsmled,    TASK_3_BIT );// gsm no network
 					return; // Wait for network to be ready
-					
+
 				} else if( network_status == 5) {
 					Serial.println(F("Network Status: Roming Network"));
+					gsm_net_ok = false;
 					eCurruntGSM_state = GSM_INIT;
 			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_6_BIT );// gsm no network
-					
+
 				}else if (network_status == 1) {
 					Serial.println(F("Network Status: Registered, home network"));
+					gsm_net_ok = true;
 					// Print network status
 				Serial.print(F("Network Status: ")); Serial.println(network_status);
 				if(gsm_init_done == false){
@@ -566,10 +577,12 @@ void gsm_manager(){
 				Serial.print(F("Signal strength: ")); Serial.print(gsmsignal_rssi); Serial.println(F(" dBm"));
 				if(gsmsignal_rssi < 10){
 					Serial.println(F("GSM Signal Low"));
+					gsm_available = false;
 			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_4_BIT );// gsm no network
 				}
 				else{
 					Serial.println(F("GSM Network OK"));
+					gsm_available = true;
 			 		xEventGroupSetBits(EventRTOS_gsmled,    TASK_6_BIT );// gsm network ok
 
 				}
@@ -777,7 +790,7 @@ void creat_arm_sms(char* str_invorker){
 	int msg_line_number_int=0;
 	for (int index=0; index<TOTAL_DEVICES; index++)
 	{
-		
+		if (!isZoneActive(index)) continue;
 		if ((!gZoneManager.isReady(index))&&(gZoneManager.isAvailable(index)))
 		{
 			open_zone_yes=true;

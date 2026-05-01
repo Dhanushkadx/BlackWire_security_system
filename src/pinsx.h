@@ -1,11 +1,15 @@
 #ifndef _PINSX_H
 #define _PINSX_H
 
+// Auto-close time for RF zones (ms). RF sensors only transmit on open,
+// never on close, so the zone engine must auto-close after this delay.
+#define RF_MOMENTARY_HOLD_MS 2000
+
 //PULSEX_IOT_BOARD
 //#define GSM_MINI_BOARD
 //#define GSM_PULSEX_IOT_BOARD
-#define GSM_MINI_BOARD_V2
-//#define GSM_MINI_BOARD_V3
+//#define GSM_MINI_BOARD_V2
+#define GSM_MINI_BOARD_V3
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18

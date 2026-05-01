@@ -92,10 +92,11 @@ typedef struct systemConfig{
 	char mqtt_pass[32];
 	uint32_t config_ver;
 	uint64_t config_updated_ts;
+	bool mbCard[5];  // Modbus zone card enable flags (cards 1-5)
 
 } systemConfigTypedef_struct;
 
-#define DEVICE_NAME_MAX_LENGTH 10// my door
+#define DEVICE_NAME_MAX_LENGTH 15  // matches ZONE_NAME_LEN-1 (zones.bin stores 16 bytes per name)
 #define TOTAL_DEVICES 48
 constexpr uint8_t ZONE_COUNT = TOTAL_DEVICES;
 #define RF_DEVICE_START_INDEX 0
@@ -112,7 +113,8 @@ enum device_type_attri{
 	BIT_MASK_24H = 0,
 	BIT_MASK_RF,
 	BIT_MASK_SILENT,
-	BIT_MASK_PERIMETER,  
+	BIT_MASK_PERIMETER,
+	BIT_MASK_CHIME,
 	};
 	
 enum device_state_attri{
@@ -150,7 +152,7 @@ typedef struct Sens_data{
 
 
 typedef struct Sensor_name_with_ID{
-	char device_name[11];
+	char device_name[16];  // ZONE_NAME_LEN — full name from zones.bin
 	char device_rf_id[10];
 } SENS_INFO;
 

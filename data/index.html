@@ -859,6 +859,22 @@
         return;
       }
 
+      if (msg.respHeader === "zoneState") {
+        const z = msg.zone;
+        const s = msg.status;
+        if (typeof z === "number" && typeof s === "number") {
+          // Update live cache so re-renders are consistent
+          if (cache.zones && cache.zones[z]) cache.zones[z].status = s;
+          // Update status badge in-place (no full table re-render needed)
+          const row = document.getElementById(`zst_row_${z}`);
+          if (row) {
+            const b = zoneStatusToBadge(s);
+            row.cells[1].innerHTML = `<span class="badge ${b.cls}"><span class="mini-dot"></span>${b.text}</span>`;
+          }
+        }
+        return;
+      }
+
       if (msg.respHeader === "contacts" && Array.isArray(msg.users)){
         cache.contacts = msg.users;
         renderContacts(cache.contacts);
@@ -997,6 +1013,9 @@
       setVal("sys_debounce_time",   sys.debTm);
       setVal("sys_cli_access_level", sys.cliLevel);
       setVal("sys_last_sms_sender",  sys.lastSender);
+
+      const mb = Array.isArray(sys.mbCard) ? sys.mbCard : [];
+      for (let i = 1; i <= 5; i++) setChecked(`sys_mb_card_${i}`, !!mb[i-1]);
     }
 
     function onSaveSys(){
@@ -1031,6 +1050,7 @@
         debTm:    getVal("sys_debounce_time"),
         cliLevel: getVal("sys_cli_access_level"),
         lastSender: getVal("sys_last_sms_sender"),
+        mbCard: [1,2,3,4,5].map(i => getChecked(`sys_mb_card_${i}`)),
       };
 
       // Only send passwords if user actually changed them (not **** placeholder)
@@ -1113,27 +1133,36 @@
           <label class="check"><input type="checkbox" id="z_xd_${i}"> Exit Delay</label>
           <label class="check"><input type="checkbox" id="z_rf_${i}"> RF</label>
           <label class="check"><input type="checkbox" id="z_24_${i}"> 24H</label>
-          <label class="check"><input type="checkbox" id="z_sl_${i}"> Chime</label>
+          <label class="check"><input type="checkbox" id="z_pm_${i}"> Perimeter</label>
+          <label class="check"><input type="checkbox" id="z_sl_${i}"> Silent</label>
+          <label class="check"><input type="checkbox" id="z_ch_${i}"> Chime</label>
         </div>
       `;
       return row;
     }
 
     function renderZones(zones){
-      // zones array expected length 48, each: {n,by,ed,xd,rf,x24,sl}
+      // zones array expected length 48, each: {n,by,ed,xd,rf,x24,sl,status}
       const n = Math.min(zones.length, ZONE_COUNT);
+      let activeCount = 0;
       for (let i=0; i<n; i++){
         const z = zones[i] || {};
-        setVal(`z_name_${i}`, typeof z.n === "string" ? z.n : `Z${String(i).padStart(2,'0')}`);
+        const unavailable = (z.status === 3);
+        const row = document.querySelector(`.zone-row[data-zone="${i}"]`);
+        if (row) row.dataset.unavailable = unavailable ? "1" : "0";
+        if (!unavailable) activeCount++;
+        setVal(`z_name_${i}`, (typeof z.n === "string" && z.n.length > 0) ? z.n : `Z${String(i).padStart(2,'0')}`);
         setChecked(`z_by_${i}`,  !!z.by);
         setChecked(`z_ed_${i}`,  !!z.ed);
         setChecked(`z_xd_${i}`,  !!z.xd);
         setChecked(`z_rf_${i}`,  !!z.rf);
         setChecked(`z_24_${i}`,  !!z.x24);
+        setChecked(`z_pm_${i}`,  !!z.pm);
         setChecked(`z_sl_${i}`,  !!z.sl);
+        setChecked(`z_ch_${i}`,  !!z.ch);
       }
       applyZonesFilter();
-      document.getElementById("zonesCountPill").textContent = `${ZONE_COUNT} zones`;
+      document.getElementById("zonesCountPill").textContent = `${activeCount} zones`;
     }
 
     function pack48(getBoolFn){
@@ -1185,13 +1214,15 @@
       const zones = [];
       for (let i=0; i<ZONE_COUNT; i++){
         zones.push({
-          n:  getVal(`z_name_${i}`) || `Z${String(i).padStart(2,'0')}`,
-          by: getChecked(`z_by_${i}`),
-          ed: getChecked(`z_ed_${i}`),
-          xd: getChecked(`z_xd_${i}`),
-          rf: getChecked(`z_rf_${i}`),
-          x24:getChecked(`z_24_${i}`),
-          sl: getChecked(`z_sl_${i}`)
+          n:   getVal(`z_name_${i}`) || `Z${String(i).padStart(2,'0')}`,
+          by:  getChecked(`z_by_${i}`),
+          ed:  getChecked(`z_ed_${i}`),
+          xd:  getChecked(`z_xd_${i}`),
+          rf:  getChecked(`z_rf_${i}`),
+          x24: getChecked(`z_24_${i}`),
+          pm:  getChecked(`z_pm_${i}`),
+          sl:  getChecked(`z_sl_${i}`),
+          ch:  getChecked(`z_ch_${i}`)
         });
       }
       const ok = wsSend({action:"set", page:"zones", zones});
@@ -1216,8 +1247,9 @@
         }
 
         const passText = (q.length === 0) || String(idx).includes(q) || name.includes(q);
+        const available = row.dataset.unavailable !== "1";
 
-        row.style.display = (passGroup && passText) ? "" : "none";
+        row.style.display = (available && passGroup && passText) ? "" : "none";
       });
     }
 
@@ -1468,6 +1500,7 @@
           const b = zoneStatusToBadge(st);
 
           const tr = document.createElement("tr");
+          tr.id = `zst_row_${i}`;
           tr.innerHTML = `
             <td>Z${String(i).padStart(2,"0")}</td>
             <td><span class="badge ${b.cls}"><span class="mini-dot"></span>${b.text}</span></td>
@@ -1796,10 +1829,22 @@
                     <label for="sys_last_sms_sender">Last SMS Sender</label>
                     <input type="text" id="sys_last_sms_sender" />
                   </div>
-                  <div class="field">
-                    <label for="sys_last_system_state">Last System State</label>
-                    <input type="text" id="sys_last_system_state" />
-                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 12px;">
+              <div class="card-header">
+                <h2>Modbus Zone Cards</h2>
+                <div class="hint">Enable connected 8-zone expansion cards. Changes apply after reboot.</div>
+              </div>
+              <div class="card-body">
+                <div class="checks">
+                  <label class="check"><input type="checkbox" id="sys_mb_card_1"> Card 1 (Z08–Z15)</label>
+                  <label class="check"><input type="checkbox" id="sys_mb_card_2"> Card 2 (Z16–Z23)</label>
+                  <label class="check"><input type="checkbox" id="sys_mb_card_3"> Card 3 (Z24–Z31)</label>
+                  <label class="check"><input type="checkbox" id="sys_mb_card_4"> Card 4 (Z32–Z39)</label>
+                  <label class="check"><input type="checkbox" id="sys_mb_card_5"> Card 5 (Z40–Z47)</label>
                 </div>
               </div>
             </div>
@@ -1923,10 +1968,6 @@
               <tr><td>Wi-Fi RSSI</td><td id="info_P2">-</td></tr>
               <tr><td>IP</td><td id="info_P3">-</td></tr>
               <tr><td>MAC</td><td id="info_P4">-</td></tr>
-              <tr><td>Z0</td><td id="info_P5">-</td></tr>
-              <tr><td>Z1</td><td id="info_P6">-</td></tr>
-              <tr><td>Z2</td><td id="info_P7">-</td></tr>
-              <tr><td>Z3</td><td id="info_P8">-</td></tr>
               <tr><td>Server</td><td id="info_P9">-</td></tr>
               <tr><td>GSM RSSI</td><td id="info_P10">-</td></tr>
             </tbody>

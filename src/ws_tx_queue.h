@@ -10,7 +10,8 @@ enum WsEvtType : uint8_t {
   WS_EVT_ERR,
   WS_EVT_DATAX,
   WS_EVT_SCAN_CODE,
-  WS_EVT_LOG
+  WS_EVT_LOG,
+  WS_EVT_ZONE_STATE   // real-time single-zone status push
 };
 
 
@@ -50,3 +51,7 @@ bool wsTxSendData(const char* page, const char* msg, uint32_t v0 = 0, uint32_t v
 bool wsTxSendScan(const char* page, const char* codeStr, uint32_t slotOrIndex = 0);
 
 bool wsTxLog(const char* src, const char* msg);
+
+// Push a single zone state update to all WS clients.
+// status: 0=CLOSE 1=OPEN 2=FAULT 3=UNAVAILABLE
+bool wsTxSendZoneState(uint8_t zone, uint8_t status);

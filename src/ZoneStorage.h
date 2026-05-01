@@ -66,11 +66,23 @@ public:
   // Load zones into RAM.
   // If zones.bin is missing or invalid, this function creates a new file
   // with default attributes and default names, and returns true.
-  static bool loadOrInit(fs::FS &fs, const char* path, MY_SENS* zones, uint8_t count);
+  // outWasCreated is set to true if the file had to be (re)created, false if loaded normally.
+  static bool loadOrInit(fs::FS &fs, const char* path, MY_SENS* zones, uint8_t count,
+                         bool* outWasCreated = nullptr);
 
   // Save zones attributes while preserving existing names stored in the file.
   // (Useful when only flags change and you don't want to provide names.)
   static bool savePreserveNames(fs::FS &fs, const char* path, const MY_SENS* zones, uint8_t count);
+
+  // Save zones attributes + names, overriding names for a block of zones [base..base+blockSize-1].
+  // For zones in the block: uses blockNames[rel] if hasName[rel] is true, else preserves file name.
+  // For zones outside the block: preserves existing file names.
+  // Single atomic write — no per-zone rewrites.
+  static bool savePreserveNamesWithOverride(fs::FS &fs, const char* path,
+                                            const MY_SENS* zones, uint8_t count,
+                                            uint8_t base, uint8_t blockSize,
+                                            const char (*blockNames)[ZONE_NAME_LEN],
+                                            const bool* hasName);
 
   // Save zones attributes + names, where names are obtained by a callback.
   // This avoids keeping 48 names in RAM: we stream names one-by-one to the file.

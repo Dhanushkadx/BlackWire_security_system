@@ -164,13 +164,18 @@ static const char* defaultNameGetter(uint8_t index, void* /*ctx*/)
   return buf;
 }
 
-bool ZoneStorage::loadOrInit(fs::FS &fs, const char* path, MY_SENS* zones, uint8_t count)
+bool ZoneStorage::loadOrInit(fs::FS &fs, const char* path, MY_SENS* zones, uint8_t count,
+                             bool* outWasCreated)
 {
   if (!zones || count == 0) return false;
 
   // If file exists and is valid, load zones into RAM and return.
   if (fs.exists(path)) {
-    if (validateAndLoadZones(fs, path, zones, count)) return true;
+    if (validateAndLoadZones(fs, path, zones, count)) {
+      if (outWasCreated) *outWasCreated = false;
+      return true;
+    }
+    Serial.println(F("ZoneStorage: zones.bin CRC/format invalid — reinitialising"));
   }
 
   // Missing or invalid -> create new file with defaults
@@ -181,6 +186,7 @@ bool ZoneStorage::loadOrInit(fs::FS &fs, const char* path, MY_SENS* zones, uint8
     return false;
   }
 
+  if (outWasCreated) *outWasCreated = true;
   return true;
 }
 
@@ -335,6 +341,98 @@ bool ZoneStorage::savePreserveNames(fs::FS &fs, const char* path, const MY_SENS*
   src.close();
 
   // Compute CRC on tmp and append
+  File in = fs.open(tmp, FILE_READ);
+  if (!in) { fs.remove(tmp); return false; }
+
+  const size_t dataLen = sizeof(ZoneFileHeader) + zBytes + (size_t)count * (size_t)ZONE_NAME_LEN;
+  uint16_t crc = 0xFFFF;
+  size_t remaining = dataLen;
+
+  uint8_t buf[128];
+  while (remaining) {
+    size_t chunk = remaining > sizeof(buf) ? sizeof(buf) : remaining;
+    int r = in.readBytes((char*)buf, chunk);
+    if (r != (int)chunk) { in.close(); fs.remove(tmp); return false; }
+    crc = crc16_ccitt_update(crc, buf, chunk);
+    remaining -= chunk;
+  }
+  in.close();
+
+  File append = fs.open(tmp, FILE_APPEND);
+  if (!append) { fs.remove(tmp); return false; }
+  if (append.write((uint8_t*)&crc, sizeof(crc)) != sizeof(crc)) {
+    append.close(); fs.remove(tmp); return false;
+  }
+  append.close();
+
+  if (fs.exists(path)) fs.remove(path);
+  return fs.rename(tmp, path);
+}
+
+// =========================================================
+// Public: savePreserveNamesWithOverride
+// =========================================================
+bool ZoneStorage::savePreserveNamesWithOverride(fs::FS &fs, const char* path,
+                                                const MY_SENS* zones, uint8_t count,
+                                                uint8_t base, uint8_t blockSize,
+                                                const char (*blockNames)[ZONE_NAME_LEN],
+                                                const bool* hasName)
+{
+  if (!zones || count == 0 || !blockNames || !hasName) return false;
+
+  // If file doesn't exist, create with default names first, then fall through to override.
+  if (!fs.exists(path)) {
+    if (!saveWithNameGetter(fs, path, zones, count, defaultNameGetter, nullptr)) return false;
+  }
+
+  File src = fs.open(path, FILE_READ);
+  if (!src) return false;
+
+  ZoneFileHeader hdr{};
+  if (src.readBytes((char*)&hdr, sizeof(hdr)) != (int)sizeof(hdr)) { src.close(); return false; }
+  if (hdr.magic != ZONE_FILE_MAGIC || hdr.count != count) { src.close(); return false; }
+
+  const String tmp = makeTmpPath(path);
+  if (fs.exists(tmp)) fs.remove(tmp);
+
+  File out = fs.open(tmp, FILE_WRITE);
+  if (!out) { src.close(); return false; }
+
+  ZoneFileHeader newHdr{};
+  newHdr.magic = ZONE_FILE_MAGIC;
+  newHdr.count = count;
+  newHdr.reserved = 0;
+
+  if (out.write((uint8_t*)&newHdr, sizeof(newHdr)) != sizeof(newHdr)) {
+    out.close(); src.close(); fs.remove(tmp); return false;
+  }
+
+  const size_t zBytes = zonesSize(count);
+  if (out.write((const uint8_t*)zones, zBytes) != zBytes) {
+    out.close(); src.close(); fs.remove(tmp); return false;
+  }
+
+  for (uint8_t i = 0; i < count; i++) {
+    const uint8_t rel = (uint8_t)(i - base);
+    const bool inBlock = (i >= base) && (rel < blockSize) && hasName[rel];
+
+    if (inBlock) {
+      char fixed[ZONE_NAME_LEN];
+      memset(fixed, 0, sizeof(fixed));
+      strlcpy(fixed, blockNames[rel], sizeof(fixed));
+      if (out.write((const uint8_t*)fixed, ZONE_NAME_LEN) != (size_t)ZONE_NAME_LEN) {
+        out.close(); src.close(); fs.remove(tmp); return false;
+      }
+    } else {
+      if (!streamExistingNameToFile(src, out, i, count)) {
+        out.close(); src.close(); fs.remove(tmp); return false;
+      }
+    }
+  }
+
+  out.close();
+  src.close();
+
   File in = fs.open(tmp, FILE_READ);
   if (!in) { fs.remove(tmp); return false; }
 

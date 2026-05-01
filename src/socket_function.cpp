@@ -2,6 +2,7 @@
 // WebSocket initialization
 // ----------------------------------------------------------------------------
 #include "socket_function.h"
+#include "mapping/zone_map.h"
 
 // If you keep zone names in a JSON file, set this to 1
 #define USE_ZONE_NAMES_JSON  1
@@ -112,7 +113,7 @@ if (!ZoneStorage::loadOrInit(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)
     ZoneStorage::printZones(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT);
 #endif
 }
-  DynamicJsonDocument r(8192);
+  DynamicJsonDocument r(12288);
   r["respHeader"] = "zones";
   JsonArray arr = r.createNestedArray("zones");
 
@@ -129,8 +130,11 @@ if (!ZoneStorage::loadOrInit(SPIFFS, "/zones.bin", any_sensor_array, ZONE_COUNT)
     z["xd"]  = (any_sensor_array[i].device_state & (1 << BIT_MASK_EXIT_DELAY)) != 0;
     z["rf"]  = (any_sensor_array[i].device_type  & (1 << BIT_MASK_RF)) != 0;
     z["x24"] = (any_sensor_array[i].device_type  & (1 << BIT_MASK_24H)) != 0;
-    z["sl"]  = (any_sensor_array[i].device_type  & (1 << BIT_MASK_SILENT)) != 0; // UI label: Chime
-    z["status"] = (uint8_t)zoneEngine.getState(i); // 0=CLOSE 1=OPEN 2=FAULT
+    z["sl"]  = (any_sensor_array[i].device_type  & (1 << BIT_MASK_SILENT)) != 0;
+    z["pm"]  = (any_sensor_array[i].device_type  & (1 << BIT_MASK_PERIMETER)) != 0;
+    z["ch"]  = (any_sensor_array[i].device_type  & (1 << BIT_MASK_CHIME)) != 0;
+    // 3 = unavailable (no hardware on this slot)
+    z["status"] = isZoneActive(i) ? (uint8_t)zoneEngine.getState(i) : (uint8_t)3;
   }
 
   String out; serializeJson(r, out);
@@ -215,7 +219,7 @@ void sendPageRemotes(AsyncWebSocketClient* c)
 }
 
 void sendPageInfo(AsyncWebSocketClient* c){
-  DynamicJsonDocument r(768);
+  DynamicJsonDocument r(512);
   r["respHeader"] = "info";
   r["P1"] = (myAlarm_pannel.get_system_state()!=DEACTIVE) ? "ACTIVE" : "DEACTIVE";
   r["P9"] = client.connected() ? "CONNECTED" : "DISCONNECTED";
@@ -227,12 +231,6 @@ void sendPageInfo(AsyncWebSocketClient* c){
   char macbuf[18];
   WiFi.macAddress().toCharArray(macbuf, sizeof(macbuf));
   r["P4"] = macbuf;
-  char key[4];
-  for(int i=0;i<4;i++){
-    snprintf(key, sizeof(key), "P%d", i+5);
-    r[key] = true;
-  }
-
   char buf[300];
   serializeJson(r, buf, sizeof(buf));
   c->text(buf);
@@ -394,14 +392,18 @@ void handleWebSocketMessage(AsyncWebSocketClient* client, void *arg, uint8_t *da
                 bool rf  = z["rf"]  | false;
                 bool x24 = z["x24"] | false;
                 bool sl  = z["sl"]  | false;
+                bool pm  = z["pm"]  | false;
+                bool ch  = z["ch"]  | false;
 
                 setBit(any_sensor_array[i].device_state, BIT_MASK_BYPASSED,    by);
                 setBit(any_sensor_array[i].device_state, BIT_MASK_ENTRY_DELAY, ed);
                 setBit(any_sensor_array[i].device_state, BIT_MASK_EXIT_DELAY,  xd);
 
-                setBit(any_sensor_array[i].device_type,  BIT_MASK_RF,     rf);
-                setBit(any_sensor_array[i].device_type,  BIT_MASK_24H,    x24);
-                setBit(any_sensor_array[i].device_type,  BIT_MASK_SILENT, sl);
+                setBit(any_sensor_array[i].device_type, BIT_MASK_RF,        rf);
+                setBit(any_sensor_array[i].device_type, BIT_MASK_24H,       x24);
+                setBit(any_sensor_array[i].device_type, BIT_MASK_SILENT,    sl);
+                setBit(any_sensor_array[i].device_type, BIT_MASK_PERIMETER, pm);
+                setBit(any_sensor_array[i].device_type, BIT_MASK_CHIME,     ch);
             }
 
             // 4) Save flags + names in one write (names not kept in RAM)

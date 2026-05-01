@@ -3,6 +3,8 @@
 #include "call_backs.h"
 #include "TimerSW.h"
 #include "config_manager.h"
+#include "ZoneManager.h"
+#include "mapping/zone_map.h"
 
 // --- Debounced sysMode flash save ---
 // On every arm/disarm: update sys_mode in RAM and restart this timer.
@@ -436,64 +438,17 @@ void _call_back_rf_zone_re_enable(uint8_t zone){
 #endif
 	
 }
-// Zone names are still loaded from the legacy SPIFFS JSON shards.
-// A safe fallback name is returned if the file, JSON, or "n" field is missing.
+// Zone names are read from ZoneManager (zones.bin) — the authoritative store updated by MQTT attr sync.
+// Falls back to "Zone01"-style default if the zone is out of range or name is empty.
 char* get_device_name(uint8_t device_index){
-
-	File fileToReadx;
-	if(device_index < 8){
-    fileToReadx = SPIFFS.open("/zone_data_8.json");
-} else if(device_index >= 8 && device_index < 16){
-    fileToReadx = SPIFFS.open("/zone_data_16.json");
-} else if(device_index >= 16 && device_index < 24){
-    fileToReadx = SPIFFS.open("/zone_data_24.json");
-} else if(device_index >= 24 && device_index < 32){
-    fileToReadx = SPIFFS.open("/zone_data_32.json");
-} else if(device_index >= 32 && device_index < 40){
-    fileToReadx = SPIFFS.open("/zone_data_40.json");
-} else if(device_index >= 40 && device_index < 48){
-    fileToReadx = SPIFFS.open("/zone_data_48.json");
-}
-else{
-	strcpy(STRUCT_sens_infor.device_name,"invalie");
+	snprintf(STRUCT_sens_infor.device_name, sizeof(STRUCT_sens_infor.device_name), "Zone%02u", device_index + 1);
+	if (device_index < ZONE_COUNT) {
+		char tmp[sizeof(STRUCT_sens_infor.device_name)];
+		if (gZoneManager.getName(device_index, tmp, sizeof(tmp)) && tmp[0] != '\0') {
+			strlcpy(STRUCT_sens_infor.device_name, tmp, sizeof(STRUCT_sens_infor.device_name));
+		}
+	}
 	return STRUCT_sens_infor.device_name;
-}
-
-	memset(STRUCT_sens_infor.device_name, '\0', sizeof(STRUCT_sens_infor.device_name));
-	snprintf(STRUCT_sens_infor.device_name, sizeof(STRUCT_sens_infor.device_name), "Zone%02u", device_index);
-
-	if(!fileToReadx){
-		Serial.println(F("zone file open failed"));
-		return STRUCT_sens_infor.device_name;
-	}
-
-	DynamicJsonDocument docx(JSON_DOC_SIZE_ZONE_DATA);
-	DeserializationError err = deserializeJson(docx,  fileToReadx);
-	fileToReadx.close();
-	if (err) {
-		Serial.println(F("zone json parse failed"));
-		return STRUCT_sens_infor.device_name;
-	}
-	char buff[100];
-	memset(buff, '\0', 100);
-
-		if (device_index < 10) {
-			sprintf(buff, "z0%d", device_index);
-		}
-		else {
-			sprintf(buff, "z%d", device_index);
-		}
-		
-		const char *zone_name = docx[buff]["n"];
-		if (zone_name == nullptr || zone_name[0] == '\0') {
-			return STRUCT_sens_infor.device_name;
-		}
-		
-		strlcpy(STRUCT_sens_infor.device_name, zone_name, sizeof(STRUCT_sens_infor.device_name));
-		
-		return STRUCT_sens_infor.device_name;
-		
-	
 }
 
 // Writes the human-readable zone name back to the legacy JSON store.
@@ -587,6 +542,7 @@ int8_t comp_device_RFID(const char* rf_id_rx){
 	}
 
  for(uint8_t device_index = 0; device_index<48; device_index++){
+    if (!isZoneActive(device_index)) continue;
     
 	char buff[25];
 	memset(buff, '\0', 25);

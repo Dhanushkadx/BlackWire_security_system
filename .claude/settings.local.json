@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pio run:*)"
+      "Bash(pio run:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell($env:PATH += \";$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\"; cd \"c:\\\\DhanushkaC\\\\Documents\\\\PlatformIO\\\\Projects\\\\BlackWire_security_system\"; pio run 2>&1 | Select-String -Pattern \"error:|warning:|ram:|flash:\" | Select-Object -First 40)",
+      "PowerShell($env:PATH += \";$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\"; pio run 2>&1 | Select-String -Pattern \"error:|warning:|RAM:|Flash:\" | Select-Object -Last 30)",
+      "PowerShell($env:PATH += \";$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\"; pio run 2>&1 | Select-String -Pattern \"error:|RAM:|Flash:\" | Select-Object -Last 10)",
+      "PowerShell($env:PATH += \";$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\"; pio run --target upload 2>&1 | Select-String -Pattern \"error:|Uploading|Hard resetting|SUCCESS|FAILED\" | Select-Object -Last 15)",
+      "PowerShell(cd \"c:\\\\DhanushkaC\\\\Documents\\\\PlatformIO\\\\Projects\\\\BlackWire_security_system\"; & \"$env:USERPROFILE\\\\.platformio\\\\penv\\\\Scripts\\\\pio.exe\" run 2>&1)"
     ]
   }
 }

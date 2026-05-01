@@ -102,6 +102,8 @@ void configLoad(uint8_t mode)
         Serial.println(F("Loading zone database..."));
         gZoneManager.begin(SPIFFS, "/zones.bin");
         gZoneManager.syncToEngine(zoneEngine);
+        gZoneManager.printNames();
+        if (gZoneManager.wasReinitialized()) mqtt_invalidate_zone_cfg_versions();
         // -------------------------------------------------
         // Load remote database
         // ------------------------------------------------
@@ -227,6 +229,12 @@ void configLoad(uint8_t mode)
         systemConfig.xt_beep = cfg["xtBeep"] | true;
         // Boot arm state
         strlcpy(systemConfig.sys_mode, cfg["sysMode"] | "disarm", sizeof(systemConfig.sys_mode));
+        // Modbus card enable flags
+        {
+            JsonArrayConst mbArr = cfg["mbCard"].as<JsonArrayConst>();
+            for (uint8_t i = 0; i < 5; i++)
+                systemConfig.mbCard[i] = (i < mbArr.size()) ? (mbArr[i] | false) : false;
+        }
 #ifdef CUSTOM_NETWORK_CONFIG
         strlcpy(systemConfig.wbssid, cfg["wbssid"] | "", sizeof(systemConfig.wbssid));
 #endif
@@ -250,7 +258,8 @@ void configLoad(uint8_t mode)
 
 #ifdef FORCE_SYS_MODE
         system_mode = (eSYS_MODE)(FORCE_SYS_MODE);
-        Serial.println(F("[FORCE_SYS_MODE] compile-time mode override active"));
+        systemConfig.mqtt_en = true;
+        Serial.println(F("[FORCE_SYS_MODE] compile-time mode override active — MQTT force enabled"));
 #else
         if (systemConfig.wifiap_en){
             system_mode = CONFIG_MODE;
@@ -281,6 +290,8 @@ void configLoad(uint8_t mode)
 
         gZoneManager.begin(SPIFFS, "/zones.bin");
         gZoneManager.syncToEngine(zoneEngine);
+        gZoneManager.printNames();
+        if (gZoneManager.wasReinitialized()) mqtt_invalidate_zone_cfg_versions();
 
          // -------------------------------------------------
         // Load remote database
@@ -388,6 +399,8 @@ void configSave(){
 	doc["xtEn"]       = systemConfig.xt_en;
 	doc["xtBeep"]     = systemConfig.xt_beep;
 	doc["sysMode"]    = systemConfig.sys_mode;
+	JsonArray mbArr = doc.createNestedArray("mbCard");
+	for (uint8_t i = 0; i < 5; i++) mbArr.add(systemConfig.mbCard[i]);
 #ifdef CUSTOM_NETWORK_CONFIG
 	doc["wbssid"]     = systemConfig.wbssid;
 #endif

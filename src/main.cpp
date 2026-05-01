@@ -48,6 +48,7 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "providers/prov_gpio_readable.h"
 #include "providers/prov_ads1115_readable.h"
 #include "providers/prov_rf_ev1527_readable.h"
+#include "providers/prov_modbus.h"
 
 // Split task modules
 #include "tasks_alarm.h"
@@ -63,12 +64,12 @@ ProvGPIO provGpio;
 ProvADS1115 provAds;
 ProvRF_EV1527 provRf;
 
-// GPIO zones example
+// GPIO zones — pin numbers come from pinsx.h board defines
 static const GpioChannel gpioCh[] = {
-  {0, 35, false},  // zone0 on GPIO4, inverted (pullup)
-  {1, 34, false},
-  {2, 36, false},
-  {3, 39, false},
+  {0, SENS_1, false},
+  {1, SENS_2, false},
+  {2, SENS_3, false},
+  {3, SENS_4, false},
 };
 
 // ADS example: 2 devices => 8 zones (4ch each)
@@ -401,6 +402,7 @@ void init_zoneEventbus(){
   provGpio.begin(gpioCh, sizeof(gpioCh)/sizeof(gpioCh[0]));
   provAds.begin(adsDevs, sizeof(adsDevs)/sizeof(adsDevs[0]));
   provRf.begin(rfMap, sizeof(rfMap)/sizeof(rfMap[0]));
+  provModbus.begin(systemConfig);
   provGpio.syncAll();
 }
 
@@ -440,6 +442,7 @@ void setup()
 	LOG_INIT();
 	Serial.begin(115200);
 	Serial.print(F("Smart Security Alarm System Rev 2.0"));
+	Serial.printf(" MAC:%s\n", WiFi.macAddress().c_str());
 	//lcd.init();
 
 	//lcd.backlight();
@@ -524,10 +527,10 @@ void setup()
  init_zoneEventbus();
  setupZoneBroadcasting();
  startBroadcastTasks();
-  if (portalMode) {
-    wsTxAttach(&ws);
-    wsTxBegin(8, 3072, 3);
-  }
+  // WS TX task runs in all WiFi modes (AP and STA). Safe in no-WiFi mode too
+  // because g_ws stays null and textAll is never called.
+  wsTxAttach(&ws);
+  wsTxBegin(8, 3072, 3);
  // Init queue + start tasks
  rf433_init();
 

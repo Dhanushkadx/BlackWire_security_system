@@ -83,4 +83,9 @@ void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n);
 // Load /cfgIndex.json — call during boot after SPIFFS is mounted.
 void mqtt_load_cfg_index();
 
+// Clear local version numbers for all zone attr keys (z_atr00_07 … z_atr40_47) and
+// rewrite /cfgIndex.json so MQTT re-fetches zone names on next connect.
+// Call when zones.bin was reinitialized with defaults (gZoneManager.wasReinitialized()).
+void mqtt_invalidate_zone_cfg_versions();
+
 #endif

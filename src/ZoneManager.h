@@ -31,6 +31,11 @@ public:
 
     bool begin(fs::FS& fs, const char* path);
 
+    // True if zones.bin was missing or had a CRC error and was reinitialized with defaults.
+    // Check after begin() — if true, cfgIndex zone attr versions should be cleared so
+    // MQTT re-fetches zone names on next connect.
+    bool wasReinitialized() const { return _wasReinitialized; }
+
     // Sync persistent flags -> ZoneEngine
     void syncToEngine(ZoneEngine& eng) const;
 
@@ -76,8 +81,16 @@ public:
     bool isChime(uint8_t z) const { return getTypeBit(z, DT_CHIME); }
     bool setChime(uint8_t z, bool v, bool saveNow = true) { return setTypeBit(z, DT_CHIME, v, saveNow); }
 
-    // Save explicitly
+    // Print all zone names to Serial (called at boot to verify zones.bin content)
+    void printNames() const;
+
+    // Save explicitly (preserves existing names from file)
     bool save();
+
+    // Single atomic write: updates attributes from _zones[], preserves existing file names,
+    // but overrides names for zones [base..base+blockSize-1] where hasName[i] is true.
+    bool saveWithBlockNames(uint8_t base, const char (*blockNames)[ZONE_NAME_LEN],
+                            const bool* hasName, uint8_t blockSize);
 
 private:
     void clearRuntimeBits();
@@ -86,6 +99,7 @@ private:
 private:
     fs::FS* _fs = nullptr;
     const char* _path = nullptr;
+    bool _wasReinitialized = false;
 
     MY_SENS _zones[MAX_ZONES];   // STATIC 48 ARRAY
 };

@@ -57,6 +57,12 @@ static void ws_tx_task(void* param) {
         doc["msg"] = m.message;
         break;
 
+      case WS_EVT_ZONE_STATE:
+        doc["respHeader"] = "zoneState";
+        doc["zone"]   = m.v0;
+        doc["status"] = m.v1;
+        break;
+
       case WS_EVT_DATAX:
       default:
         doc["respHeader"] = "data";
@@ -151,6 +157,15 @@ bool wsTxSendScan(const char* page, const char* codeStr, uint32_t slotOrIndex) {
   safeCopy(m.message, sizeof(m.message), codeStr);
   m.v0 = slotOrIndex;
   m.ts = millis();
+  return pushMsg(m);
+}
+
+bool wsTxSendZoneState(uint8_t zone, uint8_t status) {
+  WsMsg m{};
+  m.type = WS_EVT_ZONE_STATE;
+  m.v0   = zone;
+  m.v1   = status;
+  m.ts   = millis();
   return pushMsg(m);
 }
 

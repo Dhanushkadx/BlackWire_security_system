@@ -30,6 +30,8 @@ extern PixelBlink pixel;
 //#define GSM_MODULE_AUTH
 extern bool gsm_init_done;
 extern bool gsm_available;
+extern bool gsm_sim_ok;
+extern bool gsm_net_ok;
 extern HardwareSerial *fonaSerial;
 extern bool request_from_sim800;
 extern uint8_t sms_broadcast_index;

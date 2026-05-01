@@ -41,11 +41,12 @@ void relayTask() {
 				eCurrent_siren_state = SIREN_CONTINUOUS;
 			  }
 		  }
-		   if(  ( uxBits & TASK_3_BIT ) != 0  )// second siren
+		   if(  ( uxBits & TASK_3_BIT ) != 0  )// RPC force continuous
 		   {
-			   
-			   Serial.println(F("EVENT SIREN_CONTINUE")); 			  
-		   }		  
+			   Serial.println(F("EVENT SIREN_FORCE_ON"));
+			   eCurrent_siren_state = SIREN_CONTINUOUS;
+			   digitalWrite(RELAY_ALARM, HIGH);
+		   }
 		  
 		switch (eCurrent_siren_state)
 		{

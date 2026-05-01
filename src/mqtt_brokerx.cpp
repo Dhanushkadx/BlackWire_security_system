@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "ZoneManager.h"
+#include "mapping/zone_map.h"
 
 #ifdef MQTT_SECURE
 #include "mqtt_secure_config.h"
@@ -143,7 +144,8 @@ static bool compute_trouble() {
   if (!systemConfig.ac_power) return true;
   if (!gsm_available) return true;
   for (uint8_t i = 0; i < ZONE_COUNT; ++i) {
-    if (!myAlarm_pannel.is_sensor_available(i) && !myAlarm_pannel.is_sensor_RF(i)) {
+    if (!isZoneActive(i)) continue;
+    if (zoneEngine.getState(i) == ZS_FAULT) {
       return true;
     }
   }
@@ -153,12 +155,15 @@ static bool compute_trouble() {
 static void build_sensor_pack(char* out, size_t outSize) {
   uint8_t packed[12] = {0};
   for (uint8_t zone = 0; zone < ZONE_COUNT; ++zone) {
-    uint8_t stateBits = 0;
-    const ZoneState zoneState = zoneEngine.getState(zone);
-    if (zoneState == ZS_FAULT || (!myAlarm_pannel.is_sensor_available(zone) && !myAlarm_pannel.is_sensor_RF(zone))) {
-      stateBits = 0x02;
-    } else if (zoneState == ZS_OPEN) {
-      stateBits = 0x01;
+    uint8_t stateBits;
+    if (!isZoneActive(zone)) {
+      stateBits = 0x03;
+    } else {
+      switch (zoneEngine.getState(zone)) {
+        case ZS_OPEN:  stateBits = 0x01; break;
+        case ZS_FAULT: stateBits = 0x02; break;
+        default:       stateBits = 0x00; break; // ZS_CLOSE
+      }
     }
 
     const uint8_t bitIndex = zone * 2;
@@ -273,11 +278,17 @@ static int8_t zone_block_base(const char* blockKey) {
 // Zone keys inside each block use absolute 0-based numbering.
 // Example: z_atr40_47.z40 => internal zone 40, z_atr40_47.z47 => internal zone 47.
 static void apply_zone_attributes_block(const char* blockKey, const JsonVariantConst& block) {
-  if (!block.is<JsonObject>()) return;
+  if (!block.is<JsonObjectConst>()) return;
   const int8_t base = zone_block_base(blockKey);
   if (base < 0) return;
   const uint8_t minZoneNum = (uint8_t)base;
   const uint8_t maxZoneNum = (uint8_t)(base + 7);
+
+  // Collect names for the block — written in a single atomic file pass below.
+  char blockNames[8][ZONE_NAME_LEN];
+  bool hasName[8];
+  memset(blockNames, 0, sizeof(blockNames));
+  memset(hasName,    0, sizeof(hasName));
 
   for (JsonPairConst kv : block.as<JsonObjectConst>()) {
     const char* key = kv.key().c_str();
@@ -290,7 +301,11 @@ static void apply_zone_attributes_block(const char* blockKey, const JsonVariantC
     const JsonObjectConst cfg = kv.value().as<JsonObjectConst>();
     if (cfg.isNull()) continue;
 
-    if (cfg["n"].is<const char*>()) myAlarm_pannel.set_sensor_name(zone, cfg["n"].as<const char*>());
+    const uint8_t rel = zone - (uint8_t)base;
+    if (cfg["n"].is<const char*>()) {
+      strlcpy(blockNames[rel], cfg["n"].as<const char*>(), ZONE_NAME_LEN);
+      hasName[rel] = true;
+    }
     if (cfg["by"].is<bool>()) gZoneManager.setBypassed(zone,    cfg["by"].as<bool>(),  false);
     if (cfg["ed"].is<bool>()) gZoneManager.setEntryDelay(zone,  cfg["ed"].as<bool>(),  false);
     if (cfg["xd"].is<bool>()) gZoneManager.setExitDelay(zone,   cfg["xd"].as<bool>(),  false);
@@ -299,6 +314,29 @@ static void apply_zone_attributes_block(const char* blockKey, const JsonVariantC
     if (cfg["sl"].is<bool>()) gZoneManager.setSilent(zone,      cfg["sl"].as<bool>(),  false);
     if (cfg["rf"].is<bool>()) gZoneManager.setRF(zone,          cfg["rf"].as<bool>(),  false);
     if (cfg["ch"].is<bool>()) gZoneManager.setChime(zone,       cfg["ch"].as<bool>(),  false);
+  }
+
+  // Print what we are about to write
+  Serial.printf("[ZONE] saving block %s (base=%u):\n", blockKey, (unsigned)base);
+  for (uint8_t r = 0; r < 8; r++) {
+    if (hasName[r]) Serial.printf("[ZONE]   Z%02u -> \"%s\"\n", (unsigned)(base + r), blockNames[r]);
+  }
+
+  // Single atomic write: attributes + all 48 names (block names overridden, rest preserved).
+  const bool saveOk = gZoneManager.saveWithBlockNames((uint8_t)base, blockNames, hasName, 8);
+  if (!saveOk) {
+    Serial.printf("[ZONE] saveWithBlockNames FAILED for block %s\n", blockKey);
+  }
+
+  // Read back immediately to verify what landed on disk
+  Serial.printf("[ZONE] readback block %s:\n", blockKey);
+  char rbName[ZONE_NAME_LEN];
+  for (uint8_t r = 0; r < 8; r++) {
+    rbName[0] = '\0';
+    gZoneManager.getName((uint8_t)(base + r), rbName, sizeof(rbName));
+    Serial.printf("[ZONE]   Z%02u = \"%s\"%s\n",
+                  (unsigned)(base + r), rbName,
+                  (hasName[r] && strcmp(rbName, blockNames[r]) != 0) ? " *** MISMATCH ***" : "");
   }
 }
 
@@ -314,6 +352,7 @@ struct CfgKeyMeta { uint32_t ver; uint32_t ts; };  // ts in seconds
 static constexpr uint8_t  kAttrFetchKeyCount       = 8;
 static constexpr uint32_t kAttrFetchTimeoutMs       = 6000;
 static constexpr uint32_t kAttrFetchRetryIntervalMs = 30000;
+static constexpr uint8_t  kAttrFetchMaxRetries      = 3;
 
 static const struct {
   const char* keyName;   // data key name (attr/request + cfgIndex object key)
@@ -347,6 +386,7 @@ static uint8_t         g_attrFetchReqId   = 0;
 static uint8_t         g_attrFetchWaitId  = 0;
 static uint32_t        g_attrFetchLastMs  = 0;
 static uint32_t        g_attrRetryAfterMs = 0;
+static uint8_t         g_attrFetchKeyRetries = 0;
 static eAttrFetchState g_attrFetchState   = AFS_IDLE;
 
 // ---- cfgIndex SPIFFS helpers ----
@@ -514,8 +554,7 @@ static void apply_data_key_content(uint8_t keyIdx, JsonVariantConst value) {
   } else if (strcmp(keyName, "users") == 0) {
     handle_users_attr(value);
   } else {
-    apply_zone_attributes_block(keyName, value);
-    gZoneManager.save();
+    apply_zone_attributes_block(keyName, value);  // single write: attrs + names
     gZoneManager.syncToEngine(zoneEngine);
   }
   // Persist updated version and publish client attr immediately
@@ -626,7 +665,8 @@ static void tick_attr_fetch_sm() {
       uint8_t idx = 0;
       while (idx < kAttrFetchKeyCount && !(g_pendingFetchMask & (1 << idx))) ++idx;
       if (idx >= kAttrFetchKeyCount) { g_attrFetchState = AFS_IDLE; return; }
-      g_attrFetchKeyIdx = idx;
+      g_attrFetchKeyIdx     = idx;
+      g_attrFetchKeyRetries = 0;
       g_attrFetchWaitId = ++g_attrFetchReqId;
       StaticJsonDocument<80> req;
       req["id"]     = g_attrFetchWaitId;
@@ -643,8 +683,16 @@ static void tick_attr_fetch_sm() {
 
     case AFS_WAIT_KEY:
       if ((millis() - g_attrFetchLastMs) > kAttrFetchTimeoutMs) {
-        Serial.printf("attr fetch: timeout key=%s\n", kCfgIdxMap[g_attrFetchKeyIdx].keyName);
-        g_pendingFetchMask &= ~(1 << g_attrFetchKeyIdx);
+        if (g_attrFetchKeyRetries < kAttrFetchMaxRetries) {
+          ++g_attrFetchKeyRetries;
+          Serial.printf("attr fetch: timeout key=%s retry %u/%u\n",
+                        kCfgIdxMap[g_attrFetchKeyIdx].keyName,
+                        g_attrFetchKeyRetries, kAttrFetchMaxRetries);
+        } else {
+          Serial.printf("attr fetch: timeout key=%s max retries, skip\n",
+                        kCfgIdxMap[g_attrFetchKeyIdx].keyName);
+          g_pendingFetchMask &= ~(1 << g_attrFetchKeyIdx);
+        }
         g_attrFetchState = AFS_FETCH_KEY;
       }
       return;
@@ -698,26 +746,48 @@ static void apply_users_attr(JsonObjectConst usersIn) {
 
 static void apply_attribute_updates(JsonObjectConst data) {
   if (data.isNull()) return;
-  // Only react to cfgIndex updates. Direct key pushes (config, users, zones) are ignored.
-  JsonVariantConst cfgIdxVal = data["cfgIndex"];
-  if (cfgIdxVal.isNull()) return;
-  process_server_cfg_index(cfgIdxVal.as<JsonObjectConst>());
-}
 
-static void handle_attr_message(const char* payload) {
-  StaticJsonDocument<1600> doc;
-  const DeserializationError err = deserializeJson(doc, payload);
-  if (err) {
-    Serial.printf("MQTT attr parse failed: %s\n", err.c_str());
+  // cfgIndex version push — triggers selective attr re-fetch
+  JsonVariantConst cfgIdxVal = data["cfgIndex"];
+  if (!cfgIdxVal.isNull()) {
+    process_server_cfg_index(cfgIdxVal.as<JsonObjectConst>());
     return;
   }
 
-  // Force-push format: {"device":"...","data":{"config":{...},"users":{...},...}}
+  // Direct zone attr block push — apply immediately (same path as attr/res)
+  for (JsonPairConst kv : data) {
+    const char* key = kv.key().c_str();
+    if (zone_block_base(key) >= 0) {
+      Serial.printf("[ZONE] attr/set direct push: %s\n", key);
+      apply_zone_attributes_block(key, kv.value());
+      gZoneManager.syncToEngine(zoneEngine);
+    }
+  }
+}
+
+static void handle_attr_message(const char* payload) {
+  const unsigned payloadLen = (unsigned)strlen(payload);
+  Serial.printf("[DBG] handle_attr_message entered len=%u heap=%u\n",
+                payloadLen, (unsigned)ESP.getFreeHeap());
+
+  // Zone attr block payloads are ~860 bytes; ArduinoJson needs ~3x for internal overhead.
+  DynamicJsonDocument doc(3072);
+  Serial.println(F("[DBG] doc allocated"));
+
+  const DeserializationError err = deserializeJson(doc, payload);
+  Serial.printf("[DBG] deserializeJson result: %s\n", err.c_str());
+  if (err) {
+    Serial.printf("MQTT attr parse failed: %s (len=%u)\n", err.c_str(), payloadLen);
+    return;
+  }
+
+  // Force-push format: {"device":"...","data":{"cfgIndex":{...}}} or {"data":{"z_atr00_07":{...}}}
   JsonObjectConst data = doc["data"].as<JsonObjectConst>();
   if (data.isNull()) {
     Serial.println(F("MQTT attr: no data field"));
     return;
   }
+  Serial.println(F("[DBG] calling apply_attribute_updates"));
   apply_attribute_updates(data);
 }
 
@@ -729,7 +799,7 @@ static void handle_rpc_sms(const char* reqId, JsonObjectConst params) {
     return;
   }
 
-  creatSMS(msg, 1, target);
+  creatSMS(msg, 4, target);
   mqtt_publish_rpc_success(reqId, "status", "queued");
 }
 
@@ -762,11 +832,11 @@ static void handle_rpc_state_change(const char* reqId, JsonObjectConst params) {
 static void handle_rpc_siren(const char* reqId, JsonObjectConst params) {
   const char* state = params["state"] | "";
   if (strcmp(state, "on") == 0) {
-    xEventGroupSetBits(EventRTOS_siren, TASK_2_BIT);
+    xEventGroupSetBits(EventRTOS_siren, TASK_3_BIT);
     mqtt_publish_rpc_success(reqId, "state", "on");
     return;
   }
-  if (strcmp(state, "off") == 0) {
+  if (strcmp(state, "off") == 0 || strcmp(state, "mute") == 0) {
     xEventGroupSetBits(EventRTOS_siren, TASK_1_BIT);
     mqtt_publish_rpc_success(reqId, "state", "off");
     return;
@@ -901,6 +971,23 @@ void mqtt_load_cfg_index() {
   Serial.println(F("cfgIndex.json loaded"));
 }
 
+void mqtt_invalidate_zone_cfg_versions() {
+  // kCfgIdxMap indices 2–7 are zone attr keys (z_atr00_07 … z_atr40_47).
+  // Reset their local versions to 0 so MQTT will re-fetch them on next connect.
+  bool changed = false;
+  for (uint8_t i = 2; i < kAttrFetchKeyCount; ++i) {
+    if (g_localCfgIdx[i].ver != 0 || g_localCfgIdx[i].ts != 0) {
+      g_localCfgIdx[i].ver = 0;
+      g_localCfgIdx[i].ts  = 0;
+      changed = true;
+    }
+  }
+  if (changed) {
+    cfgIndex_save_to_spiffs();
+    Serial.println(F("[ZONE] zones.bin was reinitialised — zone attr cfgIndex versions cleared, will re-fetch on MQTT connect"));
+  }
+}
+
 bool mqtt_enable = false;
 xQueueHandle xQueue_mqtt_Qhdlr = nullptr;
 QueueHandle_t xQueue_mqtt_tx = nullptr;
@@ -942,9 +1029,14 @@ const char* mqtt_device_id() {
 }
 
 void setup_mqtt() {
+#ifdef DEV_MAC
+  strlcpy(g_deviceId, DEV_MAC, sizeof(g_deviceId));
+  Serial.printf("[MQTT] DEV_MAC override: %s\n", g_deviceId);
+#else
   WiFi.macAddress(mac);
   snprintf(g_deviceId, sizeof(g_deviceId), "%02X%02X%02X%02X%02X%02X",
            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#endif
 
   if (!mqtt_enable) {
     Serial.println(F("MQTT DISABLED"));
@@ -1078,11 +1170,12 @@ void mqtt_publish_telemetry() {
   doc["grssi"] = (int)getSignal_strength();
   doc["mode"] = arm_mode_to_str(myAlarm_pannel.get_arm_mode());
   doc["upTime"] = millis() / 1000UL;
-  doc["gsm"] = gsm_available ? "ok" : "fault";
-  doc["vac"] = systemConfig.ac_power ? "ok" : "fail";
-  doc["vbat"] = 0.0f;
+  doc["gsm"] = !gsm_sim_ok ? "noSIM" : (!gsm_net_ok ? "noNet" : "ok");
+  doc["vac"] = systemConfig.ac_power ? "ok" : "no";
+  doc["vbat"] = 12.3f;
   doc["bCharg"] = systemConfig.battery_charging_en ? "on" : "off";
-  doc["armedState"] = armed_state_to_str();
+  doc["machineState"] = armed_state_to_str();
+  doc["Home Armed"] = (myAlarm_pannel.get_system_state() != DEACTIVE);
   doc["alarmState"] = alarm_state_to_str();
   doc["siren"] = siren_is_active();
   doc["batteryLow"] = false;
@@ -1101,6 +1194,7 @@ void mqtt_publish_latest_attributes() {
   doc["hw_ver"] = MQTT_HARDWARE_VERSION;
   doc["mode"] = arm_mode_to_str(myAlarm_pannel.get_arm_mode());
   doc["state"] = armed_state_to_str();
+  doc["Home Armed"] = (myAlarm_pannel.get_system_state() != DEACTIVE);
   doc["alarmState"] = alarm_state_to_str();
   doc["siren"] = siren_is_active();
   doc["batteryLow"] = false;

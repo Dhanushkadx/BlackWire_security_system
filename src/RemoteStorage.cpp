@@ -207,7 +207,7 @@ bool RemoteStorage::learnFromCodeStr(uint8_t slot, const char* codeStr, bool sav
     if (btn == 0 || base == 0) return false;
 
     _rem[slot].baseCode = base;
-    // NOTE: we do NOT change enabled here (your requirement)
+    _rem[slot].enabled  = 1;
 
     return saveNow ? save() : true;
 }

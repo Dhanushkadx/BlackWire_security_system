@@ -1,4 +1,5 @@
 #include "tasks_broadcasting.h"
+#include "ws_tx_queue.h"
 #ifdef MQTT_OK
 #include "mqtt_brokerx.h"
 #endif
@@ -30,10 +31,7 @@ void TaskBroadcastRouter(void *parameter)
     mqtt_publish_zone_event(bz.zone, bz.state != 0);
 #endif
 
-    // TODO later:
-    // canNotifyZoneDirty(bz.zone);
-    // modbusNotifyZoneDirty(bz.zone);
-    // websocketNotifyZoneDirty(bz.zone);
+    wsTxSendZoneState(bz.zone, bz.state);
   }
 }
 

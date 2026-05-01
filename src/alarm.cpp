@@ -1,6 +1,7 @@
 #include "alarm.h"
 
 #include "ZoneManager.h"
+#include "mapping/zone_map.h"
 
 #ifdef BIT_MASK_ENTRY_DELAY
 #undef BIT_MASK_ENTRY_DELAY
@@ -247,6 +248,7 @@ char* ALARM::get_sensor_name(uint8_t index) {
 
 int8_t ALARM::get_entry_zone_availablity() {
     for (int index = 0; index < TOTAL_DEVICES; index++) {
+        if (!isZoneActive(index)) continue;
         if (pZoneManager->isEntryDelay(index)) return index;
     }
     return -1;
@@ -254,6 +256,7 @@ int8_t ALARM::get_entry_zone_availablity() {
 
 int8_t ALARM::get_exit_zone_availablity() {
     for (int index = 0; index < TOTAL_DEVICES; index++) {
+        if (!isZoneActive(index)) continue;
         if (pZoneManager->isExitDelay(index)) return index;
     }
     return -1;
@@ -329,6 +332,7 @@ void ALARM::watcher() {
     if (Timer_RF_zone_reactive_en && Timer_RF_zone_reactive_delay.Timer_run()) {
         Timer_RF_zone_reactive_en = false;
         for (uint8_t index = 0; index < TOTAL_DEVICES; index++) {
+            if (!isZoneActive(index)) continue;
             if (pZoneManager->isRF(index)) {
                 setZoneOpen(index, false);
                 setZoneAlarmed(index, false);
@@ -455,6 +459,7 @@ void ALARM::watcher() {
                 _exit_delay_timer_en = false;
 
                 for (int index = 0; index < TOTAL_DEVICES; index++) {
+                    if (!isZoneActive(index)) continue;
                     if (pZoneManager->isExitDelay(index) && zoneIsOpen(index)) {
                         Serial.print(F("sensor exit delay>"));
                         Serial.println(index);
@@ -473,6 +478,7 @@ void ALARM::watcher() {
                 if (Timer_entry_delay.Timer_run()) {
                     _entry_delay_timer_en = false;
                     for (int index = 0; index < TOTAL_DEVICES; index++) {
+                        if (!isZoneActive(index)) continue;
                         if (zoneIsAlarmed(index)) {
                             Timer_RF_zone_reactive_en = true;
                             if (fn_alarm_notify != nullptr) fn_alarm_notify(index);
@@ -517,6 +523,7 @@ void ALARM::enable_only_closed_sensors_as_it_is() {
     if (pZoneManager == nullptr) return;
 
     for (int scanning_index = 0; scanning_index < TOTAL_DEVICES; scanning_index++) {
+        if (!isZoneActive(scanning_index)) continue;
         Serial.printf_P(PSTR("Zone ID>>%d "), scanning_index);
 
         if (pZoneManager->isBypassed(scanning_index)) {
@@ -545,6 +552,7 @@ int8_t ALARM::is_system_ready_to_arm() {
     if (pZoneManager == nullptr) return -1;
 
     for (int i = 0; i < TOTAL_DEVICES; i++) {
+        if (!isZoneActive(i)) continue;
         if (zoneIsOpen(i) && !pZoneManager->isBypassed(i)) {
             return i;
         }
@@ -587,7 +595,7 @@ void ALARM::any_zone_bitmask_parameter_to_bytes(uint8_t bit_mask,
                                                 uint8_t& zone32_39,
                                                 uint8_t& zone40_47) {
     uint8_t bit_mask_a = 0, bit_mask_b = 0, bit_mask_c = 0, bit_mask_d = 0, bit_mask_e = 0, bit_mask_f = 0;
-    for (uint8_t index = 0; index < 48; index++) {
+    for (uint8_t index = 0; index < ZONE_COUNT; index++) {
         if ((0 <= index) && (index < 8)) {
             if (getZoneBitValue(bit_mask, index)) zone0_7 |= (1 << bit_mask_a);
             else zone0_7 &= ~(1 << bit_mask_a);
@@ -628,7 +636,7 @@ void ALARM::chime_sound() {
         }
     }
 
-    if ((pZoneManager == nullptr) || !pZoneManager->isSilent(scanning_index)) {
+    if ((pZoneManager == nullptr) || !pZoneManager->isChime(scanning_index)) {
         Serial.println(F("NO CHIME"));
         return;
     }

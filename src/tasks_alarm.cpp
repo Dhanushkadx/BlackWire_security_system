@@ -75,10 +75,33 @@ void Task1code(void *parameter)
 
         Serial.printf("Zone %u state %u\n", z, st);
 
-        // 2.1 Update alarm logic (must be fast)
-        myAlarm_pannel.Universal_zone_state_update(z);
-        //gZoneManager.
-        // 2.2 Broadcast to comms router (non-blocking, drop if full)
+        // ------------------------------------------------------------------
+        // Handle fault zones separately from normal open/close.
+        //
+        // ZS_FAULT means the sensor wiring is broken (short/open circuit)
+        // or the zone is chattering (flapping). We:
+        //   1. Always set the trouble flag for MQTT reporting.
+        //   2. Only trigger the alarm if the system is currently armed —
+        //      a fault on a disarmed system is reported but not alarmed.
+        // ------------------------------------------------------------------
+        if (ze.state == ZS_FAULT) {
+          Serial.printf("[ALARM] Zone %u FAULT — setting trouble\n", z);
+#ifdef MQTT_OK
+          mqtt_publish_telemetry(); // sends trouble=true via compute_trouble()
+#endif
+          // Trigger alarm only if system is armed
+          const eMain_state curState = myAlarm_pannel.get_system_state();
+          if (curState != DEACTIVE) {
+            Serial.printf("[ALARM] Zone %u fault while armed — triggering alarm\n", z);
+            myAlarm_pannel.Universal_zone_state_update(z);
+          }
+        } else {
+          // 2.1 Normal open/close — update alarm logic
+          myAlarm_pannel.Universal_zone_state_update(z);
+        }
+
+        // 2.2 Broadcast to comms router regardless of fault/normal
+        // (portal and MQTT both need to display the fault state)
         ZoneBroadcast bz;
         bz.zone  = z;
         bz.state = st;
