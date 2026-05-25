@@ -147,6 +147,7 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 	 	bool reset_pin_state = digitalRead(PROGRAM_PIN);
 #endif
 
+	Serial.printf("PROGRAM_PIN=%d wifiap_en=%d\n", digitalRead(PROGRAM_PIN), (int)systemConfig.wifiap_en);
 	if ((!reset_pin_state)||(systemConfig.wifiap_en==true))
 	{	
 	//if(systemConfig.wifiap_en==true){	
