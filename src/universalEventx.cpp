@@ -1,7 +1,5 @@
 #include "universalEventx.h"
 
-char netowrk_operator_name_char[10];
-
 byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uint8_t user_id){//0- gsm 1-lcd
 	byte ret_value = 0;
 	Serial.print(F("Run CLI.. _cliString>"));
@@ -32,6 +30,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	
 	if (strncmp("log",smsbuffer,3)==0)
 	{
+		ret_value = 1;
 		Serial.println(F("Reading Log"));
         delay(500);
 		//processOfflineMessagesV2();
@@ -55,24 +54,6 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
         delay(5000);
 		ESP.restart();
 	}
-	
-	if (strncmp("net?",smsbuffer,4)==0)
-	{
-		
-		Serial.print(F("Network>"));
-		Serial.println(netowrk_operator_name_char);
-	}
-	if (strncmp("info?",smsbuffer,5)==0)
-	{
-		
-		
-	}
-	if (strncmp("BLOCK",smsbuffer,5)==0)
-	{
-		while(1){}
-		
-	}
-	
 	
 	if (strncmp("psw=1234",smsbuffer,3)==0)
 	{
@@ -167,16 +148,6 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 			creatSMS(msg,3,0);
 		}
 		Serial.println(msg);
-		
-	}
-	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
-	{
-		ret_value = 1;
-		myAlarm_pannel.set_arm_mode(AS_ITIS_NO_BYPASS);
-		myAlarm_pannel.set_system_state(SYS1_IDEAL,Invoker,user_id);
-#ifdef MQTT_OK
-		publish_system_state("ARMED","info/mode",true);
-#endif       
 		
 	}
 	if (strncmp_P(smsbuffer,PSTR("Home arm"),8)==0)
@@ -293,7 +264,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	else if(strncmp_P(smsbuffer,PSTR("SMS number="),10)==0){// set sms number eg: Sms number=01,1
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0);}
+		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); return ret_value;}
 		
 		char* eq_start = strstr(smsbuffer,"=");
 		char zone_index[10];
@@ -327,7 +298,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	else if(strncmp_P(smsbuffer,PSTR("CALL number="),11)==0){// set call number
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); return ret_value; }
 		
 		char* eq_start = strstr(smsbuffer,"=");
 		char zone_index[10];
@@ -360,16 +331,6 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	}
 	
 	
-	else if(strncmp("eerstm2",smsbuffer,7)==0){//remote B
-		
-		
-	}
-	else if (strncmp("RID=", smsbuffer, 4) == 0) {//remote B
-	ret_value = 1;
-	//RFbaster(smsbuffer);
-	//send_rfid_state_update_to_mqtt(smsbuffer);
-	}
-	
 	else if(strncmp("eerstm1",smsbuffer,7)==0){//remote B
 		ret_value = 1;
 		//check access
@@ -379,16 +340,11 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		
 	}
 	
-	else if (strncmp("infor=",smsbuffer,6)==0)//request infor
-	{
-		
-		
-	}	
 	else if (strncmp_P(smsbuffer,PSTR("Entry delay="),12)==0)
 	{
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); return ret_value; }
 		
 		char zone_index[10];
 		
@@ -410,7 +366,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	{
 		ret_value = 1;
 		//check access
-		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); }
+		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); return ret_value; }
 		
 		char zone_index[10];
 		strlcpy(zone_index,smsbuffer+11,3);
@@ -430,6 +386,7 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	
 	else if (strncmp("sc=",smsbuffer,3)==0)// sensor state update sc=02,1 : zone 2 opend
 	{
+		ret_value = 1;
 		char zone_index[10];
 		char zone_name[10];
 		strlcpy(zone_index,smsbuffer+3,3);
