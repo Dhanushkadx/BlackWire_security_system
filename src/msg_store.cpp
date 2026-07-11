@@ -64,8 +64,14 @@ void saveMessageToSPIFFSV3(JsonDocument& msg) {
 }
 
 
+// Defined in mqtt_broker.cpp: during OTA only the MQTT task may touch `client`.
+extern bool mqtt_foreign_tx_blocked();
+
 bool sendNetworkMessage(const String &msg, char* topic){
-    
+
+    // Don't touch `client` from this task while an OTA owns it.
+    if (mqtt_foreign_tx_blocked()) return true;   // treat as "not sent" (retry later)
+
     Serial.printf_P(PSTR("send stored msg:%s"),msg.c_str());
     if ( client.publish(topic, msg.c_str())) {
         Serial.println(F("ok"));

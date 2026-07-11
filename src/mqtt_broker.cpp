@@ -56,6 +56,20 @@ bool mqtt_enable=false;
 // use wifi client to init mqtt client
 PubSubClient client(espClient);
 
+// PubSubClient is single-threaded: `client` may only be touched by ONE task.
+// Normally publishes are short and rare enough that the pre-existing multi-task
+// publishing is tolerated, but a chunked OTA hammers client.loop()+publish() on
+// the MQTT task for the whole (minutes-long) download. A concurrent publish from
+// any other task (alarm/GSM/sensor/web) would corrupt PubSubClient's shared
+// buffer -> a malformed packet (broker drops us) AND corrupted chunk RX bytes
+// (sha_mismatch). So while an OTA is active, ONLY the MQTT task may use `client`;
+// every other task's telemetry publish is dropped for the download window.
+TaskHandle_t g_mqtt_task = nullptr;   // captured in mqtt_com_loop()
+
+bool mqtt_foreign_tx_blocked(){
+  return TasksOTA::active() && (xTaskGetCurrentTaskHandle() != g_mqtt_task);
+}
+
 _callbackFunctionType7 fn_onMQTT_connection;
 
 void setup_mqtt(){
@@ -129,7 +143,8 @@ void reconnectMQTT() {
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         setup_subscriptions();
         TasksOTA::begin(otaMqttPublishCb, "info/sys/ota");
-        TasksOTA::startFromPending();
+        TasksOTA::resumeIfPaused();
+        TasksOTA::bootReportIfNeeded();
         uint32_t colour = Adafruit_NeoPixel::Color(200, 0, 255);
   		  pixel.startBlink(colour, 100, 1000, 255);
         fn_onMQTT_connection();
@@ -175,6 +190,9 @@ void send_rfid_state_update_to_mqtt(const char* rfid){
 
 void publish_system_state(const char* state, const char* subtopic, bool retaind_flag){
 
+    // During OTA only the MQTT task may touch `client` (see mqtt_foreign_tx_blocked).
+    if (mqtt_foreign_tx_blocked()) return;
+
     //creat topic
     uint8_t mac[6];
     char device_id_macStr[18];
@@ -208,6 +226,9 @@ void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n ){
 
 void publish_json_to_mqtt(const char* jsonStr){
 
+    // During OTA only the MQTT task may touch `client` (see mqtt_foreign_tx_blocked).
+    if (mqtt_foreign_tx_blocked()) return;
+
     uint8_t mac[6];
     char device_id_macStr[18];
     WiFi.macAddress(mac);	
@@ -226,8 +247,127 @@ void publish_json_to_mqtt(const char* jsonStr){
 #ifdef _DEBUG
     Serial.printf_P(PSTR("MQTT - Update - topic>%s \n"), topic);
 #endif
-    client.publish(topic, jsonStr,true);    
+    client.publish(topic, jsonStr,true);
 
+}
+
+// ── Two-way RPC channel ─────────────────────────────────────────────────────
+// All device ACTIONS arrive as ThingsBoard two-way RPCs relayed by the Node-RED
+// bridge on  blackwire/<MAC>/rpc/req , and are answered on  blackwire/<MAC>/rpc/res .
+// Request envelope (nested, as AgroFlow delivers it; flat is also accepted):
+//   {"device":"blackwire_<MAC>","data":{"id":<int>,"method":"<name>","params":<obj>}}
+// Response:
+//   success: {"reqId":<id>,"success":true,"result":<obj>}   (result optional)
+//   failure: {"reqId":<id>,"success":false,"error":"<code>"}
+// Long actions (OTA) ack {"status":"started"} immediately, then run async.
+static void rpc_reply_ok(int reqId, const char* result_json) {
+    char res[128];
+    if (result_json && result_json[0])
+        snprintf(res, sizeof(res), "{\"reqId\":%d,\"success\":true,\"result\":%s}", reqId, result_json);
+    else
+        snprintf(res, sizeof(res), "{\"reqId\":%d,\"success\":true}", reqId);
+    publish_system_state(res, "rpc/res", false);
+}
+
+static void rpc_reply_err(int reqId, const char* code) {
+    char res[96];
+    snprintf(res, sizeof(res), "{\"reqId\":%d,\"success\":false,\"error\":\"%s\"}", reqId, code);
+    publish_system_state(res, "rpc/res", false);
+}
+
+static void handle_rpc(byte* payload, unsigned int length) {
+    DynamicJsonDocument doc(512);
+    if (deserializeJson(doc, payload, length)) {
+        Serial.println(F("RPC: JSON parse error"));
+        return;
+    }
+    // Accept both the nested {"data":{...}} form and a flattened {...} form.
+    JsonObject data   = doc.containsKey("data") ? doc["data"].as<JsonObject>() : doc.as<JsonObject>();
+    const char* method = data["method"];
+    JsonObject params  = data["params"].as<JsonObject>();
+
+    if (!data.containsKey("id") || method == nullptr) {
+        Serial.println(F("RPC: ignored - missing id or method"));
+        return;
+    }
+    int reqId = data["id"].as<int>();
+    Serial.printf("RPC: id=%d method=%s\n", reqId, method);
+
+    if (strcmp(method, "arm_set") == 0) {
+        const char* state = params["state"] | "";
+        if (strcmp(state, "arm") == 0) {
+            transfer_mqtt_data("Home arm");
+            publish_system_state("ARMED", "info/mode", true);
+            rpc_reply_ok(reqId, "{\"state\":\"armed\"}");
+        } else if (strcmp(state, "disarm") == 0) {
+            transfer_mqtt_data("Disarm");
+            publish_system_state("DISARMED", "info/mode", true);
+            rpc_reply_ok(reqId, "{\"state\":\"disarmed\"}");
+        } else {
+            rpc_reply_err(reqId, "bad_state");
+        }
+
+    } else if (strcmp(method, "relay_set") == 0) {
+        int relay = params["relay"] | 0;
+        const char* state = params["state"] | "";
+        bool on  = (strcmp(state, "on")  == 0);
+        bool off = (strcmp(state, "off") == 0);
+        if ((relay == 1 || relay == 2) && (on || off)) {
+            char buf[20];
+            snprintf(buf, sizeof(buf), "Relay %d %s", relay, on ? "on" : "off");
+            transfer_mqtt_data(buf);   // status readback is published on cmd/relay<N>/status
+            char result[40];
+            snprintf(result, sizeof(result), "{\"relay\":%d,\"state\":\"%s\"}", relay, on ? "on" : "off");
+            rpc_reply_ok(reqId, result);
+        } else {
+            rpc_reply_err(reqId, "bad_params");
+        }
+
+    } else if (strcmp(method, "siren_set") == 0) {
+        const char* state = params["state"] | "";
+        bool on = (strcmp(state, "on") == 0);
+        char cmdBuff[20];
+        snprintf(cmdBuff, sizeof(cmdBuff), "siren=%d", on ? 1 : 0);
+        transfer_mqtt_data(cmdBuff);
+        char result[24];
+        snprintf(result, sizeof(result), "{\"state\":\"%s\"}", on ? "on" : "off");
+        rpc_reply_ok(reqId, result);
+
+    } else if (strcmp(method, "sms_send") == 0) {
+        const char* tp  = params["tp"]  | "";
+        const char* msg = params["msg"] | "";
+        if (tp[0] && msg[0]) {
+            creatSMS(msg, 4, tp);
+            rpc_reply_ok(reqId, "{\"status\":\"queued\"}");
+        } else {
+            rpc_reply_err(reqId, "bad_params");
+        }
+
+    } else if (strcmp(method, "alarm_trigger") == 0) {
+        transfer_mqtt_data("Alarm_call");
+        rpc_reply_ok(reqId, "{\"status\":\"started\"}");
+
+    } else if (strcmp(method, "chime") == 0) {
+        transfer_mqtt_data("chime1");
+        rpc_reply_ok(reqId, nullptr);
+
+    } else if (strcmp(method, "ota_mqtt") == 0 || strcmp(method, "ota_mqtt_fs") == 0) {
+        bool is_fs = (strcmp(method, "ota_mqtt_fs") == 0);
+        if (TasksOTA::active()) {
+            rpc_reply_err(reqId, "ota_in_progress");
+            Serial.println(F("RPC: OTA ignored - already running/paused"));
+            return;
+        }
+        // ACK "started" now (TB RPC caller times out ~8 s); service() runs the
+        // chunked download on this task after this callback returns.
+        TasksOTA::request(is_fs);
+        rpc_reply_ok(reqId, "{\"status\":\"started\"}");
+        Serial.printf("RPC: OTA %s started\n", is_fs ? "fs" : "fw");
+
+    } else {
+        Serial.printf("RPC: unknown method '%s'\n", method);
+        rpc_reply_err(reqId, "unknown_method");
+    }
 }
 
 void callback(char *topic, byte *payload, unsigned int length) {
@@ -235,6 +375,11 @@ void callback(char *topic, byte *payload, unsigned int length) {
     Serial.print(F("Message arrived in topic: "));
     Serial.println(topic);
 #endif
+
+    // OTA meta/chunk responses bypass the normal cmd dispatch below.
+    if (TasksOTA::consume(topic, payload, length)) {
+        return;
+    }
 
     char my_topic[100];
     uint8_t mac[6];
@@ -252,117 +397,12 @@ void callback(char *topic, byte *payload, unsigned int length) {
     Serial.println(byteRead);
 #endif
 
+    // All device ACTIONS arrive on the single two-way RPC channel.
     memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
+    sprintf_P(my_topic, PSTR("blackwire/%s/rpc/req"), device_id_macStr);
 
     if (strcmp(topic, my_topic) == 0) {
-        DynamicJsonDocument jsonDoc(256);
-        DeserializationError err = deserializeJson(jsonDoc, payload, length);
-
-        if (err) {
-#ifdef _DEBUG
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(err.c_str());
-#endif
-            return;
-        }
-
-        if (!jsonDoc.containsKey("cmd")) return;
-
-        const char* cmd = jsonDoc["cmd"];
-        if (jsonDoc.containsKey("data") && jsonDoc["data"].is<JsonObject>()) {
-            JsonObject data = jsonDoc["data"];
-
-            if (strncmp(cmd, "mod", 3) == 0) {
-                if (data.containsKey("mod")) {
-                    const char* mod = data["mod"];
-                    if (strncmp(mod, "a", 1) == 0) {
-                        transfer_mqtt_data("Home arm");
-                        publish_system_state("ARMED", "info/mode", true);
-                    } else if (strncmp(mod, "d", 1) == 0) {
-                        transfer_mqtt_data("Disarm");
-                        publish_system_state("DISARMED", "info/mode", true);
-                    }
-                }
-            }
-
-            if (strncmp(cmd, "sms", 3) == 0) {
-                if (data.containsKey("msg") && data.containsKey("tp")) {
-                    const char* data_msg = data["msg"];
-                    const char* data_number = data["tp"];
-                    uint8_t data_type = 4;
-                    creatSMS(data_msg, data_type, data_number);
-                }
-            }
-
-            if (strncmp(cmd, "siren", 5) == 0) {
-                int data_duration = data.containsKey("tm") ? data["tm"] : 0;
-                bool data_state = data.containsKey("ste") ? data["ste"] : false;
-                char cmdBuff[20] = "";
-                sprintf_P(cmdBuff, PSTR("siren=%d"), data_state);
-                transfer_mqtt_data(cmdBuff);
-            }
-        }
-
-        if (strncmp(cmd, "alarm", 5) == 0) {
-            transfer_mqtt_data("Alarm_call");
-        } else if (strncmp(cmd, "chime1", 6) == 0) {
-            transfer_mqtt_data(cmd);
-        }
-    }
-
-    // Relay1
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        char payload_buffer[50];
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
-        memcpy(payload_buffer, payload, copy_length);
-        payload_buffer[copy_length] = '\0';
-
-        if (strcmp(payload_buffer, "on") == 0) {
-            transfer_mqtt_data("Relay 1 on");
-        } else if (strcmp(payload_buffer, "off") == 0) {
-            transfer_mqtt_data("Relay 1 off");
-        }
-    }
-
-    // Relay2
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        char payload_buffer[50];
-        unsigned int copy_length = min(length, sizeof(payload_buffer) - 1);
-        memcpy(payload_buffer, payload, copy_length);
-        payload_buffer[copy_length] = '\0';
-
-        if (strcmp(payload_buffer, "on") == 0) {
-            transfer_mqtt_data("Relay 2 on");
-        } else if (strcmp(payload_buffer, "off") == 0) {
-            transfer_mqtt_data("Relay 2 off");
-        }
-    }
-
-    //OTA
-    //sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        // start OTA
-        TasksOTA::markPendingAndReboot(byteRead.c_str(), OtaType::Firmware, otaMqttPublishCb, "info/sys/ota");
-   
-        
-    }
-
-    memset(my_topic, '\0', sizeof(my_topic));
-    sprintf_P(my_topic, PSTR("blackwire/%s/cmd/sys/ota/spiffs"), device_id_macStr);
-
-    if (strcmp(topic, my_topic) == 0) {
-        // start OTA
-        TasksOTA::markPendingAndReboot(byteRead.c_str(), OtaType::Spiffs, otaMqttPublishCb, "info/sys/ota");        
+        handle_rpc(payload, length);
     }
 }
 
@@ -403,24 +443,31 @@ void setup_subscriptions(){
   sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   // Construct the MQTT topic
   char mqttTopic[100];  // Adjust the size as needed
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd"), device_id_macStr);
-    Serial.println(F("setup subscriptions"));    
-    client.subscribe(mqttTopic); // subscribe from the topic
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay1/set"), device_id_macStr);
-    client.subscribe(mqttTopic); // subscribe from the topic
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/relay2/set"), device_id_macStr);
-    client.subscribe(mqttTopic); // subscribe from the topic
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/set"), device_id_macStr);
-    client.subscribe(mqttTopic); // subscribe from the topic
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/firmware"), device_id_macStr);
-    client.subscribe(mqttTopic); // subscribe from the topic
-  sprintf_P(mqttTopic, PSTR("blackwire/%s/cmd/sys/ota/spiffs"), device_id_macStr);
-    client.subscribe(mqttTopic); // subscribe from the topic
-    Serial.println(mqttTopic);    
+    Serial.println(F("setup subscriptions"));
+  // All device ACTIONS arrive on the single two-way RPC channel (arm, relay,
+  // siren, sms, alarm, chime, ota_mqtt, ota_mqtt_fs). The old scattered
+  // cmd/* command topics are retired — the Node-RED bridge now delivers
+  // everything as ThingsBoard RPCs here.
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/rpc/req"), device_id_macStr);
+    client.subscribe(mqttTopic, 1);
+  // Chunked OTA protocol responses (meta + chunk), firmware and fs subtrees.
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/ota/meta/res"), device_id_macStr);
+    client.subscribe(mqttTopic, 1);
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/ota/chunk/res/+"), device_id_macStr);
+    client.subscribe(mqttTopic, 1);
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/otafs/meta/res"), device_id_macStr);
+    client.subscribe(mqttTopic, 1);
+  sprintf_P(mqttTopic, PSTR("blackwire/%s/otafs/chunk/res/+"), device_id_macStr);
+    client.subscribe(mqttTopic, 1);
+    Serial.println(mqttTopic);
    }
 
 
 void mqtt_com_loop() {
+
+  // This is the ONE task allowed to touch `client` during an OTA. Capture its
+  // handle so mqtt_foreign_tx_blocked() can drop foreign-task publishes.
+  if (!g_mqtt_task) g_mqtt_task = xTaskGetCurrentTaskHandle();
 
   if(!mqtt_enable){return;
   }
@@ -428,7 +475,9 @@ void mqtt_com_loop() {
   if (!client.connected()) {
     reconnectMQTT();
   }
-  client.loop(); 
+  client.loop();
+  // Run pending OTA work on THIS task (PubSubClient is single-threaded).
+  TasksOTA::service();
   delay(500);
 }
 

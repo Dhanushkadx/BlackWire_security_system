@@ -37,7 +37,6 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "msg_store.h"
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
-#include "OTA.h"
 #include "tasks_OTA.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
@@ -583,38 +582,22 @@ xMessageBuffer_number = xMessageBufferCreate(xBufferSizeBytes_number );
 xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 
-TasksOTA::bootLoadPending();
+TasksOTA::bootCheck();
 
-if (TasksOTA::isOtaBootMode()) {
-  // Create ONLY WiFi + MQTT + OTA task
-  //xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
-	//xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
-	//xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
-	//xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
-	//xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
-	
-	//xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
-	//xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
-	/* Clear bit 0 and bit 4 in xEventGroup. */
-	//xEventGroupSetBits(EventRTOS_gsm,TASK_4_BIT);/* The bits being cleared. */
-	//vTaskSuspend(Task2_sms);
-} else {
-  // Normal boot: create everything
-  	xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);	
-	xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
-	xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
-	xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
-	xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
-	xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
-	
-	xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
-	xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
-	/* Clear bit 0 and bit 4 in xEventGroup. */
-	xEventGroupSetBits(EventRTOS_gsm,TASK_4_BIT);/* The bits being cleared. */
-	vTaskSuspend(Task2_sms);
-}
- 
+// OTA now runs live on the existing MQTT connection (no reboot-before-flash
+// step), so the full task set always starts.
+xTaskCreatePinnedToCore(Task1code,"Task1",5000,NULL,1,&Task1,0);
+xTaskCreatePinnedToCore(Task3code_lcd,"Task3",5000,NULL,3,&Task3,0);
+xTaskCreatePinnedToCore(Task4code_gsm_ctrl,"Task4",5000,NULL,4,&Task4,1);
+xTaskCreatePinnedToCore(Task7code,"Task7",5000,NULL,5,&Task7,1);
+xTaskCreatePinnedToCore(Task8code,"Task8",10000,NULL,1,&Task8,0);
+xTaskCreatePinnedToCore(Task2code_sms,"Task2",10000,NULL,2,&Task2_sms,1);
+
+xTaskCreatePinnedToCore(Task9code,"Task9",3048,NULL,1,&Task9,1);
+xTaskCreatePinnedToCore(Task10code,"Task10",3524,NULL,1,&Task10,1);
+/* Clear bit 0 and bit 4 in xEventGroup. */
+xEventGroupSetBits(EventRTOS_gsm,TASK_4_BIT);/* The bits being cleared. */
+vTaskSuspend(Task2_sms);
 }
 
 void loop()

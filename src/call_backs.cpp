@@ -910,11 +910,26 @@ bool get_is_GSM_number_call(uint8_t gsm_number_index){
 }
 
 void set_GSM_number_is_call(uint8_t gsm_number_index, bool call_en){
-	
-	/*int ee_address = ADDR_OFFSET_EEPROM_GSM_NUMBERS + (sizeof(GSM_CONTACTS_INFO))*gsm_number_index;
-	EEPROM.get(ee_address,STRUCT_GSM_contact_infor);
-	STRUCT_GSM_contact_infor.call_num=call_en;
-	EEPROM.put(ee_address,STRUCT_GSM_contact_infor);*/
+
+	DynamicJsonDocument docx(JSON_DOC_SIZE_DEVICE_DATA);
+	File fileToRead = SPIFFS.open("/personx.json");
+	if(!fileToRead){
+		Serial.println(F("? failed to open personx.json"));
+		return;
+	}
+	deserializeJson(docx, fileToRead);
+	fileToRead.close();
+	char buff[20];
+	memset(buff, '\0', 20);
+	sprintf(buff, "P%d", gsm_number_index);
+	docx[buff]["call"] = call_en;
+	File fileToWritex = SPIFFS.open("/personx.json",FILE_WRITE);
+	if(!fileToWritex){
+		Serial.println(F("? failed to open personx.json"));
+		return;
+	}
+	serializeJson(docx, fileToWritex);
+	fileToWritex.close();
 }
 
 bool get_is_GSM_number_sms(uint8_t gsm_number_index){
@@ -958,11 +973,26 @@ uint8_t get_GSM_number_security_level(uint8_t gsm_number_index){
 }
 
 void set_GSM_number_is_sms(uint8_t gsm_number_index, bool sms_en){
-	
-	/*int ee_address = ADDR_OFFSET_EEPROM_GSM_NUMBERS + (sizeof(GSM_CONTACTS_INFO))*gsm_number_index;
-	EEPROM.get(ee_address,STRUCT_GSM_contact_infor);
-	STRUCT_GSM_contact_infor.sms_num=sms_en;
-	EEPROM.put(ee_address,STRUCT_GSM_contact_infor);*/
+
+	DynamicJsonDocument docx(JSON_DOC_SIZE_DEVICE_DATA);
+	File fileToRead = SPIFFS.open("/personx.json");
+	if(!fileToRead){
+		Serial.println(F("? failed to open personx.json"));
+		return;
+	}
+	deserializeJson(docx, fileToRead);
+	fileToRead.close();
+	char buff[20];
+	memset(buff, '\0', 20);
+	sprintf(buff, "P%d", gsm_number_index);
+	docx[buff]["sms"] = sms_en;
+	File fileToWritex = SPIFFS.open("/personx.json",FILE_WRITE);
+	if(!fileToWritex){
+		Serial.println(F("? failed to open personx.json"));
+		return;
+	}
+	serializeJson(docx, fileToWritex);
+	fileToWritex.close();
 }
 
 void get_EVENT_infor(uint8_t event_index, char*event_buffer, uint8_t len){

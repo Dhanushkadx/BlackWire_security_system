@@ -1,6 +1,6 @@
 #ifndef _MQTT_BROKER_H
 #define _MQTT_BROKER_H
-//#define MQTT_SECURE
+#define MQTT_SECURE
 #define _DEBUG
 #include "Arduino.h"
 #include "typex.h"
@@ -13,7 +13,6 @@
 #include "gsm_broker.h"
 #include "config_manager.h"
 #include "pixel_blink_module.h"
-#include "OTA.h"
 #include "tasks_OTA.h"
 
 extern "C" {
@@ -36,5 +35,9 @@ void transfer_mqtt_data(const char* msg);
 void send_rfid_state_update_to_mqtt(const char* rfid);
 void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n );
 void publish_network_info();
+// True when an OTA is active AND the caller is NOT the MQTT task — such a caller
+// must NOT touch `client` (PubSubClient is single-threaded). Guards every
+// foreign-task publish path.
+bool mqtt_foreign_tx_blocked();
 static bool otaMqttPublishCb(const char* topic, const char* payload, bool retain);
 #endif

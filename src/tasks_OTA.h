@@ -3,7 +3,22 @@
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 
-enum class OtaType : uint8_t { Firmware = 0, Spiffs = 1 };
+// ── OTA outcome ────────────────────────────────────────────────────────────
+// OTA_OK is reported after a reboot (the run itself never returns on success,
+// it reboots); any other value is a failure already reported on the status
+// topic.
+enum class OtaResult : uint8_t {
+  OK = 0,
+  PAUSED,
+  ERR_META,
+  ERR_BEGIN,
+  ERR_TIMEOUT,
+  ERR_WRITE,
+  ERR_SHA,
+  ERR_END,
+  ERR_FS_SIZE,
+  ERR_TARGET,
+};
 
 // You provide this callback to publish MQTT status messages.
 // Return true if published/queued successfully.
@@ -11,33 +26,54 @@ using OtaMqttPublishCb = bool (*)(const char* topic, const char* payload, bool r
 
 namespace TasksOTA {
 
-  // Must be called once after SPIFFS is mounted (SPIFFS.begin) very early in boot.
-  // It loads any pending OTA request from /ota_req.bin into RAM.
-  void bootLoadPending();
-
-  // Returns true if device should boot in "OTA minimal mode"
-  bool isOtaBootMode();
-
-  // Called from MQTT callback in normal mode:
-  // 1) stores URL + marks pending in SPIFFS
-  // 2) (optional) publishes "restarting_for_ota"
-  // 3) restarts ESP
-  bool markPendingAndReboot(const char* url,
-                            OtaType type,
-                            OtaMqttPublishCb pubCb,
-                            const char* statusTopic);
-
-  // Start OTA subsystem task (queue + task). Call after WiFi is up.
+  // Start the OTA subsystem task (queue + task). Call once after MQTT is set up
+  // (mirrors the existing call site in reconnectMQTT()).
   bool begin(OtaMqttPublishCb pubCb,
              const char* statusTopic,
              uint32_t stackBytes = 12288,
-             UBaseType_t priority = (configMAX_PRIORITIES - 1),
-             BaseType_t core = 1);
+             UBaseType_t priority = 1,
+             BaseType_t core = 0);
 
-  // In OTA boot mode: call this AFTER MQTT is connected to trigger download.
-  // It clears the pending flag first (to avoid reboot loop), then runs OTA.
-  bool startFromPending();
+  // Feed EVERY inbound MQTT message here from callback() BEFORE the normal
+  // per-topic dispatch. During an active OTA it consumes the raw-binary
+  // chunk/res and the JSON meta/res replies and returns true; otherwise
+  // returns false (always false when no OTA is running), so it's safe to
+  // call unconditionally for every message.
+  bool consume(const char* topic, const uint8_t* payload, unsigned int len);
 
-  // Optional: query
+  // Trigger a fresh OTA (call from the MQTT cmd/sys/ota/firmware|spiffs
+  // handlers, which run inside client.loop()). Only latches the request —
+  // service() starts the actual session on the next MQTT-task iteration.
+  // Returns false if an OTA is already active/paused or one is already latched.
+  bool request(bool is_fs);
+
+  // Run pending OTA work on the MQTT task. Call once per mqtt_com_loop()
+  // iteration, AFTER client.loop(). PubSubClient is single-threaded, so the
+  // whole OTA must run here, never on a side task.
+  void service();
+
+  // Call from reconnectMQTT() after a successful (re)connect: resumes a
+  // paused OTA (re-subscribes, re-does the meta handshake, continues the
+  // chunk pull from the saved offset) if one is pending.
+  bool resumeIfPaused();
+
+  // True while an OTA is paused waiting for the MQTT link to recover.
+  bool pending();
+
+  // True while an OTA session exists (running OR paused).
+  bool active();
+
+  // Alias for active() kept for API continuity.
   bool inProgress();
+
+  // Call once, early in setup(): latches the NVS boot-outcome markers left by
+  // a previous OTA (success / interrupted) so bootReportIfNeeded() can report
+  // them once MQTT is back up.
+  void bootCheck();
+
+  // Call right after a successful MQTT (re)connect: publishes UPDATED /
+  // FAILED "aborted" for the previous boot's OTA outcome, if any. No-op if
+  // there was nothing to report.
+  void bootReportIfNeeded();
+
 }
