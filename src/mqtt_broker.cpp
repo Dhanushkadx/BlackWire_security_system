@@ -308,6 +308,7 @@ static void handle_rpc(byte* payload, unsigned int length) {
         }
 
     } else if (strcmp(method, "relay_set") == 0) {
+#ifdef GSM_MINI_BOARD_V3
         int relay = params["relay"] | 0;
         const char* state = params["state"] | "";
         bool on  = (strcmp(state, "on")  == 0);
@@ -322,6 +323,10 @@ static void handle_rpc(byte* payload, unsigned int length) {
         } else {
             rpc_reply_err(reqId, "bad_params");
         }
+#else
+        // No auxiliary relays wired on this board (e.g. GSM_PULSEX_IOT_BOARD).
+        rpc_reply_err(reqId, "not_supported");
+#endif
 
     } else if (strcmp(method, "siren_set") == 0) {
         const char* state = params["state"] | "";
