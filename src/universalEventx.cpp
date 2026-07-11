@@ -50,11 +50,58 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
         if(setJson_key_bool("/config.json", "wifiap_en", true)){
             Serial.println(F("AP setup ok"));
         }
-		Serial.println(F("Restart in 5 sec"));        
+		Serial.println(F("Restart in 5 sec"));
         delay(5000);
 		ESP.restart();
 	}
-	
+
+	// Set the default WiFi STA network:  wifi=<SSID>,<PASSWORD>
+	// Split on the FIRST comma only: SSID may not contain a comma, the password
+	// may contain anything (including commas). Saves to config.json and reboots
+	// so the new network is used going forward.
+	if (strncmp("wifi=",smsbuffer,5)==0)
+	{
+		ret_value = 1;
+		if (systemConfig.cli_access_level<2){ creatSMS("Unauthorized action",3,0); return ret_value; }
+
+		const char* ssid_start = smsbuffer + 5;
+		const char* comma = strchr(ssid_start, ',');
+		if (comma == NULL){
+			creatSMS("Use: wifi=SSID,PASSWORD",3,0);
+			return ret_value;
+		}
+		size_t ssid_len = comma - ssid_start;
+		const char* pass_start = comma + 1;
+		size_t pass_len = strlen(pass_start);
+
+		// Validate against the storage buffers (SSID<=32, WPA2 pass<=63).
+		if (ssid_len == 0 || ssid_len > sizeof(systemConfig.wifissid_sta)-1){
+			creatSMS("SSID length invalid (1-32)",3,0);
+			return ret_value;
+		}
+		if (pass_len > sizeof(systemConfig.wifipass)-1){
+			creatSMS("Password too long (max 63)",3,0);
+			return ret_value;
+		}
+
+		char new_ssid[33];
+		strlcpy(new_ssid, ssid_start, ssid_len + 1);   // ssid_len chars + NUL
+
+		if (setJson_key_char("/config.json","wifissid_sta", new_ssid)
+			&& setJson_key_char("/config.json","wifipass", pass_start)
+			&& setJson_key_bool("/config.json","wifi_sta_en", true)){
+			Serial.printf_P(PSTR("WiFi network set: %s\n"), new_ssid);
+			creatSMS("WiFi saved. Rebooting to new network.",2,0);
+		} else {
+			Serial.println(F("WiFi save failed"));
+			creatSMS("WiFi save failed",3,0);
+			return ret_value;
+		}
+		Serial.println(F("Restart in 5 sec"));
+		delay(5000);
+		ESP.restart();
+	}
+
 	if (strncmp("psw=1234",smsbuffer,3)==0)
 	{
 		ret_value = 1;

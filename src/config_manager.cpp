@@ -84,8 +84,40 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
     fileToWrite.close(); // Close the file after writing
     return true; // Return true if successful
 }
-	 
- void configLoad(uint8_t mode){	 
+
+// Set a string key under "sysconf" in a JSON config file (mirrors setJson_key_bool).
+bool setJson_key_char(const char* path, const char* jkey, const char* value) {
+    DynamicJsonDocument doc(JSON_DOC_SIZE_CONFIG_DATA);
+
+    File fileToRead = SPIFFS.open(path, FILE_READ);
+    if (!fileToRead) {
+        Serial.println(F("No file found"));
+        return false;
+    }
+    DeserializationError error = deserializeJson(doc, fileToRead);
+    fileToRead.close();
+    if (error) {
+        Serial.println(F("Failed to read config file"));
+        return false;
+    }
+
+    doc["sysconf"][jkey] = value;
+
+    File fileToWrite = SPIFFS.open(path, FILE_WRITE);
+    if (!fileToWrite) {
+        Serial.println(F("Failed to open file for writing"));
+        return false;
+    }
+    if (serializeJson(doc, fileToWrite) == 0) {
+        Serial.println(F("Failed to write to file"));
+        fileToWrite.close();
+        return false;
+    }
+    fileToWrite.close();
+    return true;
+}
+
+ void configLoad(uint8_t mode){
 
 	switch (mode)
 	{
@@ -159,9 +191,9 @@ bool setJson_key_bool(const char* path, const char* jkey, bool state) {
 
 		if(systemConfig.wifi_sta_en==true){
 		const char* ssid = doc["sysconf"]["wifissid_sta"];
-		strcpy(systemConfig.wifissid_sta, ssid);	
+		strlcpy(systemConfig.wifissid_sta, ssid, sizeof(systemConfig.wifissid_sta));
 		const char* pss = doc["sysconf"]["wifipass"];
-		strcpy(systemConfig.wifipass, pss);	
+		strlcpy(systemConfig.wifipass, pss, sizeof(systemConfig.wifipass));
 		Serial.println(F("WiFi Password Set"));
 		const char* installerPW = doc["sysconf"]["installer_pass"];
 		strcpy(systemConfig.installer_pass, installerPW);

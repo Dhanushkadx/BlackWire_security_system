@@ -58,8 +58,8 @@ typedef struct systemConfig{
 	bool siren_en;
 	eMain_state last_system_state;
 	char wifissid_ap[25]; //":"dxdxdxdxdx",
-	char wifissid_sta[25]; //":"dxdxdxdxdx",
-	char wifipass[25]; //": "xxxxxxxxxx",
+	char wifissid_sta[33]; // WiFi SSID, up to 32 chars + NUL
+	char wifipass[64];     // WiFi WPA2 passphrase, up to 63 chars + NUL
 	bool wifi_sta_en;
 	bool wifiap_en;
 	bool mqtt_en;

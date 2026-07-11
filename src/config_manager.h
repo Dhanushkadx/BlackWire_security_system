@@ -24,6 +24,7 @@
 	 
 void configLoad(uint8_t mode);
 bool setJson_key_bool(const char* path, const char* jkey, bool state);
+bool setJson_key_char(const char* path, const char* jkey, const char* value);
 bool getJson_key_char(const char* path, const char* jkey, char*buffer, uint32_t size);	 
 bool getJson_key_int(const char* path, const char* jkey, uint32_t *number);
 void configReset();
