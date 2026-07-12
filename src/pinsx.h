@@ -2,13 +2,13 @@
 #define _PINSX_H
 
 // Firmware version reported in the OTA "updated" boot message. Bump on release.
-#define FW_VER "1.0.0"
+#define FW_VER "1.2.0"
 
 //PULSEX_IOT_BOARD
 //#define GSM_MINI_BOARD
-#define GSM_PULSEX_IOT_BOARD
+//#define GSM_PULSEX_IOT_BOARD
 //#define GSM_MINI_BOARD_V2
-//#define GSM_MINI_BOARD_V3
+#define GSM_MINI_BOARD_V3
 
 #ifdef GSM_MINI_BOARD_V2
 #define PIN_BATTERY 18

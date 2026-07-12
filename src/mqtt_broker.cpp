@@ -275,6 +275,34 @@ static void rpc_reply_err(int reqId, const char* code) {
     publish_system_state(res, "rpc/res", false);
 }
 
+// Build + publish the full contact list (all 8 slots). Too big for
+// rpc_reply_ok's fixed buffer, so it assembles the whole response with
+// ArduinoJson. Reads personx.json once. call/sms are read the same way the
+// getters do, so the reported flags match how the device actually uses them.
+static void rpc_reply_contacts(int reqId) {
+    DynamicJsonDocument src(2048);
+    File f = SPIFFS.open("/personx.json", FILE_READ);
+    if (f) { deserializeJson(src, f); f.close(); }
+
+    DynamicJsonDocument out(2048);
+    out["reqId"]   = reqId;
+    out["success"] = true;
+    JsonObject result = out.createNestedObject("result");
+    JsonArray  arr    = result.createNestedArray("contacts");
+    for (int i = 1; i <= 8; i++) {
+        char key[8];
+        snprintf(key, sizeof(key), "P%d", i);
+        JsonObject c = arr.createNestedObject();
+        c["slot"]   = i;
+        c["number"] = src[key]["number"] | "N";
+        c["call"]   = (bool)src[key]["call"];
+        c["sms"]    = (bool)src[key]["sms"];
+    }
+    String s;
+    serializeJson(out, s);
+    publish_system_state(s.c_str(), "rpc/res", false);
+}
+
 static void handle_rpc(byte* payload, unsigned int length) {
     DynamicJsonDocument doc(512);
     if (deserializeJson(doc, payload, length)) {
@@ -355,6 +383,26 @@ static void handle_rpc(byte* payload, unsigned int length) {
     } else if (strcmp(method, "chime") == 0) {
         transfer_mqtt_data("chime1");
         rpc_reply_ok(reqId, nullptr);
+
+    } else if (strcmp(method, "contact_set") == 0) {
+        int slot = params["slot"] | 0;
+        const char* number = params["number"] | "";
+        if (slot < 1 || slot > 8) {
+            rpc_reply_err(reqId, "bad_slot");
+        } else if (!phone_number_validat(number)) {
+            rpc_reply_err(reqId, "bad_number");
+        } else {
+            set_GSM_number((uint8_t)slot, number);
+            // Optional flags: enable/disable call and/or SMS for this slot too.
+            if (params.containsKey("call")) set_GSM_number_is_call((uint8_t)slot, params["call"].as<bool>());
+            if (params.containsKey("sms"))  set_GSM_number_is_sms((uint8_t)slot, params["sms"].as<bool>());
+            char result[64];
+            snprintf(result, sizeof(result), "{\"slot\":%d,\"number\":\"%s\"}", slot, number);
+            rpc_reply_ok(reqId, result);
+        }
+
+    } else if (strcmp(method, "contacts_get") == 0) {
+        rpc_reply_contacts(reqId);
 
     } else if (strcmp(method, "ota_mqtt") == 0 || strcmp(method, "ota_mqtt_fs") == 0) {
         bool is_fs = (strcmp(method, "ota_mqtt_fs") == 0);
