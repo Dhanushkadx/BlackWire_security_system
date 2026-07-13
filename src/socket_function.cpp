@@ -22,7 +22,10 @@ void notifyClients_pageInfo() {
 	{
 		readings["P1"] = "DEACTIVE";
 	}
-	if(!client.connected()){
+	// Read the cached flag — NEVER call client.connected() here: this runs on
+	// loopTask, and touching the (TLS) MQTT client off the MQTT task corrupts the
+	// session (invalid SSL record -> crash), especially during an OTA.
+	if(!g_mqtt_online){
 		readings["P9"] = "DISCONNECTED";
 	}
 	else{

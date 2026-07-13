@@ -39,5 +39,9 @@ void publish_network_info();
 // must NOT touch `client` (PubSubClient is single-threaded). Guards every
 // foreign-task publish path.
 bool mqtt_foreign_tx_blocked();
+// Cached MQTT link state maintained by the MQTT task. Other tasks (e.g. the
+// websocket page builder) MUST read this instead of calling client.connected(),
+// which is not thread-safe on the TLS transport.
+extern volatile bool g_mqtt_online;
 static bool otaMqttPublishCb(const char* topic, const char* payload, bool retain);
 #endif

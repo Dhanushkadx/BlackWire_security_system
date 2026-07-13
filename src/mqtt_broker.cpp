@@ -66,6 +66,14 @@ PubSubClient client(espClient);
 // every other task's telemetry publish is dropped for the download window.
 TaskHandle_t g_mqtt_task = nullptr;   // captured in mqtt_com_loop()
 
+// Cached MQTT link state, maintained ONLY by the MQTT task. Any other task that
+// wants to know if MQTT is up (e.g. the websocket page builder on loopTask) MUST
+// read this flag and MUST NOT call client.connected() itself — on the secure
+// (WiFiClientSecure/TLS) transport, connected() does an SSL read that mutates the
+// record layer, so a second task touching it corrupts the session (invalid SSL
+// record -> pbuf double-free crash), especially while an OTA saturates the link.
+volatile bool g_mqtt_online = false;
+
 bool mqtt_foreign_tx_blocked(){
   return TasksOTA::active() && (xTaskGetCurrentTaskHandle() != g_mqtt_task);
 }
@@ -139,6 +147,7 @@ void reconnectMQTT() {
 #endif
     if (client.connect(client_id.c_str(), mqtt_username, mqtt_password,lastwill_topic, 1, true, "offline")) {
         Serial.println(F("Connected to MQTT broker."));
+        g_mqtt_online = true;
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         setup_subscriptions();
@@ -525,7 +534,11 @@ void mqtt_com_loop() {
   if(!mqtt_enable){return;
   }
 
-  if (!client.connected()) {
+  // Only THIS (MQTT) task may touch `client`; refresh the cached link state that
+  // other tasks read instead of calling client.connected() themselves.
+  bool conn = client.connected();
+  g_mqtt_online = conn;
+  if (!conn) {
     reconnectMQTT();
   }
   client.loop();
