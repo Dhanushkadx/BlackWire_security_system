@@ -413,6 +413,19 @@ static void handle_rpc(byte* payload, unsigned int length) {
     } else if (strcmp(method, "contacts_get") == 0) {
         rpc_reply_contacts(reqId);
 
+    } else if (strcmp(method, "contact_clear") == 0) {
+        int slot = params["slot"] | 0;
+        if (slot < 1 || slot > 8) {
+            rpc_reply_err(reqId, "bad_slot");
+        } else {
+            set_GSM_number((uint8_t)slot, "N");          // "N" = empty-slot sentinel
+            set_GSM_number_is_call((uint8_t)slot, false);
+            set_GSM_number_is_sms((uint8_t)slot, false);
+            char result[32];
+            snprintf(result, sizeof(result), "{\"slot\":%d,\"cleared\":true}", slot);
+            rpc_reply_ok(reqId, result);
+        }
+
     } else if (strcmp(method, "ota_mqtt") == 0 || strcmp(method, "ota_mqtt_fs") == 0) {
         bool is_fs = (strcmp(method, "ota_mqtt_fs") == 0);
         if (TasksOTA::active()) {
