@@ -487,20 +487,35 @@ void TasksOTA::bootCheck() {
 }
 
 void TasksOTA::bootReportIfNeeded() {
+    if (!s_booted_after_ota && !s_booted_aborted) return;
+
+    // The post-reboot terminal state goes on the SAME state topic the download
+    // used (ota/state for app, otafs/state for fs) — that is what the Node-RED
+    // flow subscribes to and maps to TB fw_state/fs_state. (The old info/sys/ota
+    // report was not seen by the OTA flow.) No session is active here, so build
+    // the topic from the persisted image type.
+    char mac[13];
+    device_id_mac(mac, sizeof(mac));
+    char topic[OTA_TOPIC_LEN];
+    snprintf(topic, sizeof(topic), "blackwire/%s/%s/state", mac, s_boot_was_fs ? "otafs" : "ota");
+
     if (s_booted_after_ota) {
         s_booted_after_ota = false;
         char msg[64];
         if (s_boot_was_fs) {
-            snprintf(msg, sizeof(msg), "{\"ota\":\"updated\",\"fs\":true,\"version\":\"%s\"}", s_boot_fsver);
+            // fs terminal state -> otafs/state; fs_version is the persisted meta label.
+            snprintf(msg, sizeof(msg), "{\"state\":\"UPDATED\",\"fs_version\":\"%s\"}", s_boot_fsver);
         } else {
-            snprintf(msg, sizeof(msg), "{\"ota\":\"updated\",\"fs\":false,\"version\":\"%s\"}", FW_VER);
+            // app terminal state -> ota/state. Minimal payload: Node-RED injects
+            // current_fw_title + current_fw_version from the package it served
+            // (our internal FW_VER must NOT be sent — it may not match TB's
+            // package version and would leave TB stuck on "update pending").
+            snprintf(msg, sizeof(msg), "{\"state\":\"UPDATED\"}");
         }
-        publishStatus(msg);
+        client.publish(topic, msg);
     }
     if (s_booted_aborted) {
         s_booted_aborted = false;
-        char msg[48];
-        snprintf(msg, sizeof(msg), "{\"ota\":\"failed\",\"err\":\"aborted\",\"fs\":%s}", s_boot_was_fs ? "true" : "false");
-        publishStatus(msg);
+        client.publish(topic, "{\"state\":\"FAILED\",\"err\":\"aborted\"}");
     }
 }
