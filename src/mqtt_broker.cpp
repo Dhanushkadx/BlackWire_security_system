@@ -306,10 +306,110 @@ static void rpc_reply_contacts(int reqId) {
         c["number"] = src[key]["number"] | "N";
         c["call"]   = (bool)src[key]["call"];
         c["sms"]    = (bool)src[key]["sms"];
+        c["remID"]  = src[key]["remID"] | "";   // bound remote keyfob, "" = none
     }
     String s;
     serializeJson(out, s);
     publish_system_state(s.c_str(), "rpc/res", false);
+}
+
+// Zone attributes live in /zone_data_8.json as z00..z07 (this board = 8 zones).
+// Sending all zones' full params in one RPC is wasteful, so the dashboard
+// selects one zone and we read/patch just that zone (name + flags) here.
+#define ZONE_FILE  "/zone_data_8.json"
+#define ZONE_COUNT 8
+#define ZONE_NAME_MAX 10   // device_name[11] in typex.h -> 10 chars + NUL
+
+// Copy the flag/name fields of one zone object into the RPC result. Shared by
+// rpc_reply_zone (single) so the set-echo and the get return the same shape.
+static void zone_fill_result(JsonObject r, JsonObject z, int zone) {
+    r["zone"] = zone;
+    r["n"]   = z["n"] | "";
+    r["by"]  = (bool)z["by"];   // bypass
+    r["ed"]  = (bool)z["ed"];   // entry delay
+    r["xd"]  = (bool)z["xd"];   // exit delay
+    r["x24"] = (bool)z["x24"];  // 24-hour
+    r["pm"]  = (bool)z["pm"];   // perimeter
+    r["sl"]  = (bool)z["sl"];   // silent / chime
+    r["rf"]  = (bool)z["rf"];   // RF sensor
+}
+
+// Read one zone from SPIFFS and publish its full params on rpc/res.
+static void rpc_reply_zone(int reqId, int zone) {
+    DynamicJsonDocument src(JSON_DOC_SIZE_ZONE_DATA);
+    File f = SPIFFS.open(ZONE_FILE, FILE_READ);
+    if (f) { deserializeJson(src, f); f.close(); }
+    char zk[6];
+    snprintf(zk, sizeof(zk), "z%02d", zone);
+
+    DynamicJsonDocument out(512);
+    out["reqId"]   = reqId;
+    out["success"] = true;
+    JsonObject r = out.createNestedObject("result");
+    zone_fill_result(r, src[zk].as<JsonObject>(), zone);
+    String s;
+    serializeJson(out, s);
+    publish_system_state(s.c_str(), "rpc/res", false);
+}
+
+// Lightweight list — zone number + name only — so the dashboard can populate a
+// zone selector without pulling every zone's full params at once.
+static void rpc_reply_zones(int reqId) {
+    DynamicJsonDocument src(JSON_DOC_SIZE_ZONE_DATA);
+    File f = SPIFFS.open(ZONE_FILE, FILE_READ);
+    if (f) { deserializeJson(src, f); f.close(); }
+
+    DynamicJsonDocument out(1024);
+    out["reqId"]   = reqId;
+    out["success"] = true;
+    JsonObject r   = out.createNestedObject("result");
+    JsonArray  arr = r.createNestedArray("zones");
+    for (int i = 0; i < ZONE_COUNT; i++) {
+        char zk[6];
+        snprintf(zk, sizeof(zk), "z%02d", i);
+        JsonObject o = arr.createNestedObject();
+        o["zone"] = i;
+        o["n"]    = src[zk]["n"] | "";
+    }
+    String s;
+    serializeJson(out, s);
+    publish_system_state(s.c_str(), "rpc/res", false);
+}
+
+// RF (wireless sensor/remote) IDs are stored per-zone in /rfid.json as z00..zNN
+// -> 10-char code strings. Same select-a-zone pattern as the zone attributes.
+#define RFID_FILE "/rfid.json"
+#define RFID_MAX  10   // matches the fixed 10-char codes already stored
+
+// Read one zone's RF ID and publish it on rpc/res. Reads the file directly
+// rather than via get_device_RFID() to avoid its fixed 10-byte return buffer.
+static void rpc_reply_rfid(int reqId, int zone) {
+    DynamicJsonDocument src(JSON_DOC_SIZE_ZONE_DATA);
+    File f = SPIFFS.open(RFID_FILE, FILE_READ);
+    if (f) { deserializeJson(src, f); f.close(); }
+    char zk[6];
+    snprintf(zk, sizeof(zk), "z%02d", zone);
+    const char* id = src[zk] | "";
+    char result[48];
+    snprintf(result, sizeof(result), "{\"zone\":%d,\"rfid\":\"%s\"}", zone, id);
+    rpc_reply_ok(reqId, result);
+}
+
+// Remote (keyfob) IDs are bound to a person slot (1..8) in /personx.json under
+// "remID" -> 10-char code. Get/set one remote at a time (the dashboard reuses
+// the contact slot selector; contacts_get already reports each slot's remID).
+#define REMOTE_MAX 10   // remote_rf_id[10] in typex.h
+
+static void rpc_reply_remote(int reqId, int slot) {
+    DynamicJsonDocument src(JSON_DOC_SIZE_USER_DATA);
+    File f = SPIFFS.open("/personx.json", FILE_READ);
+    if (f) { deserializeJson(src, f); f.close(); }
+    char key[8];
+    snprintf(key, sizeof(key), "P%d", slot);
+    const char* id = src[key]["remID"] | "";
+    char result[48];
+    snprintf(result, sizeof(result), "{\"slot\":%d,\"remID\":\"%s\"}", slot, id);
+    rpc_reply_ok(reqId, result);
 }
 
 static void handle_rpc(byte* payload, unsigned int length) {
@@ -424,6 +524,80 @@ static void handle_rpc(byte* payload, unsigned int length) {
             char result[32];
             snprintf(result, sizeof(result), "{\"slot\":%d,\"cleared\":true}", slot);
             rpc_reply_ok(reqId, result);
+        }
+
+    } else if (strcmp(method, "zones_get") == 0) {
+        // Zone selector list (number + name only).
+        rpc_reply_zones(reqId);
+
+    } else if (strcmp(method, "zone_get") == 0) {
+        int zone = params["zone"] | -1;
+        if (zone < 0 || zone >= ZONE_COUNT) rpc_reply_err(reqId, "bad_zone");
+        else rpc_reply_zone(reqId, zone);
+
+    } else if (strcmp(method, "zone_set") == 0) {
+        int zone = params["zone"] | -1;
+        const char* nm = params["n"] | "";
+        if (zone < 0 || zone >= ZONE_COUNT) {
+            rpc_reply_err(reqId, "bad_zone");
+        } else if (params.containsKey("n") && strlen(nm) > ZONE_NAME_MAX) {
+            rpc_reply_err(reqId, "bad_name");
+        } else {
+            // Read-modify-write the single zone file; only the keys present in
+            // params are changed (partial update), the rest are preserved.
+            DynamicJsonDocument zdoc(JSON_DOC_SIZE_ZONE_DATA);
+            File f = SPIFFS.open(ZONE_FILE, FILE_READ);
+            if (f) { deserializeJson(zdoc, f); f.close(); }
+            char zk[6];
+            snprintf(zk, sizeof(zk), "z%02d", zone);
+            JsonObject z = zdoc[zk];
+            if (params.containsKey("n"))   z["n"]   = nm;
+            if (params.containsKey("by"))  z["by"]  = params["by"].as<bool>();
+            if (params.containsKey("ed"))  z["ed"]  = params["ed"].as<bool>();
+            if (params.containsKey("xd"))  z["xd"]  = params["xd"].as<bool>();
+            if (params.containsKey("x24")) z["x24"] = params["x24"].as<bool>();
+            if (params.containsKey("pm"))  z["pm"]  = params["pm"].as<bool>();
+            if (params.containsKey("sl"))  z["sl"]  = params["sl"].as<bool>();
+            if (params.containsKey("rf"))  z["rf"]  = params["rf"].as<bool>();
+            File fw = SPIFFS.open(ZONE_FILE, FILE_WRITE);
+            serializeJson(zdoc, fw);
+            fw.close();
+            load_zones(ZONE_FILE, 0, ZONE_COUNT);  // push new flags to live sensor array
+            rpc_reply_zone(reqId, zone);           // echo back the stored state
+        }
+
+    } else if (strcmp(method, "rfid_get") == 0) {
+        int zone = params["zone"] | -1;
+        if (zone < 0 || zone >= ZONE_COUNT) rpc_reply_err(reqId, "bad_zone");
+        else rpc_reply_rfid(reqId, zone);
+
+    } else if (strcmp(method, "rfid_set") == 0) {
+        int zone = params["zone"] | -1;
+        const char* rfid = params["rfid"] | "";
+        if (zone < 0 || zone >= ZONE_COUNT) {
+            rpc_reply_err(reqId, "bad_zone");
+        } else if (!rfid[0] || strlen(rfid) > RFID_MAX) {
+            rpc_reply_err(reqId, "bad_rfid");
+        } else {
+            set_device_RFID((uint8_t)zone, rfid);  // writes /rfid.json
+            rpc_reply_rfid(reqId, zone);           // echo back the stored id
+        }
+
+    } else if (strcmp(method, "remote_get") == 0) {
+        int slot = params["slot"] | 0;
+        if (slot < 1 || slot > 8) rpc_reply_err(reqId, "bad_slot");
+        else rpc_reply_remote(reqId, slot);
+
+    } else if (strcmp(method, "remote_set") == 0) {
+        int slot = params["slot"] | 0;
+        const char* remID = params["remID"] | "";
+        if (slot < 1 || slot > 8) {
+            rpc_reply_err(reqId, "bad_slot");
+        } else if (!remID[0] || strlen(remID) > REMOTE_MAX) {
+            rpc_reply_err(reqId, "bad_remid");
+        } else {
+            set_remote_RFID((uint8_t)slot, remID);  // writes /personx.json
+            rpc_reply_remote(reqId, slot);          // echo back the stored id
         }
 
     } else if (strcmp(method, "ota_mqtt") == 0 || strcmp(method, "ota_mqtt_fs") == 0) {
