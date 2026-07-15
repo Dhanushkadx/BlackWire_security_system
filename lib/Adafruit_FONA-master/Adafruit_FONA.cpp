@@ -1061,10 +1061,15 @@ bool Adafruit_FONA::sendSMS(char *smsaddr, char *smsmsg) {
   if (!sendCheckReply(F("AT+CMGF=1"), ok_reply))
     return false;
 
-  char sendcmd[30] = "AT+CMGS=\"";
-  strncpy(sendcmd + 9, smsaddr,
-          30 - 9 - 2); // 9 bytes beginning, 2 bytes for close quote + null
-  sendcmd[strlen(sendcmd)] = '\"';
+  // Build  AT+CMGS="<number>"  with a hard NUL guard on the address (the old
+  // code could leave sendcmd unterminated for a long address).
+  char sendcmd[40] = "AT+CMGS=\"";
+  size_t base = strlen(sendcmd);                 // 9
+  strncpy(sendcmd + base, smsaddr, sizeof(sendcmd) - base - 3);
+  sendcmd[sizeof(sendcmd) - 3] = 0;              // force-terminate the address
+  size_t n = strlen(sendcmd);
+  sendcmd[n]     = '\"';
+  sendcmd[n + 1] = 0;
 
   if (!sendCheckReply(sendcmd, F("> ")))
     return false;
@@ -1072,47 +1077,35 @@ bool Adafruit_FONA::sendSMS(char *smsaddr, char *smsmsg) {
   DEBUG_PRINT(F("> "));
   DEBUG_PRINTLN(smsmsg);
 
-  mySerial->println(smsmsg);
-  mySerial->println();
+  // Body then Ctrl-Z. No extra println() — the old code appended CR/LF+CR/LF
+  // INTO the message body.
+  mySerial->print(smsmsg);
   mySerial->write(0x1A);
 
   DEBUG_PRINTLN("^Z");
 
-  if ((_type == FONA3G_A) || (_type == FONA3G_E)||(_type == FONA800L)) {
-    // Eat two sets of CRLF
-    readline(10000);
-     DEBUG_PRINT("Line 1: "); DEBUG_PRINTLN(strlen(replybuffer));
-    readline(10000);
-     DEBUG_PRINT("Line 2: "); DEBUG_PRINTLN(strlen(replybuffer));
+  // Read the terminating response line-by-line and classify strictly:
+  //   +CMGS  or final OK  -> accepted (true)
+  //   +CMS ERROR / ERROR  -> rejected (false)
+  // Fixes the old bug where a slow/absent trailing "OK" read made a message that
+  // was actually accepted (+CMGS already seen) report FAILURE, so the caller
+  // retried and a duplicate SMS was sent. "ERROR" is matched as a whole line so
+  // a message body containing the word can't trip a false failure.
+  uint32_t start = millis();
+  bool accepted = false;
+  while ((millis() - start) < 60000) {
+    uint16_t len = readline(2000);               // one line (~2s max if silent)
+    if (len == 0) {
+      if (accepted) return true;                 // +CMGS seen; OK slow/absent
+      continue;
+    }
+    DEBUG_PRINT("* "); DEBUG_PRINTLN(replybuffer);
+    if (strstr(replybuffer, "+CMS ERROR") != 0) return false;
+    if (strcmp(replybuffer, "ERROR") == 0)      return false;
+    if (strstr(replybuffer, "+CMGS") != 0)      accepted = true;  // wait for OK
+    if (strcmp(replybuffer, "OK") == 0)         return true;
   }
-  uint32_t x=0;
-  while (1)
-  {
-	  delay(1);
-	   readline(20000); // read the +CMGS reply, wait up to 10 seconds!!!
-	   DEBUG_PRINT("Line 3: "); DEBUG_PRINTLN(strlen(replybuffer));
-	   if (strstr(replybuffer, "+CMGS") == 0) {
-		  
-	   }
-	   
-	   else{
-		    break;
-	   }
-	   x++;
-	   if (x>5)
-	   {
-		   return false;
-	   }
-  }
- 
-  readline(1000); // read OK
-   DEBUG_PRINT("* "); DEBUG_PRINTLN(replybuffer);
-
-  if (strcmp(replybuffer, "OK") != 0) {
-    return false;
-  }
-
-  return true;
+  return accepted;                               // timed out: true only if +CMGS
 }
 
 /**********************************************************

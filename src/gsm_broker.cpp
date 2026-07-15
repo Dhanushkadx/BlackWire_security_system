@@ -248,7 +248,7 @@ void ultimate_sms_hadlr() {
             // anti-flood filter doesn't see a burst. Returning early keeps the
             // task free to service the call-task suspend handshake meanwhile.
             // The first recipient goes out immediately (last_send_ms starts 0).
-            #define SMS_SEND_GAP_MS 30000   // 30 s between recipients (tunable)
+            #define SMS_SEND_GAP_MS 5000   // 5 s between recipients (tunable)
             static uint32_t last_send_ms = 0;
             if (millis() - last_send_ms < SMS_SEND_GAP_MS) {
                 break;                      // not time yet — retry next cycle
