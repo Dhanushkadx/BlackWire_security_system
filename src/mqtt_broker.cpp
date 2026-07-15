@@ -233,6 +233,33 @@ void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n ){
     publish_system_state(jsonStr.c_str(),"info/sms",true);
 }
 
+// Report the outcome of an outgoing SMS to TB (via the bridge on info/sms/sent).
+// ok=true means the modem accepted it for sending (AT+CMGS OK) — NOT a delivery
+// receipt. Called from the SMS task; publish_system_state carries the OTA guard.
+void publish_sms_result(bool ok, const char* number, const char* msg, uint8_t type){
+  DynamicJsonDocument doc(300);
+		doc["status"] = ok ? "sent" : "failed";
+		doc["number"] = number;
+		doc["msg"]    = msg;
+		doc["type"]   = type;
+		String jsonStr;
+		serializeJson(doc, jsonStr);
+    publish_system_state(jsonStr.c_str(),"info/sms/sent",false);
+}
+
+// Report the outcome of an alarm voice call to TB (via the bridge on
+// info/call/result). status is one of answered|busy|no_answer|failed; number is
+// the contact dialed, slot is its contact index. Called from the call task.
+void publish_call_result(const char* status, const char* number, int slot){
+  DynamicJsonDocument doc(200);
+		doc["status"] = status;
+		doc["number"] = number;
+		doc["slot"]   = slot;
+		String jsonStr;
+		serializeJson(doc, jsonStr);
+    publish_system_state(jsonStr.c_str(),"info/call/result",false);
+}
+
 void publish_json_to_mqtt(const char* jsonStr){
 
     // During OTA only the MQTT task may touch `client` (see mqtt_foreign_tx_blocked).
@@ -478,11 +505,15 @@ static void handle_rpc(byte* payload, unsigned int length) {
     } else if (strcmp(method, "sms_send") == 0) {
         const char* tp  = params["tp"]  | "";
         const char* msg = params["msg"] | "";
-        if (tp[0] && msg[0]) {
-            creatSMS(msg, 4, tp);
-            rpc_reply_ok(reqId, "{\"status\":\"queued\"}");
-        } else {
+        if (!tp[0] || !msg[0]) {
             rpc_reply_err(reqId, "bad_params");
+        } else if (!phone_number_validat(tp)) {
+            // Reject up front — otherwise the SMS task silently drops a bad
+            // number after we've already replied "queued".
+            rpc_reply_err(reqId, "bad_number");
+        } else {
+            creatSMS(msg, 4, tp);   // type 4 = send to this one number
+            rpc_reply_ok(reqId, "{\"status\":\"queued\"}");
         }
 
     } else if (strcmp(method, "alarm_trigger") == 0) {

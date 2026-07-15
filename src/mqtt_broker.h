@@ -34,6 +34,12 @@ void set_onMQTT_connection(_callbackFunctionType7 pFn);
 void transfer_mqtt_data(const char* msg);
 void send_rfid_state_update_to_mqtt(const char* rfid);
 void publish_incomming_sms_to_mqtt(char* local_smsbuffer, char* n );
+// Outgoing-SMS result telemetry: "sent" (modem accepted, AT+CMGS OK) or
+// "failed" (given up after retries). Published on info/sms/sent for TB.
+void publish_sms_result(bool ok, const char* number, const char* msg, uint8_t type);
+// Alarm-call result telemetry: who we called + the outcome
+// ("answered" | "busy" | "no_answer" | "failed"). Published on info/call/result.
+void publish_call_result(const char* status, const char* number, int slot);
 void publish_network_info();
 // True when an OTA is active AND the caller is NOT the MQTT task — such a caller
 // must NOT touch `client` (PubSubClient is single-threaded). Guards every

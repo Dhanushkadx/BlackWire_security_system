@@ -141,12 +141,17 @@ void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SM
 // }
 
 
+// Max send attempts per number before we give up and report "failed". Without
+// this the state machine retried a failing number forever (spinning the modem).
+#define MAX_SMS_ATTEMPTS 3
+
 void ultimate_sms_hadlr() {
 
     static SMS_t sms;                // Holds the current SMS message being processed
     static int state = 0;            // Tracks current state of the SMS state machine
     static int contact_index = 1;    // Keeps track of which contact to send next (for broadcasts)
     static char num[20];             // Temporary buffer to hold target phone numbers
+    static uint8_t send_attempts = 0;// Retry counter for the number currently being sent
 
     switch (state) {
 
@@ -219,21 +224,35 @@ void ultimate_sms_hadlr() {
         case 2: {  // Send SMS to a single specific number (Type 3 or 4)
 
             waitForMutex_GSM();  // Lock GSM module to ensure safe communication
+            bool ok = fona.sendSMS(num, sms.message);
+            releaseMutex_GSM();
 
-            if (!fona.sendSMS(num, sms.message)) {
-                // Sending failed, release GSM and retry same number next cycle
-                releaseMutex_GSM();
-                state = 2;
-            } else {
-                // SMS sent successfully, release GSM and return to idle
-                releaseMutex_GSM();
+            if (ok) {
+                publish_sms_result(true, num, sms.message, sms.type);  // -> TB telemetry
+                send_attempts = 0;
+                state = 0;                              // sent, back to idle
+            } else if (++send_attempts >= MAX_SMS_ATTEMPTS) {
+                publish_sms_result(false, num, sms.message, sms.type); // gave up
+                send_attempts = 0;
                 state = 0;
             }
+            // else: keep state == 2 to retry the same number next cycle
 
         }
         break;
 
         case 3: {  // Broadcast SMS to multiple numbers in the contact list
+
+            // --- inter-send spacing gate (non-blocking) ---
+            // Wait SMS_SEND_GAP_MS between broadcast recipients so the carrier's
+            // anti-flood filter doesn't see a burst. Returning early keeps the
+            // task free to service the call-task suspend handshake meanwhile.
+            // The first recipient goes out immediately (last_send_ms starts 0).
+            #define SMS_SEND_GAP_MS 30000   // 30 s between recipients (tunable)
+            static uint32_t last_send_ms = 0;
+            if (millis() - last_send_ms < SMS_SEND_GAP_MS) {
+                break;                      // not time yet — retry next cycle
+            }
 
             // Get the next contact number from your contact list
             strncpy(num, get_GSM_number(contact_index), sizeof(num) - 1);
@@ -253,20 +272,38 @@ void ultimate_sms_hadlr() {
                     state = 0;  // End of contact list reached, go idle
                 }
             } else {
+                // Per-recipient content variation: append the contact index so
+                // no two broadcast copies are byte-identical. Carrier anti-flood
+                // filters key on identical body -> many destinations in a short
+                // window and silently DROP the duplicates (the SMSC still ACKs
+                // +CMGS, so the modem reports success). A unique tag defeats that
+                // without delaying the alert.
+                char msg_out[168];
+                snprintf(msg_out, sizeof(msg_out), "%s #%d", sms.message, contact_index);
+
                 waitForMutex_GSM();  // Lock GSM module for safe sending
+                bool ok = fona.sendSMS(num, msg_out);
+                releaseMutex_GSM();
+                last_send_ms = millis();     // start the gap AFTER the send attempt
 
-                if (!fona.sendSMS(num, sms.message)) {
-                    // Failed to send, release GSM and retry this number next time
-                    releaseMutex_GSM();
-                } else {
-                    // Successfully sent, release GSM and move to next contact
-                    releaseMutex_GSM();
+                if (ok) {
+                    // Sent — report this recipient and move to the next contact
+                    publish_sms_result(true, num, sms.message, sms.type);
+                    send_attempts = 0;
                     contact_index++;
-
                     if( (contact_index >= 8) || strstr(num, "N"))  {
                         state = 0;  // All contacts done, return to idle
                     }
+                } else if (++send_attempts >= MAX_SMS_ATTEMPTS) {
+                    // Gave up on this recipient — report failed, skip to next
+                    publish_sms_result(false, num, sms.message, sms.type);
+                    send_attempts = 0;
+                    contact_index++;
+                    if( (contact_index >= 8) || strstr(num, "N"))  {
+                        state = 0;
+                    }
                 }
+                // else: retry this same number next cycle
             }
 
         }
@@ -842,7 +879,17 @@ uint8_t ultimate_call_hadlr(){
 	static int call_try_times=systemConfig.call_attempts;
 	uint8_t ret_val=3;
 	static char current_phone_number[15];
-	
+
+	// De-dup for the "failed" (no-dial-tone) log: that path retries the same
+	// contact on purpose, so log "failed" only once per contact until it either
+	// connects or we advance to the next number.
+	static int  last_call_log_index = -1;
+	static bool placement_failed_logged = false;
+	if (alarm_calling_index != last_call_log_index) {
+		last_call_log_index = alarm_calling_index;
+		placement_failed_logged = false;
+	}
+
 	const TickType_t xTicksToWait = 100 / portTICK_PERIOD_MS;
 	EventBits_t uxBits;
 	uxBits = xEventGroupWaitBits(
@@ -1014,6 +1061,7 @@ uint8_t ultimate_call_hadlr(){
 					if (call_res ==2)
 					{
 						Serial.println(F("call answered"));
+						publish_call_result("answered", current_phone_number, alarm_calling_index);
 						Current_caller_state=4;
 						 alarm_calling_index++;
 						 releaseMutex_GSM();
@@ -1021,6 +1069,7 @@ uint8_t ultimate_call_hadlr(){
 					else if (call_res ==3)
 					{
 						Serial.println(F("call busy"));
+						publish_call_result("busy", current_phone_number, alarm_calling_index);
 						Current_caller_state=0;
 						alarm_calling_index++;
 						releaseMutex_GSM();
@@ -1037,6 +1086,10 @@ uint8_t ultimate_call_hadlr(){
 					else if (call_res ==5)
 					 {
 						Serial.println(F("no dial tone trying again"));
+						if (!placement_failed_logged) {   // log once per contact
+							publish_call_result("failed", current_phone_number, alarm_calling_index);
+							placement_failed_logged = true;
+						}
 						releaseMutex_GSM();
 						Current_caller_state=0;
 					}
@@ -1048,6 +1101,7 @@ uint8_t ultimate_call_hadlr(){
 						if (!call_try_times)
 						{
 							Serial.println(F("try times over moving to next number"));
+							publish_call_result("no_answer", current_phone_number, alarm_calling_index);
 							call_try_times=systemConfig.call_attempts;
 							alarm_calling_index++;
 						}
