@@ -14,6 +14,8 @@ extern TimerSW Timer_gsmled;
 extern EventGroupHandle_t EventRTOS_buzzer;
 extern EventGroupHandle_t EventRTOS_siren;
 extern EventGroupHandle_t EventRTOS_gsmled;
+// Master siren override (RAM-only, defaults false=enabled on every boot).
+extern volatile bool g_siren_master_disabled;
 
 void setup_gsmled();
 void setup_siren();

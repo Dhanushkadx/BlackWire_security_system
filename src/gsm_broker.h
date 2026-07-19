@@ -36,6 +36,9 @@ extern uint8_t sms_broadcast_index;
 extern uint8_t sms_buffer_msg_count;
 extern uint8_t Current_caller_state;
 extern uint8_t alarm_calling_index;
+extern GSM_stateMachineStates eCurruntGSM_state;   // GSM_LISTIN when idle
+extern volatile bool g_test_call_mode;             // single RPC test call in progress
+extern char g_test_call_number[15];
 extern bool thisIs_Restart;
 extern bool timesync_need;
 uint8_t gsm_init();

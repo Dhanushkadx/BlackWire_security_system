@@ -1,7 +1,8 @@
 
 #include "mqtt_broker.h"
+#include "siren.h"   // g_siren_master_disabled + EventRTOS_siren
 
-//sensor status 
+//sensor status
 uint8_t zone; 
 bool state;
 
@@ -114,6 +115,13 @@ void setup_mqtt(){
 
 void set_onMQTT_connection(_callbackFunctionType7 pFn){fn_onMQTT_connection = pFn;}
 
+// Report the master-siren-disable state as a retained attribute so the dashboard
+// button reflects the device. Published on every change AND on each MQTT connect
+// -> after a reboot the flag is back to false (enabled), so the button reverts.
+void publish_siren_state(){
+    publish_system_state(g_siren_master_disabled ? "true" : "false", "info/siren_disabled", true);
+}
+
 
 void reconnectMQTT() {
   if(!mqtt_enable){Serial.println(F("MQTT DISABLED")); return;}
@@ -150,6 +158,7 @@ void reconnectMQTT() {
         g_mqtt_online = true;
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
+        publish_siren_state();   // re-sync the master-siren-disable button (false after a reboot)
         setup_subscriptions();
         TasksOTA::begin(otaMqttPublishCb, "info/sys/ota");
         TasksOTA::resumeIfPaused();
@@ -502,6 +511,21 @@ static void handle_rpc(byte* payload, unsigned int length) {
         snprintf(result, sizeof(result), "{\"state\":\"%s\"}", on ? "on" : "off");
         rpc_reply_ok(reqId, result);
 
+    } else if (strcmp(method, "siren_master_disable") == 0) {
+        // Master override: when disabled, an alarm never sounds the siren relay
+        // (calls/SMS/buzzer still fire). RAM-only — auto-clears on reboot, so the
+        // device re-publishes the state on connect and the dashboard button
+        // reverts to enabled after a power cycle.
+        bool disable = params["disable"] | false;
+        g_siren_master_disabled = disable;
+        if (disable) {
+            xEventGroupSetBits(EventRTOS_siren, TASK_1_BIT);  // silence any active siren now
+        }
+        publish_siren_state();
+        char result[24];
+        snprintf(result, sizeof(result), "{\"disabled\":%s}", disable ? "true" : "false");
+        rpc_reply_ok(reqId, result);
+
     } else if (strcmp(method, "sms_send") == 0) {
         const char* tp  = params["tp"]  | "";
         const char* msg = params["msg"] | "";
@@ -519,6 +543,33 @@ static void handle_rpc(byte* payload, unsigned int length) {
     } else if (strcmp(method, "alarm_trigger") == 0) {
         transfer_mqtt_data("Alarm_call");
         rpc_reply_ok(reqId, "{\"status\":\"started\"}");
+
+    } else if (strcmp(method, "call_test") == 0) {
+        // Ring one arbitrary number once, reusing the alarm call pipeline (which
+        // pauses the SMS task before any ATD). Rejected if an alarm is dialing or
+        // any call is already up. Long action -> ack "calling" now; the outcome
+        // arrives on info/call/result. The call task issues the ATD, not us.
+        const char* number = params["number"] | "";
+        EventBits_t gsmBits = xEventGroupGetBits(EventRTOS_gsm);
+        bool alarm_calling = (myAlarm_pannel.get_system_state() == ALARM_CALLING);
+        bool call_busy = (gsmBits & TASK_6_BIT) || (eCurruntGSM_state != GSM_LISTIN) || g_test_call_mode;
+        if (!number[0] || !phone_number_validat(number)) {
+            rpc_reply_err(reqId, "bad_number");
+        } else if (alarm_calling) {
+            rpc_reply_err(reqId, "alarm_active");   // never interrupt a real alarm call
+        } else if (call_busy) {
+            rpc_reply_err(reqId, "call_busy");
+        } else if (!systemConfig.call_en) {
+            rpc_reply_err(reqId, "call_disabled");
+        } else {
+            strlcpy(g_test_call_number, number, sizeof(g_test_call_number));
+            g_test_call_mode = true;
+            xEventGroupSetBits(EventRTOS_gsm, TASK_1_BIT);    // same trigger the alarm uses
+            xEventGroupClearBits(EventRTOS_gsm, TASK_2_BIT);
+            char result[48];
+            snprintf(result, sizeof(result), "{\"status\":\"calling\",\"number\":\"%s\"}", number);
+            rpc_reply_ok(reqId, result);
+        }
 
     } else if (strcmp(method, "chime") == 0) {
         transfer_mqtt_data("chime1");

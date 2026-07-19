@@ -221,7 +221,20 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	else if(strncmp("Panic",smsbuffer,5)==0)
 	{
 		ret_value =1;
-		myAlarm_pannel.set_system_state(PANIC,Invoker,user_id);
+		// The alarm state machine has NO PANIC case, so set_system_state(PANIC)
+		// was silently ignored. Mirror the working RF remote panic key instead:
+		// go to ALARM_CALLING, announce, and fire buzzer + siren directly. The
+		// siren still honours the master-disable override (gated in relayTask on
+		// the same TASK_2_BIT event).
+		myAlarm_pannel.set_system_state(ALARM_CALLING,Invoker,user_id);
+		char inv[10];
+		get_eInvoker_type_to_char(Invoker,inv);
+		creat_panic_sms(inv);
+		if(systemConfig.beep_en){ xEventGroupSetBits(EventRTOS_buzzer, TASK_2_BIT); }
+		if(systemConfig.siren_en){ xEventGroupSetBits(EventRTOS_siren, TASK_2_BIT); }
+#ifdef MQTT_OK
+		publish_system_state("ALARM","info/mode",true);
+#endif
 	}
 
 	else if(strncmp("Alarm_call",smsbuffer,10)==0)

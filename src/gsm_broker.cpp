@@ -20,6 +20,12 @@ Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 uint8_t alarm_calling_index=1;
 bool sms_hdrl_suspend=false;
 
+// Single test call (RPC call_test): rings one arbitrary number once, reusing the
+// full pause-SMS -> call -> resume pipeline. Set by the RPC on the MQTT task,
+// consumed by the call task. Cleared when the test call ends.
+volatile bool g_test_call_mode = false;
+char g_test_call_number[15] = {0};
+
 uint8_t Current_caller_state = 0;
 
 uint8_t gsm_init(){
@@ -879,6 +885,7 @@ uint8_t ultimate_call_hadlr(){
 	static int call_try_times=systemConfig.call_attempts;
 	uint8_t ret_val=3;
 	static char current_phone_number[15];
+	static bool test_call_dialed = false;   // test call: dialed the one number already
 
 	// De-dup for the "failed" (no-dial-tone) log: that path retries the same
 	// contact on purpose, so log "failed" only once per contact until it either
@@ -967,11 +974,25 @@ uint8_t ultimate_call_hadlr(){
 		}		
 		//waitForMutex_GSM();		
 		if(FONA_CALL_READY==fona.getCallStatus()){
+			// TEST CALL: a single test call already placed and finished -> tear
+			// down like the end-of-list path (no alarm-state change, it's a test).
+			if (g_test_call_mode && test_call_dialed) {
+				Serial.println(F("TEST CALL complete - ending call task"));
+				Current_caller_state=0;
+				g_test_call_mode=false;
+				test_call_dialed=false;
+				ret_val = 0;
+				releaseMutex_GSM();
+				xEventGroupClearBits(EventRTOS_gsm, TASK_6_BIT);   // call no longer in progress
+				xEventGroupSetBits(EventRTOS_gsm, TASK_5_BIT);     // resume SMS task
+				vTaskDelete(NULL);
+			}
 			// next number
 			memset(current_phone_number,'\0',15);
-			strcpy(current_phone_number,get_GSM_number(alarm_calling_index));
-				
-			if ((strcmp_P(current_phone_number,PSTR("N"))==0)||(strcmp_P(current_phone_number,PSTR("+0000000000"))==0))
+			if (g_test_call_mode) strcpy(current_phone_number, g_test_call_number);
+			else                  strcpy(current_phone_number,get_GSM_number(alarm_calling_index));
+
+			if (!g_test_call_mode && ((strcmp_P(current_phone_number,PSTR("N"))==0)||(strcmp_P(current_phone_number,PSTR("+0000000000"))==0)))
 			{
 				Current_caller_state=0;
 				alarm_calling_index=1;
@@ -992,16 +1013,22 @@ uint8_t ultimate_call_hadlr(){
 				 		  
 				 vTaskDelete(NULL); 			
 			}
-			if (!get_is_GSM_number_call(alarm_calling_index))
+			if (!g_test_call_mode && !get_is_GSM_number_call(alarm_calling_index))
 			{
 				Serial.println(F("not a calling number"));
 				alarm_calling_index++;
 				Current_caller_state=1;
-				
+
 			}
 			else{
-				Serial.print(F("Call initiating...TP index:"));
-				Serial.println(alarm_calling_index);
+				if (g_test_call_mode) {
+					Serial.print(F("TEST CALL initiating: "));
+					Serial.println(current_phone_number);
+					test_call_dialed = true;   // single attempt; end after this call
+				} else {
+					Serial.print(F("Call initiating...TP index:"));
+					Serial.println(alarm_calling_index);
+				}
 				fona.callPhone(current_phone_number);
 				//tell_lcd(current_phone_number);
 				//delay(500);
@@ -1097,15 +1124,22 @@ uint8_t ultimate_call_hadlr(){
 					{
 						releaseMutex_GSM();
 						Serial.println(F("call did not answer"));
-						call_try_times--;
-						if (!call_try_times)
-						{
-							Serial.println(F("try times over moving to next number"));
+						if (g_test_call_mode) {
+							// Test call = single attempt: report and end without
+							// touching the shared alarm retry counter.
 							publish_call_result("no_answer", current_phone_number, alarm_calling_index);
-							call_try_times=systemConfig.call_attempts;
-							alarm_calling_index++;
+							Current_caller_state=0;   // state 1 then tears the test call down
+						} else {
+							call_try_times--;
+							if (!call_try_times)
+							{
+								Serial.println(F("try times over moving to next number"));
+								publish_call_result("no_answer", current_phone_number, alarm_calling_index);
+								call_try_times=systemConfig.call_attempts;
+								alarm_calling_index++;
+							}
+							Current_caller_state=0;
 						}
-						Current_caller_state=0;
 						/*return ret_val;*/
 					}
 					
@@ -1115,6 +1149,8 @@ uint8_t ultimate_call_hadlr(){
 					Serial.println(F("no feedback from gsm, time out"));
 					Current_caller_state=0;
 					//alarm_calling_index=1;
+						// Test call rang out with no clear disposition -> report it once.
+						if (g_test_call_mode) publish_call_result("no_responce", current_phone_number, alarm_calling_index);
 					releaseMutex_GSM();
 					/*return ret_val;*/
 				}
@@ -1144,7 +1180,7 @@ uint8_t ultimate_call_hadlr(){
 				else if (call_res == 1) {
 					Serial.print(F("DTMF received: "));
 					Serial.println(dtmf);
-					if (strcmp(dtmf, "0") == 0) {
+					if (!g_test_call_mode && strcmp(dtmf, "0") == 0) {
 						// DTMF '0' received, hang up
 						delay(1000);
 						fona.playDTMF('1');
@@ -1156,7 +1192,7 @@ uint8_t ultimate_call_hadlr(){
 						delay(1000);
 						Current_caller_state=0;
 						fona.hangUp();
-					} else if(strcmp(dtmf, "1") == 0) {
+					} else if(!g_test_call_mode && strcmp(dtmf, "1") == 0) {
 						// Handle other DTMF inputs if needed
 						delay(1000);
 						fona.playDTMF('1');

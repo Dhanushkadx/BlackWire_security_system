@@ -107,6 +107,14 @@ bool Adafruit_FONA::begin(Stream &port) {
     delay(100);
   }
 
+  // Factory reset to a known baseline right after AT comms are up. &F0 restores
+  // manufacturer defaults for all the profile params we set below (and re-enables
+  // echo, which the ATE0 that follows turns back off). Everything is then
+  // re-applied and persisted with AT&W at the end, so the module always boots
+  // from a deterministic config.
+  sendCheckReply(F("AT&F0"), ok_reply);
+  delay(300);
+
   // turn off Echo!
   sendCheckReply(F("ATE0"), ok_reply);
   delay(100);
@@ -173,6 +181,10 @@ bool Adafruit_FONA::begin(Stream &port) {
  
   sendCheckReply(F("AT+CLTS=1"),ok_reply);
   sendCheckReply(F("AT+DDET=1"),ok_reply);
+  // Enable dial-tone AND busy detection so the modem emits BUSY / NO DIALTONE
+  // result codes (waitCallResp relies on them). Without this (default X0) a busy
+  // callee never reports BUSY -> the call just times out with "no feedback".
+  sendCheckReply(F("ATX4"),ok_reply);
 	sendCheckReply(F("AT&W"),ok_reply);
    return true;
 }

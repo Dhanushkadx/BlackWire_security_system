@@ -8,6 +8,11 @@ EventGroupHandle_t EventRTOS_buzzer;
 EventGroupHandle_t EventRTOS_siren;
 EventGroupHandle_t EventRTOS_gsmled;
 
+// Master siren override (RAM-only, defaults to enabled on every boot for safety).
+// When true, an alarm never energizes the siren relay; other alarm actions
+// (calls, SMS, buzzer) are unaffected. Cleared automatically at reboot.
+volatile bool g_siren_master_disabled = false;
+
 void relayTask() {
 
   static eSiren_state eCurrent_siren_state = SIREN_OFF, ePrev_siren_state = SIREN_OFF;
@@ -30,7 +35,13 @@ void relayTask() {
 		  }
 		  if(  ( uxBits & TASK_2_BIT ) != 0  )// first siren
 		  {
-			  if(ePrev_siren_state==SIREN_OFF){
+			  if(g_siren_master_disabled){
+			   // Master override: alarm must not sound the siren this session.
+			   Serial.println(F("SIREN master-disabled - alarm siren suppressed"));
+			   eCurrent_siren_state = SIREN_OFF;
+			   digitalWrite(RELAY_ALARM,LOW);
+			  }
+			  else if(ePrev_siren_state==SIREN_OFF){
 			   Serial.println(F("EVENT SIREN_MOMENT"));
 			   eCurrent_siren_state = SIREN_MOMENT;
 			   Timer_siren.interval = 3000;
