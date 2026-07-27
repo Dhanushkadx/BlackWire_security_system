@@ -1073,6 +1073,14 @@ bool Adafruit_FONA::sendSMS(char *smsaddr, char *smsmsg) {
   if (!sendCheckReply(F("AT+CMGF=1"), ok_reply))
     return false;
 
+  // Force text-mode encoding every send. AT&F0 (factory reset in begin()) wipes
+  // these, and the firmware never set them otherwise, so outgoing text was
+  // getting garbled to a single wrong-charset char (e.g. "Test" -> "Å").
+  //   CSCS="GSM"        : TE character set = GSM 7-bit default alphabet
+  //   CSMP=17,167,0,0   : fo=17 (SMS-SUBMIT), vp=167 (24h), pid=0, dcs=0 (GSM7)
+  sendCheckReply(F("AT+CSCS=\"GSM\""), ok_reply);
+  sendCheckReply(F("AT+CSMP=17,167,0,0"), ok_reply);
+
   // Build  AT+CMGS="<number>"  with a hard NUL guard on the address (the old
   // code could leave sendcmd unterminated for a long address).
   char sendcmd[40] = "AT+CMGS=\"";

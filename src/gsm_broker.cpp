@@ -113,15 +113,17 @@ bool setTime_from_gsm(){
 
 void creatSMS(const char* buffer,uint8_t type, const char* number){// creat a SMS
 	int msg_length = strlen(buffer);
-	char sms_159[159]="";
-	if (msg_length>155)
+	char sms_159[161]="";
+	// The SMS pipeline (SMS_t.message[160]) carries 159 chars. Only split beyond
+	// that. The old threshold (155) split a ~156-char reply (e.g. Status?) and,
+	// with an off-by-one (kept 154 chars but resumed at +155), left a junk 1-char
+	// second SMS. Split cleanly at 159 with no dropped char.
+	if (msg_length>159)
 	{
 		Serial.println(F("msg is beyond the size of sms. so Split it"));
-		strlcpy(sms_159,buffer,155);
-		//creatSMS_LL(sms_159,type,0),number;
+		strlcpy(sms_159,buffer,160);      // first 159 chars + NUL
 		addSMS(sms_159,type,number);
-		addSMS(buffer+155,type,number);
-		
+		addSMS(buffer+159,type,number);   // remainder (no char dropped)
 	}
 	else{
 		addSMS(buffer,type, number);
