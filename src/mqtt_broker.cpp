@@ -1,6 +1,8 @@
 
 #include "mqtt_broker.h"
 #include "siren.h"   // g_siren_master_disabled + EventRTOS_siren
+#include "pinsx.h"      // FW_VER + board select, reported in the boot message
+#include <esp_system.h> // esp_reset_reason()
 
 //sensor status
 uint8_t zone; 
@@ -159,6 +161,7 @@ void reconnectMQTT() {
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         publish_siren_state();   // re-sync the master-siren-disable button (false after a reboot)
+        publish_boot_info();     // one-shot per boot: fw + hardware identity
         setup_subscriptions();
         TasksOTA::begin(otaMqttPublishCb, "info/sys/ota");
         TasksOTA::resumeIfPaused();
@@ -205,6 +208,97 @@ void send_rfid_state_update_to_mqtt(const char* rfid){
 
 }
 
+
+// ── Boot announcement ──────────────────────────────────────────────────────
+// Board identity for the boot message. Mirrors the board selects in pinsx.h;
+// kept next to the telemetry so flipping the board target needs no edit here
+// beyond adding a new case.
+#if   defined(GSM_MINI_BOARD_V3)
+  #define BW_BOARD_NAME "GSM_MINI_BOARD_V3"
+#elif defined(GSM_MINI_BOARD_V2)
+  #define BW_BOARD_NAME "GSM_MINI_BOARD_V2"
+#elif defined(GSM_PULSEX_IOT_BOARD)
+  #define BW_BOARD_NAME "GSM_PULSEX_IOT_BOARD"
+#elif defined(GSM_FULL_BOARD)
+  #define BW_BOARD_NAME "GSM_FULL_BOARD"
+#elif defined(GSM_MINI_BOARD)
+  #define BW_BOARD_NAME "GSM_MINI_BOARD"
+#else
+  #define BW_BOARD_NAME "unknown"
+#endif
+
+// Why the last reset happened — lets the backend tell a user power-cycle from a
+// crash loop (panic / wdt) or an OTA reboot (sw).
+static const char* reset_reason_str(){
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:   return "poweron";
+    case ESP_RST_EXT:       return "ext";
+    case ESP_RST_SW:        return "sw";
+    case ESP_RST_PANIC:     return "panic";
+    case ESP_RST_INT_WDT:   return "int_wdt";
+    case ESP_RST_TASK_WDT:  return "task_wdt";
+    case ESP_RST_WDT:       return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_BROWNOUT:  return "brownout";
+    case ESP_RST_SDIO:      return "sdio";
+    default:                return "unknown";
+  }
+}
+
+// One-shot per boot: latched only on a successful publish, so a send that loses
+// the race with a dropping link is retried on the next reconnect. Plain RAM, so
+// every reset (OTA reboot included) re-arms it.
+static bool s_boot_info_sent = false;
+
+// Announce firmware + hardware identity once per boot on info/sys/boot.
+// RETAINED: the backend gets the device's identity even if it subscribes long
+// after the device came up, and the broker keeps exactly one current copy.
+// Called from reconnectMQTT() on the MQTT task — never call it from elsewhere,
+// nothing but that task may touch `client`.
+void publish_boot_info(){
+  if (s_boot_info_sent) return;
+  if (!mqtt_enable){
+    #ifdef _DEBUG
+      Serial.println(F("MQTT DISABLED"));
+    #endif
+    return;
+  }
+  if (mqtt_foreign_tx_blocked()) return;
+
+  uint8_t mac[6];
+  char device_id_macStr[13];
+  WiFi.macAddress(mac);
+  sprintf(device_id_macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+  char topic[50];
+  memset(topic,'\0',50);
+  sprintf_P(topic,PSTR("blackwire/%s/info/sys/boot"),device_id_macStr);
+
+  DynamicJsonDocument doc(512);
+  doc["ev"]          = "boot";
+  doc["fw"]          = FW_VER;
+  doc["board"]       = BW_BOARD_NAME;
+  doc["mac"]         = device_id_macStr;
+  doc["chip"]        = ESP.getChipModel();
+  doc["rev"]         = ESP.getChipRevision();
+  doc["cores"]       = ESP.getChipCores();
+  doc["cpu_mhz"]     = ESP.getCpuFreqMHz();
+  doc["flash_kb"]    = ESP.getFlashChipSize() / 1024;
+  doc["sdk"]         = ESP.getSdkVersion();
+  doc["app_kb"]      = ESP.getSketchSize() / 1024;        // running image size
+  doc["ota_free_kb"] = ESP.getFreeSketchSpace() / 1024;   // room for the next OTA
+  doc["heap_kb"]     = ESP.getFreeHeap() / 1024;
+  doc["reset"]       = reset_reason_str();
+  doc["ip"]          = WiFi.localIP().toString();
+  doc["rssi"]        = WiFi.RSSI();
+
+  String jsonStr;
+  serializeJson(doc, jsonStr);
+  #ifdef _DEBUG
+    Serial.printf_P(PSTR("MQTT - BOOT - topic>%s payload>%s\n"), topic, jsonStr.c_str());
+  #endif
+  s_boot_info_sent = client.publish(topic, jsonStr.c_str(), true);
+}
 
 void publish_system_state(const char* state, const char* subtopic, bool retaind_flag){
 

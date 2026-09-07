@@ -41,6 +41,9 @@ void publish_sms_result(bool ok, const char* number, const char* msg, uint8_t ty
 // ("answered" | "busy" | "no_answer" | "failed"). Published on info/call/result.
 void publish_call_result(const char* status, const char* number, int slot);
 void publish_network_info();
+// Announce firmware + hardware identity once per boot, retained on
+// info/sys/boot. Called from reconnectMQTT() on the MQTT task only.
+void publish_boot_info();
 // True when an OTA is active AND the caller is NOT the MQTT task — such a caller
 // must NOT touch `client` (PubSubClient is single-threaded). Guards every
 // foreign-task publish path.
