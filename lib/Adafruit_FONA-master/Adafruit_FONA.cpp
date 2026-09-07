@@ -185,6 +185,13 @@ bool Adafruit_FONA::begin(Stream &port) {
   // result codes (waitCallResp relies on them). Without this (default X0) a busy
   // callee never reports BUSY -> the call just times out with "no feedback".
   sendCheckReply(F("ATX4"),ok_reply);
+  // Text-mode SMS encoding. AT&F0 above wipes these to a factory default that
+  // garbled text SMS (both send and receive) to one wrong-charset char; set them
+  // here so AT&W persists them and every begin()/GSM-restart re-applies them.
+  //   CSCS="GSM"      : TE character set = GSM 7-bit default alphabet
+  //   CSMP=17,167,0,0 : fo=17 (SMS-SUBMIT), vp=167 (24h), pid=0, dcs=0 (GSM7)
+  sendCheckReply(F("AT+CSCS=\"GSM\""), ok_reply);
+  sendCheckReply(F("AT+CSMP=17,167,0,0"), ok_reply);
 	sendCheckReply(F("AT&W"),ok_reply);
    return true;
 }
@@ -1072,14 +1079,7 @@ uint8_t Adafruit_FONA :: getSMSIndex(uint8_t required_status){
 bool Adafruit_FONA::sendSMS(char *smsaddr, char *smsmsg) {
   if (!sendCheckReply(F("AT+CMGF=1"), ok_reply))
     return false;
-
-  // Force text-mode encoding every send. AT&F0 (factory reset in begin()) wipes
-  // these, and the firmware never set them otherwise, so outgoing text was
-  // getting garbled to a single wrong-charset char (e.g. "Test" -> "Å").
-  //   CSCS="GSM"        : TE character set = GSM 7-bit default alphabet
-  //   CSMP=17,167,0,0   : fo=17 (SMS-SUBMIT), vp=167 (24h), pid=0, dcs=0 (GSM7)
-  sendCheckReply(F("AT+CSCS=\"GSM\""), ok_reply);
-  sendCheckReply(F("AT+CSMP=17,167,0,0"), ok_reply);
+  // Text-mode encoding (CSCS/CSMP) is set once in begin() and persisted via AT&W.
 
   // Build  AT+CMGS="<number>"  with a hard NUL guard on the address (the old
   // code could leave sendcmd unterminated for a long address).
