@@ -41,6 +41,10 @@ extern volatile bool g_test_call_mode;             // single RPC test call in pr
 extern char g_test_call_number[15];
 extern bool thisIs_Restart;
 extern bool timesync_need;
+// Modem identity cached on the GSM task for the boot report. Empty = unknown
+// (no modem, or not registered yet); the boot message omits the field then.
+extern char g_gsm_imei[16];
+extern char g_gsm_operator[32];
 uint8_t gsm_init();
 	 
 void creatSMS(const char* buffer,uint8_t type, const char* number);// creat a SMS

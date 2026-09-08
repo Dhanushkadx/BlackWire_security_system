@@ -273,6 +273,11 @@ static bool publish_boot_message(const char* detail, bool clock_unset){
   doc["heap_kb"]     = ESP.getFreeHeap() / 1024;
   doc["ip"]          = WiFi.localIP().toString();
   doc["rssi"]        = WiFi.RSSI();
+  // Modem identity, only when known. A WiFi-only board (or one whose modem has
+  // not registered) OMITS these rather than sending "", so the dashboard can
+  // render a dash instead of a blank that reads as a failure.
+  if (g_gsm_imei[0])     doc["imei"]   = g_gsm_imei;
+  if (g_gsm_operator[0]) doc["gsm_op"] = g_gsm_operator;
 
   if (clock_unset) {
     // No timestamp is better than an invented one: say so explicitly and let the

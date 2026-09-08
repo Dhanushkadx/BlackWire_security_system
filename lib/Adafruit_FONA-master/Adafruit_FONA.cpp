@@ -428,6 +428,35 @@ uint8_t Adafruit_FONA::getIMEI(char *imei) {
   return strlen(imei);
 }
 
+
+/* LOCAL PATCH (BlackWire) — not in upstream Adafruit_FONA.
+   Registered network operator name, for the boot/identity report. Upstream
+   exposes only getNetworkStatus() (a registration code), and replybuffer is
+   protected, so the AT+COPS? exchange cannot be driven from outside the class.
+   Reply shape:  +COPS: <mode>,<format>,"<operator>"   followed by OK.
+   Returns the length written, 0 if the modem gave no quoted name (which is the
+   normal answer before the modem has registered). */
+uint8_t Adafruit_FONA::getOperator(char *op, uint8_t maxlen) {
+  if (!op || maxlen == 0) return 0;
+  op[0] = 0;
+
+  getReply(F("AT+COPS?"));
+
+  // Take what is between the first and last double quote. Not registered ->
+  // "+COPS: 0" with no quotes at all -> nothing to copy.
+  char *first = strchr(replybuffer, '"');
+  char *last  = strrchr(replybuffer, '"');
+  if (first && last && last > first) {
+    uint8_t len = (uint8_t)(last - first - 1);
+    if (len > maxlen - 1) len = maxlen - 1;
+    strncpy(op, first + 1, len);
+    op[len] = 0;
+  }
+
+  readline(); // eat 'OK'
+
+  return strlen(op);
+}
 /********* NETWORK *******************************************************/
 
 /**

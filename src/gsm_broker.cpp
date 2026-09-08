@@ -3,6 +3,14 @@
 #include "clock_sync.h"   // single UTC writer for every time source
 #include "boot_report.h"  // checkpoint before a deliberate restart
 char Module_IMEI_p[] PROGMEM = "868428042211700";//868428042211700
+
+// Modem identity, cached for the boot/identity report. Read once on the GSM
+// task and published from the MQTT task, which must never issue AT commands
+// itself -- it would collide with whatever exchange the GSM task is mid-way
+// through. Empty means "not known", and the boot message then OMITS the field
+// rather than sending a blank one.
+char g_gsm_imei[16]     = {0};
+char g_gsm_operator[32] = {0};
 HardwareSerial *fonaSerial = &Serial2;
 GSM_stateMachineStates eCurruntGSM_state = GSM_INIT, ePrevGSM_state = GSM_SMS_SUSPENDING;
 bool sms_sending_queu_complete = false;
@@ -65,6 +73,7 @@ uint8_t gsm_init(){
 	 uint8_t imeiLen = fona.getIMEI(imei);
 	 if (imeiLen > 0) {
 		 Serial.print(F("Module IMEI: ")); Serial.println(imei);
+		 strlcpy(g_gsm_imei, imei, sizeof(g_gsm_imei));
 	 }
 
 	 fona.deleteAllSMS();
@@ -110,6 +119,14 @@ bool setTime_from_gsm(){
 	// char localTime[20];
 	if (fona.getTime(networkTime, 100)) {
 		 setESP32_rtc(networkTime);
+		 // The modem answered with network time, so it IS registered -- the one
+		 // moment AT+COPS? is guaranteed to return a name rather than a bare
+		 // "+COPS: 0". Refreshed on every sync, so a roam is picked up.
+		 char op[32] = {0};
+		 if (fona.getOperator(op, sizeof(op)) > 0) {
+			 strlcpy(g_gsm_operator, op, sizeof(g_gsm_operator));
+			 Serial.print(F("GSM operator: ")); Serial.println(g_gsm_operator);
+		 }
 		 return true;
 	 }
 	Serial.println(F("Failed to get time from GSM module"));

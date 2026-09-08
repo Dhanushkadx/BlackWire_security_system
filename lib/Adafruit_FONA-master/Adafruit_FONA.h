@@ -147,6 +147,9 @@ public:
 
   // IMEI
   uint8_t getIMEI(char *imei);
+  // LOCAL PATCH (BlackWire): registered operator name via AT+COPS?. 0 if the
+  // modem is not registered yet (no quoted name in the reply).
+  uint8_t getOperator(char *op, uint8_t maxlen);
 
   // set Audio output
   bool setAudio(uint8_t audio_output);
