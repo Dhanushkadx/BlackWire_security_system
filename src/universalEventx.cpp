@@ -1,3 +1,4 @@
+#include "boot_report.h"
 #include "universalEventx.h"
 
 byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uint8_t user_id){//0- gsm 1-lcd
@@ -43,6 +44,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 	{
 		Serial.println(F("Restart in 5 sec"));
         delay(5000);
+		// Mark "alive" right now: a deliberate restart is back in seconds, and the
+		// 30-min checkpoint would otherwise report it as a much longer outage.
+		boot_report_checkpoint(1);
 		ESP.restart();
 	}
     if (strncmp("sms ap",smsbuffer,6)==0)
@@ -52,6 +56,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
         }
 		Serial.println(F("Restart in 5 sec"));
         delay(5000);
+		// Mark "alive" right now: a deliberate restart is back in seconds, and the
+		// 30-min checkpoint would otherwise report it as a much longer outage.
+		boot_report_checkpoint(1);
 		ESP.restart();
 	}
 
@@ -99,6 +106,9 @@ byte universal_event_hadler(const char* smsbuffer, eInvoking_source Invoker, uin
 		}
 		Serial.println(F("Restart in 5 sec"));
 		delay(5000);
+		// Mark "alive" right now: a deliberate restart is back in seconds, and the
+		// 30-min checkpoint would otherwise report it as a much longer outage.
+		boot_report_checkpoint(1);
 		ESP.restart();
 	}
 

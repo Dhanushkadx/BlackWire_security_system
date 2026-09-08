@@ -38,11 +38,15 @@ SET_LOOP_TASK_STACK_SIZE( 6*1024 );
 #include "msgRingBuffer.h"
 #include "pixel_blink_module.h"
 #include "tasks_OTA.h"
+#include "boot_report.h"
+#include "clock_sync.h"
 #ifdef MQTT_OK
 #include "mqtt_broker.h"
 #endif
 //ESP32Time rtc;
-ESP32Time rtc(0);  // offset in seconds GMT+1
+// Offset is the LOCAL display timezone; the internal clock itself holds UTC.
+// The GSM network's own offset replaces this once +CCLK is parsed.
+ESP32Time rtc(LOCAL_TZ_OFFSET_S);
 
 // const char* ntpServer = "pool.ntp.org";
 // const long  gmtOffset_sec = 19800;
@@ -375,6 +379,11 @@ void Task8code( void * parameter ){
 	esp_task_wdt_init(30, true);
 	for(;;){
 		vTaskDelayUntil( &xLastWakeTime, xFrequency );
+		// Clock + boot bookkeeping run in EVERY system mode, and regardless of
+		// whether MQTT is enabled -- the last-alive marker is what bounds an
+		// outage, so it must not stop when the link or the broker is absent.
+		clock_sync_tick();
+		boot_report_checkpoint(BOOT_CHECKPOINT_MS);
 	
 
 switch (system_mode) {
@@ -583,6 +592,7 @@ xMessageBuffer_zone = xMessageBufferCreate(xBufferSizeBytes_zone );
 xTimeBuffer = xMessageBufferCreate(xTimeBufferSizeBytes);
 
 TasksOTA::bootCheck();
+setup_boot_report();   // latch reset reason + read the last-alive marker
 
 // OTA now runs live on the existing MQTT connection (no reboot-before-flash
 // step), so the full task set always starts.

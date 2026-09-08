@@ -1,5 +1,7 @@
 
 #include "gsm_broker.h"
+#include "clock_sync.h"   // single UTC writer for every time source
+#include "boot_report.h"  // checkpoint before a deliberate restart
 char Module_IMEI_p[] PROGMEM = "868428042211700";//868428042211700
 HardwareSerial *fonaSerial = &Serial2;
 GSM_stateMachineStates eCurruntGSM_state = GSM_INIT, ePrevGSM_state = GSM_SMS_SUSPENDING;
@@ -83,6 +85,9 @@ uint8_t gsm_init(){
 			Serial.print(imei);
 			Serial.println(F(" Auth Fail"));
 			delay(500);
+			// Mark "alive" right now: a deliberate restart is back in seconds, and the
+			// 30-min checkpoint would otherwise report it as a much longer outage.
+			boot_report_checkpoint(1);
 			ESP.restart();
 			return AUTH_FAILD;
 		}		
@@ -1394,6 +1399,19 @@ void setESP32_rtc(char *timeChars)
     int tzMinutes = tzQ * 15;
     if (tzSign == '-') tzMinutes = -tzMinutes;
 
+    // Reject a modem that answered before it registered: +CCLK then returns a
+    // garbage date, and accepting it would set a clock that looks valid forever.
+    if (year < 2024 || year > 2099) {
+        Serial.printf_P(PSTR("RTC: reject CCLK year %d\n"), year);
+        return;
+    }
+    // tz is in QUARTER-hours (+22 = +5.5 h = 19800 s). Reading it as hours or as
+    // minutes is the easy way to re-introduce the offset bug this fixes.
+    if (tzMinutes > 14 * 60 || tzMinutes < -14 * 60) {
+        Serial.printf_P(PSTR("RTC: reject CCLK tz %d min\n"), tzMinutes);
+        return;
+    }
+
     // Build struct tm
     struct tm t = {0};
     t.tm_year = year - 1900;
@@ -1403,15 +1421,16 @@ void setESP32_rtc(char *timeChars)
     t.tm_min  = minute;
     t.tm_sec  = second;
 
-    // Convert SIM800 local → epoch (local)
-    time_t epoch = mktime(&t);
+    // mktime() with TZ unset reads these fields as UTC, so it yields the LOCAL
+    // wall clock expressed as an epoch. Subtracting the network offset turns that
+    // into true UTC — the step the old code skipped, leaving every stored
+    // timestamp 19800 s fast on a +05:30 network.
+    time_t local_as_epoch = mktime(&t);
+    uint32_t utc_epoch    = (uint32_t)(local_as_epoch - (time_t)tzMinutes * 60);
 
-   
-	
-    rtc.setTime(epoch, 0);        // set directly
+    // Local time is a DISPLAY concern: carry the network's own offset on `rtc` so
+    // getTime()/getTimeStruct() keep rendering local exactly as before.
+    rtc.offset = (long)tzMinutes * 60;
 
-    // Set ESP32 RTC
-    rtc.setTime(epoch, 0);
-	Serial.println(F("RTC set from GSM"));
-
+    clock_apply_epoch(utc_epoch, "gsm");
 }

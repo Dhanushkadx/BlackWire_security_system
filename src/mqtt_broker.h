@@ -41,9 +41,11 @@ void publish_sms_result(bool ok, const char* number, const char* msg, uint8_t ty
 // ("answered" | "busy" | "no_answer" | "failed"). Published on info/call/result.
 void publish_call_result(const char* status, const char* number, int slot);
 void publish_network_info();
-// Announce firmware + hardware identity once per boot, retained on
-// info/sys/boot. Called from reconnectMQTT() on the MQTT task only.
-void publish_boot_info();
+// Wire boot_report to this file's MQTT sink. Call once early in setup().
+void setup_boot_report();
+// Drive boot_report from the MQTT task: emits the once-per-boot record when
+// the clock is ready, and retries the publish until the broker accepts it.
+void boot_report_service();
 // True when an OTA is active AND the caller is NOT the MQTT task — such a caller
 // must NOT touch `client` (PubSubClient is single-threaded). Guards every
 // foreign-task publish path.

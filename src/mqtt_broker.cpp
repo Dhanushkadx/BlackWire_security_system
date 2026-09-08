@@ -2,7 +2,8 @@
 #include "mqtt_broker.h"
 #include "siren.h"   // g_siren_master_disabled + EventRTOS_siren
 #include "pinsx.h"      // FW_VER + board select, reported in the boot message
-#include <esp_system.h> // esp_reset_reason()
+#include "boot_report.h"  // reset reason + last-alive checkpoint + outage
+#include "clock_sync.h"   // clock_now_utc() / clock_ready()
 
 //sensor status
 uint8_t zone; 
@@ -161,7 +162,6 @@ void reconnectMQTT() {
         client.publish(lastwill_topic,"online",true);
         publish_system_state(WiFi.localIP().toString().c_str(),"info/ip",true);
         publish_siren_state();   // re-sync the master-siren-disable button (false after a reboot)
-        publish_boot_info();     // one-shot per boot: fw + hardware identity
         setup_subscriptions();
         TasksOTA::begin(otaMqttPublishCb, "info/sys/ota");
         TasksOTA::resumeIfPaused();
@@ -227,43 +227,26 @@ void send_rfid_state_update_to_mqtt(const char* rfid){
   #define BW_BOARD_NAME "unknown"
 #endif
 
-// Why the last reset happened — lets the backend tell a user power-cycle from a
-// crash loop (panic / wdt) or an OTA reboot (sw).
-static const char* reset_reason_str(){
-  switch (esp_reset_reason()) {
-    case ESP_RST_POWERON:   return "poweron";
-    case ESP_RST_EXT:       return "ext";
-    case ESP_RST_SW:        return "sw";
-    case ESP_RST_PANIC:     return "panic";
-    case ESP_RST_INT_WDT:   return "int_wdt";
-    case ESP_RST_TASK_WDT:  return "task_wdt";
-    case ESP_RST_WDT:       return "wdt";
-    case ESP_RST_DEEPSLEEP: return "deepsleep";
-    case ESP_RST_BROWNOUT:  return "brownout";
-    case ESP_RST_SDIO:      return "sdio";
-    default:                return "unknown";
-  }
-}
+// If no clock has arrived by now, publish what we DO know (identity + reset
+// reason) rather than staying silent forever. A unit with no SIM and no WiFi
+// never gets a clock, and its hardware identity needs none.
+#define BOOT_MSG_CLOCKLESS_MS (10UL * 60UL * 1000UL)
 
-// One-shot per boot: latched only on a successful publish, so a send that loses
-// the race with a dropping link is retried on the next reconnect. Plain RAM, so
-// every reset (OTA reboot included) re-arms it.
-static bool s_boot_info_sent = false;
+// boot_report latches its own "emitted" flag before the sink runs, so it will not
+// re-offer the record if the publish fails. We therefore hold the record here and
+// retry from the tick until the broker accepts it.
+static bool     s_boot_pending      = false;   // record captured, not yet published
+static bool     s_boot_sent         = false;   // full record published
+static bool     s_boot_provisional  = false;   // clockless identity-only published
+static char     s_boot_detail[192]  = {0};
+static uint32_t s_boot_ts           = 0;
 
-// Announce firmware + hardware identity once per boot on info/sys/boot.
-// RETAINED: the backend gets the device's identity even if it subscribes long
-// after the device came up, and the broker keeps exactly one current copy.
-// Called from reconnectMQTT() on the MQTT task — never call it from elsewhere,
-// nothing but that task may touch `client`.
-void publish_boot_info(){
-  if (s_boot_info_sent) return;
-  if (!mqtt_enable){
-    #ifdef _DEBUG
-      Serial.println(F("MQTT DISABLED"));
-    #endif
-    return;
-  }
-  if (mqtt_foreign_tx_blocked()) return;
+// Publish the retained boot message: hardware identity, plus the boot/outage
+// detail from boot_report when we have a clock. `detail` is boot_report's JSON
+// object, merged in field-by-field so the payload stays one flat object.
+static bool publish_boot_message(const char* detail, bool clock_unset){
+  if (!mqtt_enable) return false;
+  if (mqtt_foreign_tx_blocked()) return false;
 
   uint8_t mac[6];
   char device_id_macStr[13];
@@ -274,7 +257,7 @@ void publish_boot_info(){
   memset(topic,'\0',50);
   sprintf_P(topic,PSTR("blackwire/%s/info/sys/boot"),device_id_macStr);
 
-  DynamicJsonDocument doc(512);
+  DynamicJsonDocument doc(768);
   doc["ev"]          = "boot";
   doc["fw"]          = FW_VER;
   doc["board"]       = BW_BOARD_NAME;
@@ -288,17 +271,73 @@ void publish_boot_info(){
   doc["app_kb"]      = ESP.getSketchSize() / 1024;        // running image size
   doc["ota_free_kb"] = ESP.getFreeSketchSpace() / 1024;   // room for the next OTA
   doc["heap_kb"]     = ESP.getFreeHeap() / 1024;
-  doc["reset"]       = reset_reason_str();
   doc["ip"]          = WiFi.localIP().toString();
   doc["rssi"]        = WiFi.RSSI();
+
+  if (clock_unset) {
+    // No timestamp is better than an invented one: say so explicitly and let the
+    // backend treat this as identity only, not as a dated boot event.
+    doc["reset_reason"] = boot_report_reason_str();
+    doc["clock_unset"]  = true;
+  } else {
+    DynamicJsonDocument det(256);
+    if (deserializeJson(det, detail) == DeserializationError::Ok) {
+      for (JsonPairConst kv : det.as<JsonObjectConst>()) doc[kv.key()] = kv.value();
+    }
+    // An outage that runs backwards means the marker was written against a
+    // different timebase. Say "unknown" — collapsing it into the no-checkpoint
+    // branch would look like a normal first boot and hide the fault.
+    if (!doc.containsKey("outage_s") && boot_report_last_alive() > 0)
+      doc["outage_unknown"] = true;
+  }
 
   String jsonStr;
   serializeJson(doc, jsonStr);
   #ifdef _DEBUG
     Serial.printf_P(PSTR("MQTT - BOOT - topic>%s payload>%s\n"), topic, jsonStr.c_str());
   #endif
-  s_boot_info_sent = client.publish(topic, jsonStr.c_str(), true);
+  return client.publish(topic, jsonStr.c_str(), true);   // retained
 }
+
+// boot_report's sink. Only captures — the publish happens on the tick so a failed
+// send is retried instead of lost.
+static void boot_report_sink(const char* type, int id, const char* outcome,
+                             const char* detail_json, uint32_t ts){
+  (void)type; (void)id; (void)outcome;
+  strlcpy(s_boot_detail, detail_json ? detail_json : "{}", sizeof(s_boot_detail));
+  s_boot_ts      = ts;
+  s_boot_pending = true;
+}
+
+void setup_boot_report(){
+  BootReportConfig brc;
+  brc.now           = clock_now_utc;      // 0 until a source sets the clock
+  brc.emit          = boot_report_sink;
+  brc.nvs_ns        = "bootrep";
+  brc.checkpoint_ms = BOOT_CHECKPOINT_MS;
+  boot_report_init(brc);
+}
+
+// Runs on the MQTT task from mqtt_com_loop(): the boot record is published from
+// here, never at connect time — on this board the clock lands seconds to minutes
+// AFTER the link comes up, so a connect-time publish would fire while now() was
+// still 0 and report no boot instant at all.
+void boot_report_service(){
+  boot_report_tick_emit();          // self-latching; fires once the clock is ready
+
+  if (s_boot_pending && !s_boot_sent) {
+    if (publish_boot_message(s_boot_detail, false)) s_boot_sent = true;
+    return;
+  }
+  // No clock after the grace window — publish identity + reason so a unit with
+  // neither SIM nor WiFi still reports what it is. If a clock arrives later the
+  // full record above still goes out, replacing this retained message.
+  if (!s_boot_sent && !s_boot_provisional && !clock_ready() &&
+      millis() > BOOT_MSG_CLOCKLESS_MS) {
+    if (publish_boot_message(nullptr, true)) s_boot_provisional = true;
+  }
+}
+
 
 void publish_system_state(const char* state, const char* subtopic, bool retaind_flag){
 
@@ -907,6 +946,8 @@ void mqtt_com_loop() {
   client.loop();
   // Run pending OTA work on THIS task (PubSubClient is single-threaded).
   TasksOTA::service();
+  // Boot record: emitted here, on the MQTT task, once the clock is ready.
+  boot_report_service();
   delay(500);
 }
 

@@ -1,4 +1,5 @@
 // tasks_OTA.cpp
+#include "boot_report.h"
 #include "tasks_OTA.h"
 
 #include <WiFi.h>
@@ -287,6 +288,9 @@ static void succeed() {
     Serial.println(F("OTA: success - rebooting"));
     mark_boot_success();
     delay(400);
+    // Mark "alive" right now: a deliberate restart is back in seconds, and the
+    // 30-min checkpoint would otherwise report it as a much longer outage.
+    boot_report_checkpoint(1);
     ESP.restart();
 }
 
@@ -308,6 +312,9 @@ static void fail(OtaResult r) {
     if (s_is_fs && s_fs_unmounted) {
         Serial.println(F("OTA: fs flash failed after unmount - rebooting to recover FS"));
         delay(400);
+        // Mark "alive" right now: a deliberate restart is back in seconds, and the
+        // 30-min checkpoint would otherwise report it as a much longer outage.
+        boot_report_checkpoint(1);
         ESP.restart();
     }
 }
